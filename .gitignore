@@ -1,1 +1,48 @@
 
+# === OS files ===
+# macOS
+.DS_Store
+# Windows
+Thumbs.db
+
+# === Node / React ===
+# dependencies
+/frontend/node_modules/
+# build output
+/frontend/build/
+/frontend/.next/
+/frontend/.cache/
+/frontend/dist/
+# local env files
+/frontend/.env*
+# log files
+/frontend/npm-debug.log*
+/frontend/yarn-debug.log*
+/frontend/yarn-error.log*
+
+# === Python / Flask ===
+# virtual environments
+/backend/venv/
+/backend/.venv/
+/backend/env/
+/backend/__pycache__/
+/backend/*.py[cod]
+# Flask migrations cache
+/backend/migrations/__pycache__/
+/backend/migrations/*.pyc
+# local env file
+/backend/.env
+# coverage reports
+/backend/htmlcov/
+/backend/.coverage
+
+# === General ===
+# dotenv
+.env
+# logs
+*.log
+# IDE configs
+.vscode/
+.idea/
+# JetBrains
+*.iml
