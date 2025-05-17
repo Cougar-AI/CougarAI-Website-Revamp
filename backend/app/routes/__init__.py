@@ -12,6 +12,7 @@ def create_app():
 
     from app.routes.discord import discord_bp
     from app.routes.users import users_bp
+    from app.routes.payment import payment_bp
 
     app.register_blueprint(discord_bp, url_prefix='/discord')
     app.register_blueprint(users_bp, url_prefix='/users')
