@@ -11,22 +11,24 @@ def getOfficers():
         joinDate = request.args.get("join_date")
         endDate = request.args.get("end_date")
 
+        query = "SELECT * FROM officers"
+        filters = []
+        params = []
+
         if student_id:
-            query = "SELECT * FROM officers WHERE student_id = %s"
-            params = [student_id]
+            filters.append("student_id = %s")
+            params.append(student_id)
 
-            if joinDate and endDate:
-                query += " AND join_date BETWEEN %s AND %s"
-                params.extend([joinDate, endDate]) 
+        if joinDate and endDate:
+            filters.append("join_date BETWEEN %s AND %s")
+            params.extend([joinDate, endDate])
 
-            cur.execute(query, tuple(params))
-            results = cur.fetchall() if len(params) > 1 else cur.fetchone() 
-            return jsonify(results) if results else jsonify({"error": "No officer found"}), 404
-        elif joinDate and endDate:
-            cur.execute(f"SELECT * FROM officers WHERE join_date BETWEEN %s AND %s", (joinDate, endDate))
-            results = cur.fetchall()
-            return jsonify(results) if results else jsonify({"error": "No officer found"}), 404
-        else:
-            cur.execute(f'SELECT * FROM officers')
-            results = cur.fetchall()
-            return jsonify(results) if results else jsonify({"error": "No officers found"}), 404
+        if filters:
+            query += f" WHERE {' AND '.join(filters)}"
+
+        cur.execute(query, tuple(params))
+        results = cur.fetchall()
+        return jsonify(results) if results else jsonify({"error": "No officers found"}), 404
+        
+
+            
