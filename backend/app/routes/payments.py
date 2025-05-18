@@ -13,30 +13,29 @@ def getPayments():
         start_date = request.args.get("start_date")
         end_date = request.args.get("end_date")
         
+        query = "SELECT * FROM payments"
+        filters = []
+        params = []
+
         if payment_id:
-            cur.execute(f"SELECT * FROM payments WHERE payment_id = %s", (payment_id,))
-            results = cur.fetchone()
-            return jsonify(results) if results else jsonify({"error": "No payment found"}), 404
-        elif student_id:
+            filters.append("payment_id = %s")
+            params.append(payment_id)
 
-            query = f"SELECT * FROm payments WHERE student_id = %s"
-            params = [student_id]
+        if student_id:
+            filters.append("student_id = %s")
+            params.append(student_id)
 
-            if start_date and end_date:
-                query += " AND date BETWEEN %s AND %s"
-                params.extend([start_date, end_date])
+        if start_date and end_date:
+            filters.append("date BETWEEN %s AND %s")
+            params.extend([start_date, end_date])
 
-            cur.execute(query, tuple(params))
-            results = cur.fetchall()
-            return jsonify(results) if results else jsonify({"error": "No payment found"}), 404
-        elif start_date and end_date:
-            cur.execute(f"SELECT * FROM payments WHERE date BETWEEN %s AND %s", (start_date, end_date))
-            results = cur.fetchall()
-            return jsonify(results) if results else jsonify({"error": "No payment found"}), 404
-        else:
-            cur.execute(f"SELECT * FROM payments")
-            results = cur.fetchall()
-            return jsonify(results) if results else jsonify({"error": "No payments found"}), 404
+        if filters:
+            query += f" WHERE {' AND '.join(filters)}"
+
+        cur.execute(query, tuple(params))
+        results = cur.fetchall()
+        return jsonify(results) if results else jsonify({"error": "No payments found"}), 404
+
 
 @payment_bp.route("/", methods=["DELETE"])
 def deletePayment():
