@@ -49,4 +49,4 @@ def deleteEvent():
         connection.commit()
         return jsonify({"message": "Event deleted successfully"}), 200
     
-@events_bp.route("/attendence", methods=["GET"])
+# @events_bp.route("/attendence", methods=["GET"])

@@ -1,4 +1,4 @@
-from Flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify
 from app.db import connect
 
 points_bp = Blueprint('points', __name__)

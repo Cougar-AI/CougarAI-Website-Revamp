@@ -67,7 +67,7 @@ def getUsers():
         return jsonify(results) if results else jsonify({"error": "No users found"}), 404
 
         
-@user_dp.route("/<int:student_id>", methods=["DELETE"])
+@users_bp.route("/<int:student_id>", methods=["DELETE"])
 def deleteUser(student_id):
     connection = connect()
     with connection.cursor() as cur:
