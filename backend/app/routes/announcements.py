@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.db import connect
+from backend.app.db import connect
 
 announcements_bp = Blueprint('announcements', __name__)
 
