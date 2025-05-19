@@ -10,13 +10,14 @@ def create_app():
     app = Flask(__name__)
     CORS(app)
 
-    from app.routes.discord import discord_bp
-    from app.routes.users import users_bp
-    from app.routes.payments import payments_bp
-    from app.routes.events import events_bp
-    from app.routes.officers import officers_bp
-    from app.routes.points import points_bp
-    from app.routes.announcements import announcements_bp
+    from backend.app.routes.discord import discord_bp
+    from backend.app.routes.users import users_bp
+    from backend.app.routes.payments import payments_bp
+    from backend.app.routes.events import events_bp
+    from backend.app.routes.officers import officers_bp
+    from backend.app.routes.points import points_bp
+    from backend.app.routes.announcements import announcements_bp
+
 
     app.register_blueprint(discord_bp, url_prefix='/discord')
     app.register_blueprint(users_bp, url_prefix='/users')
