@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify 
 from app.db import connect 
 
-payment_bp = Blueprint('payment', __name__)
+payments_bp = Blueprint('payments', __name__)
 
-@payment_bp.route("/", methods=["GET"])
+@payments_bp.route("/", methods=["GET"])
 def getPayments():
     connections = connect()
     with connections.cursor() as cur:
@@ -37,7 +37,7 @@ def getPayments():
         return jsonify(results) if results else jsonify({"error": "No payments found"}), 404
 
 
-@payment_bp.route("/", methods=["DELETE"])
+@payments_bp.route("/", methods=["DELETE"])
 def deletePayment():
     connection = connect()
     with connection.cursor() as cur:

@@ -1,9 +1,10 @@
+import psycopg2.extras
 import psycopg2
 import os 
 
 def connect():
         return psycopg2.connect(
-            name = os.getenv("DB_NAME"),
+            dbname = os.getenv("DB_NAME"),
             user = os.getenv("DB_USER"),
             password = os.getenv("DB_PASS"),
             host = os.getenv("DB_HOST"),
