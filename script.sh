@@ -1,4 +1,5 @@
 #!/bin/bash
-cd "$(dirname "$0")"
+
+cd /root/services/Backend/CougarAI-Website-Revamp
 source venv/bin/activate
-exec gunicorn wsgi:app --chdir backend --bind 0.0.0.0:5000 --workers 4
+exec venv/bin/gunicorn wsgi:app --chdir backend --bind 0.0.0.0:5000 --workers 4
