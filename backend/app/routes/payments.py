@@ -39,9 +39,13 @@ def getPayments():
 
 @payments_bp.route("/<int:payment_id>", methods=["DELETE"])
 def deletePayment(payment_id):
-    connection = connect()
-    with connection.cursor() as cur:
-        cur.execute(f"DELETE FROM payments WHERE payment_id = %s", (payment_id,))
-        connection.commit()
-        return jsonify({"message": "Payment deleted successfully"}), 200
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            cur.execute(f"DELETE FROM payments WHERE payment_id = %s", (payment_id,))
+            connection.commit()
+            return jsonify({"message": "Payment deleted successfully"}), 200
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": str(e)}), 500
 

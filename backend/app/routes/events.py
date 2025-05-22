@@ -39,10 +39,14 @@ def getEvents():
 
 @events_bp.route("/<int:event_id>", methods=["DELETE"])
 def deleteEvent(event_id):
-    connection = connect()
-    with connection.cursor() as cur:
-        cur.execute(f"DELETE FROM events WHERE event_id = %s", (event_id,))
-        connection.commit()
-        return jsonify({"message": "Event deleted successfully"}), 200
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            cur.execute(f"DELETE FROM events WHERE event_id = %s", (event_id,))
+            connection.commit()
+            return jsonify({"message": "Event deleted successfully"}), 200
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": str(e)}), 500
     
 # @events_bp.route("/attendence", methods=["GET"])
