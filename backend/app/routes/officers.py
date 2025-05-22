@@ -74,7 +74,7 @@ def addOfficer():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-@officers_bp.route("/<int: officer_id>", methods=["DELETE"])
+@officers_bp.route("/<int:officer_id>", methods=["DELETE"])
 def deleteOfficer(officer_id):
     try:
         connection = connect()
