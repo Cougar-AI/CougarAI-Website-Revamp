@@ -69,9 +69,13 @@ def getUsers():
         
 @users_bp.route("/<int:student_id>", methods=["DELETE"])
 def deleteUser(student_id):
-    connection = connect()
-    with connection.cursor() as cur:
-        cur.execute(f"DELETE FROM users WHERE student_id = %s", (student_id,))
-        connection.commit()
-        return jsonify({"message": "User deleted successfully"}), 200
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            cur.execute(f"DELETE FROM users WHERE student_id = %s", (student_id,))
+            connection.commit()
+            return jsonify({"message": "User deleted successfully"}), 200
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": str(e)}), 500
             

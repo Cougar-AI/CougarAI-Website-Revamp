@@ -54,11 +54,15 @@ def getPoints():
         
 @points_bp.route("/<int:point_id>", methods=["DELETE"])
 def deletePoints(point_id):
-    connection = connect()
-    with connection.cursor() as cur:
-        cur.execute("DELETE FROM points WHERE point_id = %s", (point_id,))
-        connection.commit()
-        return jsonify({"message": "Point deleted successfully"}), 200
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            cur.execute("DELETE FROM points WHERE point_id = %s", (point_id,))
+            connection.commit()
+            return jsonify({"message": "Point deleted successfully"}), 200
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": "Failed to delete point", "error": str(e)}), 500
     
 
 @points_bp.route("/leaderboard", methods=["GET"])
@@ -104,38 +108,47 @@ def getLeaderboard():
 
 @points_bp.route("/add", methods=["POST"])
 def addPoints():
-    connection = connect()
-    with connection.cursor() as cur:
-        student_id = request.json.get("student_id")
-        points = request.json.get("points")
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            student_id = request.json.get("student_id")
+            points = request.json.get("points")
 
-        if student_id is None or points is None:
-            return jsonify({"error": "Student ID and points are required"}), 400
+            if student_id is None or points is None:
+                return jsonify({"error": "Student ID and points are required"}), 400
+            
+            cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
+            if cur.fetchone() is None:
+                return jsonify({"error": "Invalid student_id"}), 400
+
+
+            cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s)", (student_id, points))
+            connection.commit()
+            return jsonify({"message": "Points added successfully"}), 201
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": "Failed to add points", "error": str(e)}), 500
         
-        cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
-        if cur.fetchone() is None:
-            return jsonify({"error": "Invalid student_id"}), 400
-
-
-        cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s)", (student_id, points))
-        connection.commit()
-        return jsonify({"message": "Points added successfully"}), 201
     
 @points_bp.route("/<int:point_id>", methods=["PUT"]) # updates 
 def updatePoints(point_id):
-    connection = connect()
-    with connection.cursor() as cur:
-        points = request.json.get("points")
-        if points is None:
-            return jsonify({"error": "Point ID and points are required"}), 400
-        
-        cur.execute("SELECT 1 FROM points WHERE point_id = %s", (point_id,))
-        if cur.fetchone() is None:
-            return jsonify({"error": "Invalid point_id"}), 400
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            points = request.json.get("points")
+            if points is None:
+                return jsonify({"error": "Point ID and points are required"}), 400
+            
+            cur.execute("SELECT 1 FROM points WHERE point_id = %s", (point_id,))
+            if cur.fetchone() is None:
+                return jsonify({"error": "Invalid point_id"}), 400
 
-        cur.execute("UPDATE points SET points = %s WHERE point_id = %s", (points, point_id))
-        connection.commit()
-        return jsonify({"message": "Points updated successfully"}), 200
+            cur.execute("UPDATE points SET points = %s WHERE point_id = %s", (points, point_id))
+            connection.commit()
+            return jsonify({"message": "Points updated successfully"}), 200
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": "Failed to update points", "error": str(e)}), 500
     
 @points_bp.route("/student", methods=["GET"])
 def getStudentPoints():
