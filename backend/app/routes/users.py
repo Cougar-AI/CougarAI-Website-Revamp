@@ -78,4 +78,40 @@ def deleteUser(student_id):
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
+
+@users_bp.route("/", methods=["POST"])
+def addUser():
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            student_id = request.json.get("student_id")
+            first_name = request.json.get("first_name")
+            last_name = request.json.get("last_name")
+            email = request.json.get("email")
+            discord_id = request.json.get("discord_id")
+            shirt_size = request.json.get("shirt_size")
+            major = request.json.get("major")
+            gender = request.json.get("gender")
+            join_source = request.json.get("join_source")
+            phone_number = request.json.get("phone_number")
+            student_classification = request.json.get("student_classification")
+
+            if not all([first_name, last_name, email, student_id]):
+                return jsonify({"error": "first_name, last_name, email and student_id are required"}), 400
+            
+            if not (shirt_size in ["XS", "S", "M", "L", "XL", "XXL"]):
+                return jsonify({"error": "shirt_size must be one of the following: XS, S, M, L, XL, XXL"}), 400
+            
+            cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
+            if cur.fetchone():
+                return jsonify({"error": "Student ID already exists"}), 400
+
+            cur.execute("INSERT INTO users (student_id, first_name, last_name, email, discord_id, shirt_size, gender, major, join_source, phone_number, student_classification) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING student_id", (student_id, first_name, last_name, email, discord_id, shirt_size, gender, major, join_source, phone_number, student_classification))
+            connection.commit()
+            user_id = cur.fetchone()[0]
+            return jsonify({"student_id": user_id}), 201
+    except Exception as e:
+        connection.rollback()
+        return jsonify({"error": str(e)}), 500
+
             
