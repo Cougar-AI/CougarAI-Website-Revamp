@@ -37,14 +37,10 @@ def getPayments():
         return jsonify(results) if results else jsonify({"error": "No payments found"}), 404
 
 
-@payments_bp.route("/", methods=["DELETE"])
-def deletePayment():
+@payments_bp.route("/<int:payment_id>", methods=["DELETE"])
+def deletePayment(payment_id):
     connection = connect()
     with connection.cursor() as cur:
-        payment_id = request.args.get("payment_id", type=int)
-        if not payment_id:
-            return jsonify({"error": "No payment id provided"}), 400
-
         cur.execute(f"DELETE FROM payments WHERE payment_id = %s", (payment_id,))
         connection.commit()
         return jsonify({"message": "Payment deleted successfully"}), 200
