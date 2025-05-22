@@ -52,13 +52,10 @@ def getPoints():
         results = cur.fetchall()
         return jsonify(results) if results else jsonify({"error": "No points found"}), 404
         
-@points_bp.route("/", methods=["DELETE"])
-def deletePoints():
+@points_bp.route("/<int:point_id>", methods=["DELETE"])
+def deletePoints(point_id):
     connection = connect()
     with connection.cursor() as cur:
-        point_id = request.args.get("point_id", type=int)
-        if point_id is None:
-            return jsonify({"error": "No point id provided"}), 400
         cur.execute("DELETE FROM points WHERE point_id = %s", (point_id,))
         connection.commit()
         return jsonify({"message": "Point deleted successfully"}), 200
@@ -114,18 +111,28 @@ def addPoints():
 
         if student_id is None or points is None:
             return jsonify({"error": "Student ID and points are required"}), 400
+        
+        cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
+        if cur.fetchone() is None:
+            return jsonify({"error": "Invalid student_id"}), 400
+
+
         cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s)", (student_id, points))
         connection.commit()
         return jsonify({"message": "Points added successfully"}), 201
     
-@points_bp.route("/updates", methods=["PUT"])
-def updatePoints():
+@points_bp.route("/<int:point_id>", methods=["PUT"]) # updates 
+def updatePoints(point_id):
     connection = connect()
     with connection.cursor() as cur:
-        point_id = request.json.get("point_id")
         points = request.json.get("points")
-        if point_id is None or points is None:
+        if points is None:
             return jsonify({"error": "Point ID and points are required"}), 400
+        
+        cur.execute("SELECT 1 FROM points WHERE point_id = %s", (point_id,))
+        if cur.fetchone() is None:
+            return jsonify({"error": "Invalid point_id"}), 400
+
         cur.execute("UPDATE points SET points = %s WHERE point_id = %s", (points, point_id))
         connection.commit()
         return jsonify({"message": "Points updated successfully"}), 200
@@ -168,8 +175,98 @@ def getStudentPoints():
             query += " OFFSET %s"
             params.append(offset)
 
-        query += " ORDER BY points.date DESC LIMIT %s OFFSET %s"
+        query += " ORDER BY points.date DESC"
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
         return jsonify(results) if results else jsonify({"error": "No points found"}), 404
+    
+@points_bp.route("/total", methods=["GET"])
+def getTotalPoints():
+    connection = connect()
+    with connection.cursor() as cur:
+        student_id = request.args.get("student_id", type=int)
+        startDate = request.args.get("start_date")
+        endDate = request.args.get("end_date")
+
+        filters = []
+        params = []
+
+        if student_id is not None:
+            query = "SELECT SUM(points.points) as total_points FROM points JOIN users ON points.student_id = users.student_id"
+            filters.append("points.student_id = %s")
+            params.append(student_id)
+        else:
+            query = "SELECT SUM(points.points) as total_points FROM points"
+
+
+
+        if (startDate and endDate):
+            filters.append("points.date BETWEEN %s AND %s")
+            params.extend([startDate, endDate])
+
+        elif startDate:
+            filters.append("points.date >= %s")
+            params.append(startDate)
+        elif endDate:
+            filters.append("points.date <= %s")
+            params.append(endDate)
+        
+        if filters:
+            query += f" WHERE {' AND '.join(filters)}"
+
+        cur.execute(query, tuple(params))
+        result = cur.fetchone()
+        return jsonify(result) if result else jsonify({"error": "No points found"}), 404
+    
+
+@points_bp.route("/<int:point_id>", methods=["GET"])
+def getPointById(point_id):
+    connection = connect()
+    with connection.cursor() as cur:
+        cur.execute("SELECT * FROM points WHERE point_id = %s", (point_id,))
+        result = cur.fetchone()
+        return jsonify(result) if result else jsonify({"error": "Point not found"}), 404
+    
+@points_bp.route("/total/by-month", methods=["GET"])
+def getMonthlyTotals():
+    connection = connect()
+    with connection.cursor() as cur:
+        student_id = request.args.get("student_id", type=int)
+        start_date = request.args.get("start_date")
+        end_date = request.args.get("end_date")
+
+        query = """
+            SELECT
+                DATE_TRUNC('month', date) AS month,
+                SUM(points) AS total_points
+            FROM points
+        """
+        filters = []
+        params = []
+
+        if student_id is not None:
+            filters.append("student_id = %s")
+            params.append(student_id)
+
+        if start_date and end_date:
+            filters.append("date BETWEEN %s AND %s")
+            params.extend([start_date, end_date])
+        elif start_date:
+            filters.append("date >= %s")
+            params.append(start_date)
+        elif end_date:
+            filters.append("date <= %s")
+            params.append(end_date)
+
+        if filters:
+            query += " WHERE " + " AND ".join(filters)
+
+        query += " GROUP BY month ORDER BY month DESC"
+
+        cur.execute(query, tuple(params))
+        results = cur.fetchall()
+        return jsonify(results) if results else jsonify({"error": "No point totals found"}), 404
+
+    
+
