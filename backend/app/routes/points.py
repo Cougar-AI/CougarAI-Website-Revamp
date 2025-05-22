@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from backend.app.db import connect
+from app.db import connect
 
 points_bp = Blueprint('points', __name__)
 @points_bp.route("/", methods=["GET"])
