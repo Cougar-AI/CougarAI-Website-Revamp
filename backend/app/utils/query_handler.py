@@ -1,0 +1,46 @@
+
+def build_sql_querys(base_query, filters_dict, date_column = "date"): # mainly for get queries
+    filters = [] # stores the SQL Filters 
+    params = [] # stores the variables 
+
+
+    start_date = filters_dict.get("start_date")
+    end_date = filters_dict.get("end_date")
+    limit = filters_dict.get("limit")
+    offset = filters_dict.get("offset")
+
+    for key, value in filters_dict.items():
+        if value is None or key in ["start_date", "end_date", "limit", "offset"]:
+            continue
+
+        # special cases 
+        if key in ["title", "description"]:
+            filters.append(f"{key} ILIKE %s")
+            params.append(f"%{value}%")
+        else:
+            filters.append(f"{key} = %s")
+            params.append(value)
+    
+    if start_date and end_date:
+        filters.append(f"{date_column} BETWEEN %s AND %s")
+        params.extend([start_date, end_date])
+    elif start_date:
+        filters.append(f"{date_column} >= %s")
+        params.append(start_date)
+    elif end_date:
+        filters.append(f"{date_column} <= %s")
+        params.append(end_date)
+
+    query = base_query
+    if filters:
+        query += " WHERE " + ' AND '.join(filters)
+
+    if limit:
+        query += " LIMIT %s"
+        params.append(limit)
+
+    if offset:
+        query += " OFFSET %s"
+        params.append(offset)
+
+    return query, params

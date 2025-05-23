@@ -12,6 +12,8 @@ def getDiscordConfig(guild_id):
         return jsonify(result) if result else jsonify({"error": "No config found"}), 404
     
 
+    
+
 
 
     
