@@ -30,7 +30,7 @@ def getPayments():
             params.extend([start_date, end_date])
 
         if filters:
-            query += f" WHERE {' AND '.join(filters)}"
+            query += " WHERE "+ ' AND '.join(filters)"
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -40,12 +40,36 @@ def getPayments():
 @payments_bp.route("/<int:payment_id>", methods=["DELETE"])
 def deletePayment(payment_id):
     try:
-        connection = connect()
-        with connection.cursor() as cur:
-            cur.execute(f"DELETE FROM payments WHERE payment_id = %s", (payment_id,))
-            connection.commit()
+        connections = connect()
+        with connections.cursor() as cur:
+            if cur.rowcount == 0:
+                return jsonify({"error": "Payment not found"}), 404
+            cur.execute("DELETE FROM payments WHERE payment_id = %s", (payment_id,))
+            connections.commit()
             return jsonify({"message": "Payment deleted successfully"}), 200
     except Exception as e:
-        connection.rollback()
+        connections.rollback()
         return jsonify({"error": str(e)}), 500
+    
+@payments_bp.route("/<int:student_id>", methods=["POST"])
+def createPayment(student_id):
+    try:
+        connections = connect()
+        with connections.cursor() as cur:
+            date = request.json.get("date")
+            amount = request.json.get("amount")
+
+            if amount is None:
+                return jsonify({"error": "Amount is required to be specified"}), 400
+
+            cur.execute("SELECT 1 FROM payments WHERE student_id = %s AND date >= CURRENT_DATE - INTERVAL '3 months'", (student_id,))
+            if cur.fetchone():
+                return jsonify({"error": "Payment already exists for this student in the last semester (3 months)"}), 400
+            cur.execute("INSERT INTO payments (student_id, date, amount) VALUES (%s, %s, %s) RETURNING *", (student_id, date, amount))
+            connections.commit()
+            return jsonify({"message": "Payment created successfully", "payment": cur.fetchone()}), 201
+    except Exception as e:
+        connections.rollback()
+        return jsonify({"error": str(e)}), 500
+    
 
