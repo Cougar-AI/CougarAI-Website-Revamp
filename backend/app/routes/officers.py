@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from app.utils.query_handler import build_sql_querys
 from app.db import connect
 
 officers_bp = Blueprint('officers', __name__)
@@ -7,43 +8,17 @@ officers_bp = Blueprint('officers', __name__)
 def getOfficers():
     connection = connect()
     with connection.cursor() as cur:
-        officer_id = request.args.get("officer_id", type=int)
-        student_id = request.args.get("student_id", type=int)
-        joinDate = request.args.get("join_date")
-        endDate = request.args.get("end_date")
-        limit = request.args.get("limit", type=int)
-        offset = request.args.get("offset", type=int)
+        filter_dict = {
+            "officer_id": request.args.get("officer_id", type=int),
+            "student_id": request.args.get("student_id", type=int),
+            "join_date": request.args.get("join_date"),
+            "end_date": request.args.get("end_date"),
+            "limit": request.args.get("limit", type=int),
+            "offset": request.args.get("offset", type=int)
+        }
 
-
-        query = "SELECT * FROM officers"
-        filters = []
-        params = []
-
-        if officer_id:
-            filters.append("officer_id = %s")
-            params.append(officer_id)
-
-        if student_id:
-            filters.append("student_id = %s")
-            params.append(student_id)
-
-        if joinDate and endDate:
-            filters.append("join_date BETWEEN %s AND %s")
-            params.extend([joinDate, endDate])
-
-        if filters:
-            query += f" WHERE {' AND '.join(filters)}"
-
+        query, params = build_sql_querys("SELECT * FROM officers", filter_dict, date_column="join_date")
         query += " ORDER BY join_date DESC"
-
-        if limit is not None:
-            query += " LIMIT %s"
-            params.append(limit)
-            
-        if offset is not None:
-            query += " OFFSET %s"
-            params.append(offset)
-
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()

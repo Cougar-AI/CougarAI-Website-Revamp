@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from app.utils.query_handler import build_sql_querys
 from app.db import connect
 
 discord_bp = Blueprint('discord', __name__)
