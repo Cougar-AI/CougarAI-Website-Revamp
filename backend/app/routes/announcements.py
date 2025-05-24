@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.utils.query_handler import build_sql_querys, limit_offset_handler
+from app.utils.query_handler import build_sql_querys
 from app.db import connect
 
 discord_bp = Blueprint('discord', __name__)
@@ -12,7 +12,7 @@ def getAnnouncements():
         filter_dict = {
             "announcement_id": request.args.get("announcement_id", type=int),
             "guild_id": request.args.get("guild_id"),
-            "event_id": request.args.get("event_id", type=int),
+            "event_id": request.args.get("event_id"),
             "title": request.args.get("title"),
             "description": request.args.get("description"),
             "announcement_date": request.args.get("announcement_date"),
