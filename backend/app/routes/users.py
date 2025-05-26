@@ -96,10 +96,10 @@ def addUser():
             phone_number = request.json.get("phone_number")
             student_classification = request.json.get("student_classification")
 
-            if not all([first_name, last_name, email, student_id]):
-                return jsonify({"error": "first_name, last_name, email and student_id are required"}), 400
+            if not all([first_name, last_name, student_id]):
+                return jsonify({"error": "first_name, last_name, and student_id are required"}), 400
             
-            if shirt_size < 6 or shirt_size < 0:
+            if shirt_size and (shirt_size >= 6 or shirt_size < 0):
                 return jsonify({"error": "shirt_size must be one of the following: XS, S, M, L, XL, XXL"}), 400
             
             cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
@@ -107,8 +107,8 @@ def addUser():
                 return jsonify({"error": "Student ID already exists"}), 400
 
             cur.execute("INSERT INTO users (student_id, first_name, last_name, email, discord_id, shirt_size, gender, major, join_source, phone_number, student_classification) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING student_id", (student_id, first_name, last_name, email, discord_id, shirt_size, gender, major, join_source, phone_number, student_classification))
-            connection.commit()
             user_id = cur.fetchone()[0]
+            connection.commit()
             return jsonify({"student_id": user_id}), 201
     except Exception as e:
         connection.rollback()
