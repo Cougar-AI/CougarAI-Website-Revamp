@@ -30,7 +30,7 @@ def getPayments():
             params.extend([start_date, end_date])
 
         if filters:
-            query += " WHERE "+ ' AND '.join(filters)"
+            query += " WHERE "+ ' AND '.join(filters)
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()

@@ -99,7 +99,7 @@ def addUser():
             if not all([first_name, last_name, email, student_id]):
                 return jsonify({"error": "first_name, last_name, email and student_id are required"}), 400
             
-            if not (shirt_size in ["XS", "S", "M", "L", "XL", "XXL"]):
+            if shirt_size < 6 or shirt_size < 0:
                 return jsonify({"error": "shirt_size must be one of the following: XS, S, M, L, XL, XXL"}), 400
             
             cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))

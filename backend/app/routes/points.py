@@ -11,6 +11,8 @@ def getPoints():
         filter_dict = {
             "points.point_id": request.args.get("point_id", type=int),
             "points.student_id": request.args.get("student_id", type=int),
+            "points.date": request.args.get("date"),
+            "points.points": request.args.get("points", type=int),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
         }
@@ -39,36 +41,16 @@ def getLeaderboard():
     connection = connect()
     with connection.cursor() as cur:
 
-        startDate = request.args.get("start_date")
-        endDate = request.args.get("end_date")
-        limit = request.args.get("limit", type=int)
-        offset = request.args.get("offset", type=int)
+        filter_dict = {
+            "date": request.args.get("date"),
+            "start_date": request.args.get("start_date"),
+            "end_date": request.args.get("end_date"),
+            "limit": request.args.get("limit", type=int),
+            "offset": request.args.get("offset", type=int)
+        }
 
-        query = "SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id"
-        params = []
-        filters = []
-
-        if (startDate and endDate):
-            filters.append("points.date BETWEEN %s AND %s")
-            params.extend([startDate, endDate])
-        elif startDate:
-            filters.append("points.date >= %s")
-            params.append(startDate)
-        elif endDate:
-            filters.append("points.date <= %s")
-            params.append(endDate)
-
-        if filters:
-            query += f" WHERE " + ' AND '.join(filters)
+        query, params = build_sql_querys("SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id", filter_dict, date_column="points.date")
         query += " GROUP BY users.student_id, users.first_name, users.last_name ORDER BY total_points DESC"
-
-        if limit is not None:
-            query += " LIMIT %s"
-            params.append(limit)
-
-        if offset is not None:
-            query += " OFFSET %s"
-            params.append(offset)
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -82,6 +64,7 @@ def addPoints():
         with connection.cursor() as cur:
             student_id = request.json.get("student_id")
             points = request.json.get("points")
+            date = request.json.get("date")
 
             if student_id is None or points is None:
                 return jsonify({"error": "Student ID and points are required"}), 400
@@ -181,9 +164,6 @@ def getPointById(point_id):
 def getMonthlyTotals():
     connection = connect()
     with connection.cursor() as cur:
-        student_id = request.args.get("student_id", type=int)
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
 
         filter_dict = {
             "student_id": request.args.get("student_id", type=int),
