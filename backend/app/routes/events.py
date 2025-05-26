@@ -33,7 +33,7 @@ def getEvents():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No events found"}), 404
+        return (jsonify(results), 200) if results else (jsonify({"error": "No events found"}), 404)
 
        
 
@@ -172,7 +172,7 @@ def getAttendence():
 
             cur.execute(query, tuple(params))
             results = cur.fetchall()
-            return jsonify(results) if results else jsonify({"error": "No attendence found"}), 404
+            return (jsonify(results), 200) if results else (jsonify({"error": "No attendence found"}), 404)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

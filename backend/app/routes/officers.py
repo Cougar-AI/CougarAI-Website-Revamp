@@ -22,7 +22,7 @@ def getOfficers():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No officers found"}), 404
+        return (jsonify(results), 200) if results else (jsonify({"error": "No officers found"}), 404)
     
 @officers_bp.route("/add", methods=["POST"])
 def addOfficer():

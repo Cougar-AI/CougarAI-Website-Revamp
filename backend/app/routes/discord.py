@@ -10,7 +10,7 @@ def getDiscordConfig(guild_id):
     with connection.cursor() as cur:
         cur.execute(f"SELECT * FROM discord_config WHERE guild_id = %s", (guild_id, )) # we use %s to prevent SQL injection
         result = cur.fetchone()
-        return jsonify(result) if result else jsonify({"error": "No config found"}), 404
+        return (jsonify(result), 200) if result else (jsonify({"error": "No config found"}), 404)
     
 
     

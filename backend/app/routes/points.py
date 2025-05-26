@@ -21,7 +21,7 @@ def getPoints():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No points found"}), 404
+        return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
         
 @points_bp.route("/<int:point_id>", methods=["DELETE"])
 def deletePoints(point_id):
@@ -54,7 +54,7 @@ def getLeaderboard():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No points found"}), 404
+        return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
 
 
 @points_bp.route("/add", methods=["POST"])
@@ -123,7 +123,7 @@ def getStudentPoints():
         
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No points found"}), 404
+        return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
     
 @points_bp.route("/total", methods=["GET"])
 def getTotalPoints():
@@ -184,7 +184,7 @@ def getMonthlyTotals():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No point totals found"}), 404
+        return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)
 
     
 

@@ -34,7 +34,7 @@ def getPayments():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No payments found"}), 404
+        return (jsonify(results), 200) if results else (jsonify({"error": "No payments found"}), 404)
 
 
 @payments_bp.route("/<int:payment_id>", methods=["DELETE"])

@@ -26,7 +26,7 @@ def getAnnouncements():
         query, params = build_sql_querys("SELECT * FROM discord_announcements", filter_dict)
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return jsonify(results) if results else jsonify({"error": "No announcements found"}), 404
+        return (jsonify(results),200) if results else (jsonify({"error": "No announcements found"}), 404)
     
 @discord_bp.route("/announcements/<int:announcement_id>", methods=["DELETE"])
 def deleteAnnouncement(announcement_id):
