@@ -1,6 +1,9 @@
 import psycopg2.extras
 import psycopg2
 import os 
+from dotenv import load_dotenv
+
+load_dotenv()   # must run before os.getenv()
 
 def connect():
         return psycopg2.connect(
