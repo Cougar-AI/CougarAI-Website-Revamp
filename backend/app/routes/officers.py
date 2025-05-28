@@ -31,7 +31,7 @@ def getOfficers():
 @officers_bp.route("/<int:student_id>", methods=["POST"])
 def addOfficer(student_id):
     try:
-        connection = connect(student_id)
+        connection = connect()
         with connection.cursor() as cur:
 
             filter_dict = {
