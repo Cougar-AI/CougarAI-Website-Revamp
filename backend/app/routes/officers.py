@@ -59,11 +59,12 @@ def addOfficer(student_id):
             #     cur.execute("INSERT INTO officers (student_id, role, join_date) VALUES (%s, %s, %s) RETURNING student_id", (student_id, role, join_date))
 
             cur.execute(query, tuple(params))
-            if cur.rowcount == 0:
+            result = cur.fetchone()
+
+            if not result:
                 return jsonify({"error": "Failed to add officer"}), 400
-            officer_id = cur.fetchone()[0]
             connection.commit()
-            return jsonify({"officer_id": officer_id}), 201
+            return jsonify({"results": result}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
