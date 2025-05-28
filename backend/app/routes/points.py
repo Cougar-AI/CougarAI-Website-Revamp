@@ -97,67 +97,79 @@ def addPoints(student_id):
         return jsonify({"error": "Failed to add points", "details": str(e)}), 500
         
     
-@points_bp.route("/<int:point_id>", methods=["PUT"]) # updates 
+@points_bp.route("/<int:point_id>", methods=["PATCH"])
 def updatePoints(point_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
-            points = request.json.get("points")
-            if points is None:
-                return jsonify({"error": "Point ID and points are required"}), 400
-            
-            cur.execute("SELECT 1 FROM points WHERE point_id = %s", (point_id,))
-            if cur.fetchone() is None:
-                return jsonify({"error": "Invalid point_id"}), 400
+            filter_dict = { 
+                "points.point_id": point_id,
+                "points.student_id": request.json.get("student_id"),
+                "points.points": request.json.get("points"),
+                "points.date": request.json.get("date"),
+                "points.event_id": request.json.get("event_id")
+            }
 
-            cur.execute("UPDATE points SET points = %s WHERE point_id = %s", (points, point_id))
+            query, params = build_sql_querys("UPDATE points", filter_dict, mode="SET")
+            query += " WHERE points.point_id = %s"
+            params.append(point_id)
+            cur.execute(query, tuple(params))
+            if cur.rowcount == 0:
+                return jsonify({"error": "No points found for the given point_id"}), 404
             connection.commit()
             return jsonify({"message": "Points updated successfully"}), 200
     except Exception as e:
         connection.rollback()
-        return jsonify({"error": "Failed to update points", "error": str(e)}), 500
+        return jsonify({"error": "Failed to update points", "details": str(e)}), 500
+    
+
     
 @points_bp.route("/student/<string:student_id>", methods=["GET"])
 def getStudentPoints(student_id):
-    connection = connect()
-    with connection.cursor() as cur:
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
 
-        filter_dict = {
-            "points.student_id": student_id,
-            "start_date": request.args.get("start_date"),
-            "end_date": request.args.get("end_date"),
-            "limit": request.args.get("limit", type=int),
-            "offset": request.args.get("offset", type=int)
-        }
+            filter_dict = {
+                "points.student_id": student_id,
+                "start_date": request.args.get("start_date"),
+                "end_date": request.args.get("end_date"),
+                "limit": request.args.get("limit", type=int),
+                "offset": request.args.get("offset", type=int)
+            }
 
-        query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date")
-        
-        cur.execute(query, tuple(params))
-        results = cur.fetchall()
-        return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
+            query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date")
+            
+            cur.execute(query, tuple(params))
+            results = cur.fetchall()
+            return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
+    except Exception as e:
+        return jsonify({"error": "Failed to retrieve points", "details": str(e)}), 500
     
 @points_bp.route("/total", methods=["GET"])
 def getTotalPoints():
-    connection = connect()
-    with connection.cursor() as cur:
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            filter_dict = {
+                "points.student_id": request.args.get("student_id", type=int),
+                "start_date": request.args.get("start_date"),
+                "end_date": request.args.get("end_date"),
+            }
 
-        filter_dict = {
-            "points.student_id": request.args.get("student_id", type=int),
-            "start_date": request.args.get("start_date"),
-            "end_date": request.args.get("end_date"),
-        }
+            query_base = "SELECT SUM(points.points) as total_points FROM points"
 
-        query_base = "SELECT SUM(points.points) as total_points FROM points"
+            if filter_dict["points.student_id"] is not None:
+                query_base += " JOIN users ON points.student_id = users.student_id"
 
-        if filter_dict["points.student_id"] is not None:
-            query_base += " JOIN users ON points.student_id = users.student_id"
+            query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
 
-        query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
+            cur.execute(query, tuple(params))
+            result = cur.fetchone()
 
-        cur.execute(query, tuple(params))
-        result = cur.fetchone()
-
-        return jsonify(result) if result else jsonify({"error": "No points found"}), 404
+            return jsonify(result) if result else jsonify({"error": "No points found"}), 404
+    except:
+        return jsonify({"error": "Failed to retrieve total points"}), 500
     
 
 @points_bp.route("/<int:point_id>", methods=["GET"])

@@ -42,23 +42,67 @@ def deleteAnnouncement(announcement_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@discord_bp.route("/announcements/<int:guild_id>", methods=["POST"])
+@discord_bp.route("/announcements/<string:guild_id>", methods=["POST"])
 def createAnnouncement(guild_id):
     try:
         connections = connect()
         with connections.cursor() as cur:
-            title = request.json.get("title")
-            description = request.json.get("description")
-            event_id = request.json.get("event_id")
-            announcement_date = request.json.get("announcement_date")
 
-            if not title or not description:
+            filter_dict = {
+                "guild_id": guild_id,
+                "title": request.json.get("title"),
+                "description": request.json.get("description"),
+                "event_id": request.json.get("event_id"),
+                "announcement_date": request.json.get("announcement_date"),
+                "created_at": request.json.get("created_at", "NOW()"),
+                "event_image": request.json.get("event_image"),
+                "message": request.json.get("message")
+            }
+
+            if not (guild_id.isdigit() and len(guild_id) == 18):
+                return jsonify({"error": "Invalid guild ID"}), 400
+
+            if not filter_dict["title"] or not filter_dict["description"]:
                 return jsonify({"error": "Title and description are required"}), 400
 
-            cur.execute("INSERT INTO discord_announcements (guild_id, title, description, event_id, announcement_date) VALUES (%s, %s, %s, %s, %s) RETURNING announcement_id", (guild_id, title, description, event_id, announcement_date))
+            query, params = build_sql_querys("INSERT INTO discord_announcements", filter_dict, mode="INSERT")
+            query += " RETURNING announcement_id"
+
+            cur.execute(query, tuple(params))
             announcement_id = cur.fetchone()[0]
             connections.commit()
+
             return jsonify({"message": "Announcement created successfully", "announcement_id": announcement_id}), 201
+    except Exception as e:
+        connections.rollback()
+        return jsonify({"error": str(e)}), 500
+    
+@discord_bp.route("/announcements/<int:announcement_id>", methods=["PATCH"])
+def updateAnnouncement(announcement_id):
+    try:
+        connections = connect()
+        with connections.cursor() as cur:
+            filter_dict = {
+                "title": request.json.get("title"),
+                "description": request.json.get("description"),
+                "event_id": request.json.get("event_id"),
+                "announcement_date": request.json.get("announcement_date"),
+                "created_at": request.json.get("created_at"),
+                "event_image": request.json.get("event_image"),
+                "message": request.json.get("message"),
+                "guild_id": request.json.get("guild_id")
+            }
+
+            query, params = build_sql_querys("UPDATE discord_announcements", filter_dict, mode="SET")
+            query += " WHERE announcement_id = %s"
+            params.append(announcement_id)
+
+            cur.execute(query, tuple(params))
+            if cur.rowcount == 0:
+                return jsonify({"error": "Announcement not found"}), 404
+
+            connections.commit()
+            return jsonify({"message": "Announcement updated successfully"}), 200
     except Exception as e:
         connections.rollback()
         return jsonify({"error": str(e)}), 500
