@@ -51,6 +51,7 @@ def addOfficer(student_id):
                 return jsonify({"error": "Invalid join_date format"}), 400
 
             query, params = build_sql_querys("INSERT INTO officers", filter_dict, date_column="join_date", mode="INSERT")
+            query += " RETURNING officer_id"
 
             # if filter_dict["end_date"]:
             #     cur.execute("INSERT INTO officers (student_id, role, join_date, end_date) VALUES (%s, %s, %s, %s) RETURNING officer_id", (student_id, role, join_date, end_date)) 
