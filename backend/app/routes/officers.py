@@ -10,7 +10,7 @@ def getOfficers():
     connection = connect()
     with connection.cursor() as cur:
         filter_dict = {
-            "officer_id": request.args.get("officer_id", type=int),
+            "student_id": request.args.get("student_id", type=int),
             "student_id": request.args.get("student_id", type=int),
             "join_date": request.args.get("join_date"),
             "end_date": request.args.get("end_date"),
@@ -51,12 +51,12 @@ def addOfficer(student_id):
                 return jsonify({"error": "Invalid join_date format"}), 400
 
             query, params = build_sql_querys("INSERT INTO officers", filter_dict, date_column="join_date", mode="INSERT")
-            query += " RETURNING officer_id"
+            query += " RETURNING student_id"
 
             # if filter_dict["end_date"]:
-            #     cur.execute("INSERT INTO officers (student_id, role, join_date, end_date) VALUES (%s, %s, %s, %s) RETURNING officer_id", (student_id, role, join_date, end_date)) 
+            #     cur.execute("INSERT INTO officers (student_id, role, join_date, end_date) VALUES (%s, %s, %s, %s) RETURNING student_id", (student_id, role, join_date, end_date)) 
             # else:
-            #     cur.execute("INSERT INTO officers (student_id, role, join_date) VALUES (%s, %s, %s) RETURNING officer_id", (student_id, role, join_date))
+            #     cur.execute("INSERT INTO officers (student_id, role, join_date) VALUES (%s, %s, %s) RETURNING student_id", (student_id, role, join_date))
 
             cur.execute(query, tuple(params))
             if cur.rowcount == 0:
@@ -82,11 +82,11 @@ def deleteOfficer(student_id):
         connection.rollback()
         return jsonify({"error": str(e)}), 500
         
-@officers_bp.route("/<int:officer_id>", methods=["GET"])
-def getOfficer(officer_id):
+@officers_bp.route("/<int:student_id>", methods=["GET"])
+def getOfficer(student_id):
     connection = connect()
     with connection.cursor() as cur:
-        cur.execute("SELECT * FROM officers WHERE officer_id = %s", (officer_id,))
+        cur.execute("SELECT * FROM officers WHERE student_id = %s", (student_id,))
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Officer not found"}), 404
             
