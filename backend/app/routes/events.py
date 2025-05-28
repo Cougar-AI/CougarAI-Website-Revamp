@@ -1,4 +1,6 @@
 from flask import Blueprint, request, jsonify
+from app.utils.date_handler import is_valid_date
+from app.utils.query_handler import build_sql_querys
 from app.db import connect
 
 
@@ -7,29 +9,23 @@ events_bp = Blueprint('events', __name__)
 def getEvents():
     connection = connect()
     with connection.cursor() as cur:
-        event_id = request.args.get("event_id", type=int)
-        start_date = request.args.get("start_date")
-        end_date = request.args.get("end_date")
-        event_type = request.args.get("event_type")
 
-        query = "SELECT * FROM events"
-        filters = []
-        params = []
+        event_date = request.args.get("event_date")
+        if event_date and not is_valid_date(event_date):
+            return jsonify({"error": "Invalid event_date format"}), 400
 
-        if event_id:
-            filters.append("event_id = %s")
-            params.append(event_id)
+        filter_dict = {
+            "event_id": request.args.get("event_id", type=int),
+            "start_date": request.args.get("start_date"),
+            "end_date": request.args.get("end_date"),
+            "event_type": request.args.get("event_type"),
+            "limit": request.args.get("limit", type=int),
+            "offset": request.args.get("offset", type=int),
+            "description": request.args.get("description"),
+            "event_date": event_date
+        }
 
-        if start_date and end_date:
-            filters.append("event_date BETWEEN %s AND %s")
-            params.extend([start_date, end_date])
-
-        if event_type:
-            filters.append("event_type = %s")
-            params.append(event_type)
-
-        if filters:
-            query += " WHERE {' AND '.join(filters)}"
+        query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="event_date")
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -140,35 +136,32 @@ def updateEvent(event_id):
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
 
-@events_bp.route("/attendence", methods=["GET"]) # cougar.ai/events/attendence&event_id=1 
-def getAttendence():
+@events_bp.route("/attendance", methods=["GET"]) # cougar.ai/events/attendence&event_id=1 
+def getAttendance():
     try:
         connection = connect()
         with connection.cursor() as cur:
-            event_id = request.args.get("event_id", type=int)
-            student_id = request.args.get("student_id", type=int)
+
+            filter_dict = {
+                "event_id": request.args.get("event_id", type=int),
+                "student_id": request.args.get("student_id", type=int),
+                "start_date": request.args.get("start_date"),
+                "end_date": request.args.get("end_date"),
+                "limit": request.args.get("limit", type=int),
+                "offset": request.args.get("offset", type=int),
+                "description": request.args.get("description"),
+            }
             
-            if event_id and student_id:
+            if filter_dict["event_id"] and filter_dict["student_id"]:
                 return jsonify({"error": "Please provide either event_id or student_id, not both"}), 400
-            elif event_id:
-                query = "SELECT * FROM events JOIN points ON events.event_id = points.event_id"
-            elif student_id:
-                query = "SELECT * FROM points JOIN events ON points.event_id = events.event_id"
+            elif filter_dict["event_id"]:
+                base_query = "SELECT * FROM events JOIN points ON events.event_id = points.event_id"
+            elif filter_dict["student_id"]:
+                base_query = "SELECT * FROM points JOIN events ON points.event_id = events.event_id"
             else:
                 return jsonify({"error": "Please provide either event_id or student_id"}), 400
-            filters = []
-            params = []
-
-            if event_id:
-                filters.append("events.event_id = %s")
-                params.append(event_id)
-
-            if student_id:
-                filters.append("points.student_id = %s")
-                params.append(student_id)
-
-            if filters:
-                query += " WHERE " + ' AND '.join(filters)
+            
+            query, params = build_sql_querys(base_query, filter_dict, date_column="points.date")
 
             cur.execute(query, tuple(params))
             results = cur.fetchall()

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from app.utils.date_validation import is_valid_date
 from app.utils.query_handler import build_sql_querys
 from app.db import connect
 
@@ -57,29 +58,43 @@ def getLeaderboard():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
 
 
-@points_bp.route("/add", methods=["POST"])
-def addPoints():
+@points_bp.route("/add/<string:student_id>", methods=["POST"])
+def addPoints(student_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
-            student_id = request.json.get("student_id")
             points = request.json.get("points")
             date = request.json.get("date")
 
-            if student_id is None or points is None:
-                return jsonify({"error": "Student ID and points are required"}), 400
+            if points is None:
+                return jsonify({"error": "points are required"}), 400
+            else:
+                try:
+                    points = int(points)
+                except ValueError:
+                    return jsonify({"error": "Points must be an integer"}), 400
             
+            if date and not is_valid_date(date):
+                return jsonify({"error": "Invalid date format. "}), 400
+
             cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": "Invalid student_id"}), 400
 
+            if date:
+                cur.execute("INSERT INTO points(student_id, points, date) VALUES (%s, %s, %s) RETURNING point_id", (student_id, points, date))
+            else:
+                cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s) RETURNING point_id", (student_id, points))
 
-            cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s)", (student_id, points))
+            results = cur.fetchone()
+            if results is None:
+                return jsonify({"error": "Insert failed"}), 400
+
             connection.commit()
             return jsonify({"message": "Points added successfully"}), 201
     except Exception as e:
         connection.rollback()
-        return jsonify({"error": "Failed to add points", "error": str(e)}), 500
+        return jsonify({"error": "Failed to add points", "details": str(e)}), 500
         
     
 @points_bp.route("/<int:point_id>", methods=["PUT"]) # updates 
@@ -102,23 +117,19 @@ def updatePoints(point_id):
         connection.rollback()
         return jsonify({"error": "Failed to update points", "error": str(e)}), 500
     
-@points_bp.route("/student", methods=["GET"])
-def getStudentPoints():
+@points_bp.route("/student/<string:student_id>", methods=["GET"])
+def getStudentPoints(student_id):
     connection = connect()
     with connection.cursor() as cur:
 
         filter_dict = {
-            "points.student_id": request.args.get("student_id", type=int),
+            "points.student_id": student_id,
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int)
         }
 
-
-        if filter_dict["points.student_id"] is None:
-            return jsonify({"error": "No student id provided"}), 400
-        
         query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date")
         
         cur.execute(query, tuple(params))
@@ -129,9 +140,6 @@ def getStudentPoints():
 def getTotalPoints():
     connection = connect()
     with connection.cursor() as cur:
-        student_id = request.args.get("student_id", type=int)
-        startDate = request.args.get("start_date")
-        endDate = request.args.get("end_date")
 
         filter_dict = {
             "points.student_id": request.args.get("student_id", type=int),
@@ -141,7 +149,7 @@ def getTotalPoints():
 
         query_base = "SELECT SUM(points.points) as total_points FROM points"
 
-        if student_id is not None:
+        if filter_dict["points.student_id"] is not None:
             query_base += " JOIN users ON points.student_id = users.student_id"
 
         query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
