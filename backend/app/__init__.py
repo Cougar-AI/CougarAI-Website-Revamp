@@ -1,22 +1,9 @@
-from flask import Flask 
-from flask_cors import CORS
-from dotenv import load_dotenv
-import os 
-
-
-load_dotenv()
+from app.imports import *
 
 def create_app():
     app = Flask(__name__)
     CORS(app)
 
-    from app.routes.discord import discord_bp
-    from app.routes.users import users_bp
-    from app.routes.payments import payments_bp
-    from app.routes.events import events_bp
-    from app.routes.officers import officers_bp
-    from app.routes.points import points_bp
-    from app.routes.auth import auth_bp
   
     app.register_blueprint(discord_bp, url_prefix='/discord')
     app.register_blueprint(users_bp, url_prefix='/users')

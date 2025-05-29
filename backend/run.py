@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import psycopg2.extras
-import psycopg2
-from dotenv import load_dotenv
+#from flask_cors import CORS
+#import psycopg2.extras
+#import psycopg2
+#from dotenv import load_dotenv
 # from backend.app import create_app
+from app.imports import *
 from app import create_app
-import os
+#import os
+
 
 load_dotenv()
 

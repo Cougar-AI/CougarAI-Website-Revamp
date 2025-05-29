@@ -1,7 +1,5 @@
-from flask import Blueprint, request, jsonify 
-from app.utils.query_handler import build_sql_querys
-from app.utils.date_validation import is_valid_date
-from app.db import connect 
+from app.imports import *
+
 
 payments_bp = Blueprint('payments', __name__)
 

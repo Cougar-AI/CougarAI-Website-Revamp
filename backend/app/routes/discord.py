@@ -1,7 +1,4 @@
-from flask import Blueprint, request, jsonify
-from app.utils.query_handler import build_sql_querys
-from app.db import connect
-
+from app.imports import *
 discord_bp = Blueprint('discord', __name__)
 
 @discord_bp.route("/config/<string:guild_id>", methods=["GET"])
