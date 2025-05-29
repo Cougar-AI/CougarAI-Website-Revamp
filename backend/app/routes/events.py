@@ -16,8 +16,6 @@ def getEvents():
 
         filter_dict = {
             "event_id": request.args.get("event_id", type=int),
-            "start_date": request.args.get("start_date"),
-            "end_date": request.args.get("end_date"),
             "event_type": request.args.get("event_type"),
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int),
@@ -91,8 +89,6 @@ def getAttendance():
             filter_dict = {
                 "event_id": request.args.get("event_id", type=int),
                 "student_id": request.args.get("student_id", type=int),
-                "start_date": request.args.get("start_date"),
-                "end_date": request.args.get("end_date"),
                 "limit": request.args.get("limit", type=int),
                 "offset": request.args.get("offset", type=int),
                 "description": request.args.get("description"),
