@@ -97,13 +97,12 @@ def addPoints(student_id):
         return jsonify({"error": "Failed to add points", "details": str(e)}), 500
         
     
-@points_bp.route("/<int:point_id>", methods=["PATCH"])
-def updatePoints(point_id):
+@points_bp.route("/<int:points_id>", methods=["PATCH"])
+def updatePoints(points_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
             filter_dict = { 
-                "points.points_id": point_id,
                 "points.student_id": request.json.get("student_id"),
                 "points.points": request.json.get("points"),
                 "points.date": request.json.get("date"),
@@ -112,7 +111,7 @@ def updatePoints(point_id):
 
             query, params = build_sql_querys("UPDATE points", filter_dict, mode="SET")
             query += " WHERE points.points_id = %s"
-            params.append(point_id)
+            params.append(points_id)
             cur.execute(query, tuple(params))
             if cur.rowcount == 0:
                 return jsonify({"error": "No points found for the given points_id"}), 404
@@ -124,7 +123,7 @@ def updatePoints(point_id):
     
 
     
-@points_bp.route("/student/<string:student_id>", methods=["GET"])
+@points_bp.route("/student/<int:student_id>", methods=["GET"])
 def getStudentPoints(student_id):
     try:
         connection = connect()
@@ -171,11 +170,12 @@ def getTotalPoints():
     except:
         return jsonify({"error": "Failed to retrieve total points"}), 500
     
+import psycopg2.extras
 
 @points_bp.route("/<int:point_id>", methods=["GET"])
 def getPointById(point_id):
     connection = connect()
-    with connection.cursor() as cur:
+    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur: # converts from a tuple to dict used in the jsonify
         cur.execute("SELECT * FROM points WHERE points_id = %s", (point_id,))
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Point not found"}), 404
