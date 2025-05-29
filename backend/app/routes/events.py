@@ -63,8 +63,7 @@ def addEvent():
                 "start_time": request.json.get("start_time"),
                 "end_time": request.json.get("end_time")
             }
-            
-            if not all([filter_dict["event_name"], filter_dict["event_date"], filter_dict["event_type"]]):
+            if filter_dict["event_date"] is None or filter_dict["event_type"] is None or filter_dict["event_name"] is None:
                 return jsonify({"error": "event_name, event_date and event_type are required"}), 400
             
             query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="event_date", mode="INSERT")
