@@ -68,13 +68,9 @@ def addEvent():
             query += " RETURNING event_id"
         
             cur.execute(query, tuple(params))
-            event_id = cur.fetchone()
-
-            if event_id is None:
-                return jsonify({"error": "Event already exists"}), 400
             
             connection.commit()
-            return jsonify({"event_id": event_id[0]}), 201
+            return jsonify({"message": "Success"}), 201
         
     except Exception as e:
         connection.rollback()
