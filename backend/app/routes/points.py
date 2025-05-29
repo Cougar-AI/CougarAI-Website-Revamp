@@ -58,7 +58,7 @@ def getLeaderboard():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
 
 
-@points_bp.route("/add/<string:student_id>", methods=["POST"])
+@points_bp.route("/add/<int:student_id>", methods=["POST"])
 def addPoints(student_id):
     try:
         connection = connect()
@@ -82,9 +82,9 @@ def addPoints(student_id):
                 return jsonify({"error": "Invalid student_id"}), 400
 
             if date:
-                cur.execute("INSERT INTO points(student_id, points, date) VALUES (%s, %s, %s) RETURNING point_id", (student_id, points, date))
+                cur.execute("INSERT INTO points(student_id, points, date) VALUES (%s, %s, %s) RETURNING points_id", (student_id, points, date))
             else:
-                cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s) RETURNING point_id", (student_id, points))
+                cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s) RETURNING points_id", (student_id, points))
 
             results = cur.fetchone()
             if results is None:
