@@ -22,7 +22,8 @@ def getEvents():
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int),
             "description": request.args.get("description"),
-            "event_date": event_date
+            "event_date": event_date,
+            "location": request.args.get("location"),
         }
 
         query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="event_date")
@@ -96,6 +97,7 @@ def getAttendance():
                 "limit": request.args.get("limit", type=int),
                 "offset": request.args.get("offset", type=int),
                 "description": request.args.get("description"),
+                "location": request.args.get("location"),
             }
             
             if filter_dict["event_id"] and filter_dict["student_id"]:
