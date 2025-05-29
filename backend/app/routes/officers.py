@@ -101,9 +101,6 @@ def updateOfficer(student_id):
             if not (1000000 <= student_id <= 9999999):
                 return jsonify({"error": "student_id must be a 7-digit number"}), 400
 
-            if filter_dict["join_date"] is None or filter_dict["role"] is None:
-                return jsonify({"error": "student_id, join_date and role are required"}), 400
-            
             if filter_dict["join_date"] and not is_valid_date(filter_dict["join_date"]):
                 return jsonify({"error": "Invalid join_date format"}), 400
 
