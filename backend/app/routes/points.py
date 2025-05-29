@@ -103,14 +103,14 @@ def updatePoints(points_id):
         connection = connect()
         with connection.cursor() as cur:
             filter_dict = { 
-                "points.student_id": request.json.get("student_id"),
-                "points.points": request.json.get("points"),
-                "points.date": request.json.get("date"),
-                "points.event_id": request.json.get("event_id")
+                "student_id": request.json.get("student_id"),
+                "points": request.json.get("points"),
+                "date": request.json.get("date"),
+                "event_id": request.json.get("event_id")
             }
 
             query, params = build_sql_querys("UPDATE points", filter_dict, mode="SET")
-            query += " WHERE points.points_id = %s"
+            query += " WHERE points_id = %s"
             params.append(points_id)
             cur.execute(query, tuple(params))
             if cur.rowcount == 0:
