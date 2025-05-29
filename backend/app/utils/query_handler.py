@@ -1,4 +1,5 @@
 from app.utils.date_validation import is_valid_date 
+
 def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE"): # mainly for get queries
     filters = [] # stores the SQL Filters 
     params = [] # stores the variables 

@@ -1,7 +1,4 @@
-import psycopg2.extras
-import psycopg2
-import os 
-from dotenv import load_dotenv
+from app.imports import *
 
 load_dotenv()   # must run before os.getenv()
 

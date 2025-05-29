@@ -1,6 +1,8 @@
-from flask import Blueprint, request, jsonify
+"""from flask import Blueprint, request, jsonify
 from app.utils.query_handler import build_sql_querys
-from app.db import connect
+from app.db import connect"""
+
+from app.imports import *
 
 discord_bp = Blueprint('discord', __name__)
 

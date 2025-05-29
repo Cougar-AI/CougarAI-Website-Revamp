@@ -1,7 +1,5 @@
-from flask import Blueprint, request, jsonify
-from app.utils.date_validation import is_valid_date
-from app.utils.query_handler import build_sql_querys
-from app.db import connect
+from app.imports import *
+
 
 points_bp = Blueprint('points', __name__)
 @points_bp.route("/", methods=["GET"])
@@ -170,7 +168,6 @@ def getTotalPoints():
     except:
         return jsonify({"error": "Failed to retrieve total points"}), 500
     
-import psycopg2.extras
 
 @points_bp.route("/<int:point_id>", methods=["GET"])
 def getPointById(point_id):
