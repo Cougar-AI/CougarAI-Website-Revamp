@@ -7,13 +7,12 @@ from app.routes.officers import officers_bp
 from app.routes.points import points_bp
 from app.routes.auth import auth_bp
 
-all_blueprints = [
-    "discord_bp",
-    "auth_bp",
-    "events_bp",
-    "officers_bp",
-    "payments_bp",
-    "points_bp",
-    "users_bp", 
-    #announcements_bp
-]
+blueprints_with_prefixes = {
+    discord_bp: '/discord',
+    users_bp: '/users',
+    payments_bp:'/payments',
+    events_bp:'/events',
+    officers_bp:'/officers',
+    points_bp:'/points',
+    auth_bp:'/auth'
+}
