@@ -32,7 +32,7 @@ def getEvents():
 
        
 
-@events_bp.route("/<int:event_id>", methods=["DELETE"])
+@events_bp.route("/<int:event_id>", methods=["DELETE"]) 
 def deleteEvent(event_id):
     try:
         connection = connect()
@@ -106,6 +106,36 @@ def getAttendance():
             results = cur.fetchall()
             return (jsonify(results), 200) if results else (jsonify({"error": "No attendence found"}), 404)
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+@events_bp.route("/<int:event_id>", methods=["PATCH"])
+def updateEvent(event_id):
+    try:
+        connection = connect()
+        with connection.cursor() as cur:
+            filter_dict = {
+                "event_name": request.json.get("event_name"),
+                "event_date": request.json.get("event_date"),
+                "event_type": request.json.get("event_type"),
+                "description": request.json.get("description"),
+                "location": request.json.get("location"),
+            }
+
+            if filter_dict["event_date"] and not is_valid_date(filter_dict["event_date"]):
+                return jsonify({"error": "Invalid event_date format"}), 400
+            
+            query, params = build_sql_querys("UPDATE events", filter_dict, date_column="event_date", mode="SET")
+            query += " WHERE event_id = %s"
+            params.append(event_id)
+
+            cur.execute(query, tuple(params))
+            if cur.rowcount == 0:
+                return jsonify({"error": f"Event ID {event_id} not found"}), 404
+            
+            connection.commit()
+            return jsonify({"message": "Event updated successfully"}), 200
+    except Exception as e:
+        connection.rollback()
         return jsonify({"error": str(e)}), 500
 
         
