@@ -52,90 +52,36 @@ def addEvent():
     try:
         connection = connect()
         with connection.cursor() as cur:
-            event_name = request.json.get("event_name")
-            event_date = request.json.get("event_date")
-            event_type = request.json.get("event_type")
-            description = request.json.get("description")
-            location = request.json.get("location")
-            start_time = request.json.get("start_time")
-            end_time = request.json.get("end_time")
-
-            if not all([event_name, event_date, event_type]):
+            
+            filter_dict = {
+                "event_name": request.json.get("event_name"),
+                "event_date": request.json.get("event_date"),
+                "event_type": request.json.get("event_type"),
+                "description": request.json.get("description"),
+                "location": request.json.get("location"),
+                "start_time": request.json.get("start_time"),
+                "end_time": request.json.get("end_time")
+            }
+            
+            if not all([filter_dict["event_name"], filter_dict["event_date"], filter_dict["event_type"]]):
                 return jsonify({"error": "event_name, event_date and event_type are required"}), 400
             
-            check_query = "SELECT * FROM events WHERE event_name = %s AND event_date = %s"
-            cur.execute(check_query, (event_name, event_date))
-            if cur.fetchone():
+            query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="event_date", mode="INSERT")
+            query += " RETURNING event_id"
+
+            cur.execute(query, params)
+            event_id = cur.fetchone()
+
+            if event_id is None:
                 return jsonify({"error": "Event already exists"}), 400
             
-            cur.execute("INSERT INTO events (event_name, event_date, event_type, description, location, start_time, end_time) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING event_id", (event_name, event_date, event_type, description, location, start_time, end_time))
-            event_id = cur.fetchone()[0]
             connection.commit()
-            return jsonify({"event_id": event_id}), 201
+            return jsonify({"event_id": event_id[0]}), 201
+        
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@events_bp.route("/<int:event_id>", methods=["PUT"])
-def updateEvent(event_id):
-    try:
-        connection = connect()
-        with connection.cursor() as cur:
-            # Get fields to update
-            event_name = request.json.get("event_name")
-            event_date = request.json.get("event_date")
-            event_type = request.json.get("event_type")
-            description = request.json.get("description")
-            location = request.json.get("location")
-            start_time = request.json.get("start_time")
-            end_time = request.json.get("end_time")
-
-            if not any([event_name, event_date, event_type, description, location, start_time, end_time]):
-                return jsonify({"error": "At least one field must be provided to update"}), 400
-
-            # Check if event exists
-            cur.execute("SELECT * FROM events WHERE event_id = %s", (event_id,))
-            if cur.fetchone() is None:
-                return jsonify({"error": f"Event ID {event_id} not found"}), 404
-
-            # Build dynamic update query
-            updates = []
-            params = []
-
-            if event_name:
-                updates.append("event_name = %s")
-                params.append(event_name)
-            if event_date:
-                updates.append("event_date = %s")
-                params.append(event_date)
-            if event_type:
-                updates.append("event_type = %s")
-                params.append(event_type)
-            if description:
-                updates.append("description = %s")
-                params.append(description)
-            if location:
-                updates.append("location = %s")
-                params.append(location)
-            if start_time:
-                updates.append("start_time = %s")
-                params.append(start_time)
-            if end_time:
-                updates.append("end_time = %s")
-                params.append(end_time)
-
-            update_query = f"UPDATE events SET {', '.join(updates)} WHERE event_id = %s"
-            params.append(event_id)
-
-            cur.execute(update_query, tuple(params))
-            connection.commit()
-            return jsonify({"message": "Event updated successfully"}), 200
-
-    except Exception as e:
-        connection.rollback()
-        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
-
-
 @events_bp.route("/attendance", methods=["GET"]) # cougar.ai/events/attendence&event_id=1 
 def getAttendance():
     try:

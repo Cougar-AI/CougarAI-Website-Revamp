@@ -48,11 +48,11 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
     query = base_query
 
     if filters:
-        if mode == "WHERE":
+        if mode == "WHERE": # WHERE 
             query += " WHERE " + ' AND '.join(filters)
-        elif mode == "SET":
+        elif mode == "SET": # patch 
             query += " SET " + ', '.join(filters)
-        elif mode == "INSERT":
+        elif mode == "INSERT": # 
             placeholders = ["%s"] * len(filters)
             query += f" ({', '.join(filters)}) VALUES ({', '.join(placeholders)})"
 
