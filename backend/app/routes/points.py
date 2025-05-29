@@ -10,7 +10,7 @@ def getPoints():
     with connection.cursor() as cur:
 
         filter_dict = {
-            "points.point_id": request.args.get("point_id", type=int),
+            "points.points_id": request.args.get("point_id", type=int),
             "points.student_id": request.args.get("student_id", type=int),
             "points.date": request.args.get("date"),
             "points.points": request.args.get("points", type=int),
@@ -29,7 +29,7 @@ def deletePoints(point_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
-            cur.execute("DELETE FROM points WHERE point_id = %s", (point_id,))
+            cur.execute("DELETE FROM points WHERE points_id = %s", (point_id,))
             connection.commit()
             return jsonify({"message": "Point deleted successfully"}), 200
     except Exception as e:
@@ -103,7 +103,7 @@ def updatePoints(point_id):
         connection = connect()
         with connection.cursor() as cur:
             filter_dict = { 
-                "points.point_id": point_id,
+                "points.points_id": point_id,
                 "points.student_id": request.json.get("student_id"),
                 "points.points": request.json.get("points"),
                 "points.date": request.json.get("date"),
@@ -111,11 +111,11 @@ def updatePoints(point_id):
             }
 
             query, params = build_sql_querys("UPDATE points", filter_dict, mode="SET")
-            query += " WHERE points.point_id = %s"
+            query += " WHERE points.points_id = %s"
             params.append(point_id)
             cur.execute(query, tuple(params))
             if cur.rowcount == 0:
-                return jsonify({"error": "No points found for the given point_id"}), 404
+                return jsonify({"error": "No points found for the given points_id"}), 404
             connection.commit()
             return jsonify({"message": "Points updated successfully"}), 200
     except Exception as e:
@@ -176,7 +176,7 @@ def getTotalPoints():
 def getPointById(point_id):
     connection = connect()
     with connection.cursor() as cur:
-        cur.execute("SELECT * FROM points WHERE point_id = %s", (point_id,))
+        cur.execute("SELECT * FROM points WHERE points_id = %s", (point_id,))
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Point not found"}), 404
     
