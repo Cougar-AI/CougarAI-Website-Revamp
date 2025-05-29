@@ -68,8 +68,8 @@ def addEvent():
             
             query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="event_date", mode="INSERT")
             query += " RETURNING event_id"
-
-            cur.execute(query, params)
+        
+            cur.execute(query, tuple(params))
             event_id = cur.fetchone()
 
             if event_id is None:
