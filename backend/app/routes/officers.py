@@ -46,6 +46,9 @@ def addOfficer(student_id):
             
             if not is_valid_date(filter_dict["join_date"]):
                 return jsonify({"error": "Invalid join_date format"}), 400
+            
+            if filter_dict["end_date"] and not is_valid_date(filter_dict["end_date"]):
+                return jsonify({"error": "Invalid end_date format"}), 400
 
             query, params = build_sql_querys("INSERT INTO officers", filter_dict, date_column="join_date", mode="INSERT")
             query += " RETURNING student_id"
@@ -100,8 +103,11 @@ def updateOfficer(student_id):
 
             if filter_dict["join_date"] and not is_valid_date(filter_dict["join_date"]):
                 return jsonify({"error": "Invalid join_date format"}), 400
+            
+            if filter_dict["end_date"] and not is_valid_date(filter_dict["end_date"]):
+                return jsonify({"error": "Invalid end_date format"}), 400
 
-            query, params = build_sql_querys("UPDATE officers", filter_dict, mode="SET")
+            query, params = build_sql_querys("UPDATE officers", filter_dict, mode="SET", )
             query += " WHERE student_id = %s"
             params.append(student_id)
 
