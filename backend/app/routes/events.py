@@ -62,7 +62,7 @@ def addEvent():
             if filter_dict["date"] is None or filter_dict["type"] is None or filter_dict["name"] is None:
                 return jsonify({"error": "name, date and type are required"}), 400
             
-            query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="event_date", mode="INSERT")
+            query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="date", mode="INSERT")
             query += " RETURNING event_id"
         
             cur.execute(query, tuple(params))
@@ -126,10 +126,10 @@ def updateEvent(event_id):
                 "location": request.json.get("location"),
             }
 
-            if filter_dict["event_date"] and not is_valid_date(filter_dict["event_date"]):
-                return jsonify({"error": "Invalid event_date format"}), 400
+            if filter_dict["date"] and not is_valid_date(filter_dict["date"]):
+                return jsonify({"error": "Invalid date format"}), 400
             
-            query, params = build_sql_querys("UPDATE events", filter_dict, date_column="event_date", mode="SET")
+            query, params = build_sql_querys("UPDATE events", filter_dict, date_column="date", mode="SET")
             query += " WHERE event_id = %s"
             params.append(event_id)
 
