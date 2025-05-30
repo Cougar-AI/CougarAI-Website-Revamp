@@ -10,6 +10,7 @@ def getPoints():
         filter_dict = {
             "points.points_id": request.args.get("point_id", type=int),
             "points.student_id": request.args.get("student_id", type=int),
+            "points.event_id": request.args.get("event_id", type=int),
             "points.date": request.args.get("date"),
             "points.points": request.args.get("points", type=int),
             "start_date": request.args.get("start_date"),
@@ -42,6 +43,7 @@ def getLeaderboard():
 
         filter_dict = {
             "date": request.args.get("date"),
+            "event_id": request.args.get("event_id", type=int),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
             "limit": request.args.get("limit", type=int),
@@ -61,32 +63,31 @@ def addPoints(student_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
-            points = request.json.get("points")
-            date = request.json.get("date")
+            
+            filter_dict = {
+                "student_id": student_id,
+                "points": request.json.get("points"),
+                "date": request.json.get("date"),
+                "event_id": request.json.get("event_id")
+            }
 
-            if points is None:
+            if filter_dict["points"] is None:
                 return jsonify({"error": "points are required"}), 400
             else:
                 try:
-                    points = int(points)
+                    filter_dict["points"] = int(filter_dict["points"])
                 except ValueError:
                     return jsonify({"error": "Points must be an integer"}), 400
             
-            if date and not is_valid_date(date):
+            if filter_dict["date"] and not is_valid_date(filter_dict["date"]):
                 return jsonify({"error": "Invalid date format. "}), 400
 
             cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": "Invalid student_id"}), 400
 
-            if date:
-                cur.execute("INSERT INTO points(student_id, points, date) VALUES (%s, %s, %s) RETURNING points_id", (student_id, points, date))
-            else:
-                cur.execute("INSERT INTO points(student_id, points) VALUES (%s, %s) RETURNING points_id", (student_id, points))
-
-            results = cur.fetchone()
-            if results is None:
-                return jsonify({"error": "Insert failed"}), 400
+            query, params = build_sql_querys("INSERT INTO points", filter_dict, date_column="date", mode="INSERT")
+            cur.execute(query, tuple(params))
 
             connection.commit()
             return jsonify({"message": "Points added successfully"}), 201
@@ -153,18 +154,18 @@ def getTotalPoints():
                 "start_date": request.args.get("start_date"),
                 "end_date": request.args.get("end_date"),
             }
-
-            query_base = "SELECT SUM(points.points) as total_points FROM points"
-
+     
             if filter_dict["points.student_id"] is not None:
-                query_base += " JOIN users ON points.student_id = users.student_id"
+                query_base = "SELECT users.first_name, users.last_name, points.student_id, SUM(points.points) as total_points FROM points JOIN users on points.student_id = users.student_id GROUP BY users.first_name, users.last_name, points.student_id"
+            else:
+                query_base = "SELECT SUM(points.points) as total_points FROM points"
 
             query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
 
             cur.execute(query, tuple(params))
             result = cur.fetchone()
 
-            return jsonify(result) if result else jsonify({"error": "No points found"}), 404
+            return jsonify(result) if (result and result[0] is not None) else jsonify({"error": "No points found"}), 404
     except:
         return jsonify({"error": "Failed to retrieve total points"}), 500
     

@@ -81,23 +81,30 @@ def getAttendance():
         with connection.cursor() as cur:
 
             filter_dict = {
-                "event_id": request.args.get("event_id", type=int),
-                "student_id": request.args.get("student_id", type=int),
+                "points.event_id": request.args.get("event_id", type=int),
+                "points.student_id": request.args.get("student_id", type=int),
+                "events.description": request.args.get("description"),
+                "events.location": request.args.get("location"),
                 "limit": request.args.get("limit", type=int),
                 "offset": request.args.get("offset", type=int),
-                "description": request.args.get("description"),
-                "location": request.args.get("location"),
+                "start_date": request.args.get("start_date"),
+                "end_date": request.args.get("end_date"),
             }
             
-            if filter_dict["event_id"] and filter_dict["student_id"]:
+            if filter_dict["points.event_id"] and filter_dict["points.student_id"]:
                 return jsonify({"error": "Please provide either event_id or student_id, not both"}), 400
-            elif filter_dict["event_id"]:
-                base_query = "SELECT * FROM events JOIN points ON events.event_id = points.event_id"
-            elif filter_dict["student_id"]:
-                base_query = "SELECT * FROM points JOIN events ON points.event_id = events.event_id"
-            else:
+            elif not filter_dict["points.event_id"] and not filter_dict["points.student_id"]:
                 return jsonify({"error": "Please provide either event_id or student_id"}), 400
             
+            base_query = """
+            SELECT points.*, 
+            events.description, events.location, events.name, events.type, events.date,
+            users.first_name, users.last_name
+            FROM points 
+            JOIN events ON points.event_id = events.event_id 
+            JOIN users ON points.student_id = users.student_id
+            """
+
             query, params = build_sql_querys(base_query, filter_dict, date_column="points.date")
 
             cur.execute(query, tuple(params))
