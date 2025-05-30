@@ -8,21 +8,21 @@ def getEvents():
     connection = connect()
     with connection.cursor() as cur:
 
-        event_date = request.args.get("event_date")
-        if event_date and not is_valid_date(event_date):
-            return jsonify({"error": "Invalid event_date format"}), 400
+        date = request.args.get("date")
+        if date and not is_valid_date(date):
+            return jsonify({"error": "Invalid date format"}), 400
 
         filter_dict = {
             "event_id": request.args.get("event_id", type=int),
-            "event_type": request.args.get("event_type"),
+            "type": request.args.get("type"),
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int),
             "description": request.args.get("description"),
-            "event_date": event_date,
+            "date": date,
             "location": request.args.get("location"),
         }
 
-        query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="event_date")
+        query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="date")
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -51,16 +51,16 @@ def addEvent():
         with connection.cursor() as cur:
             
             filter_dict = {
-                "event_name": request.json.get("event_name"),
-                "event_date": request.json.get("event_date"),
-                "event_type": request.json.get("event_type"),
+                "name": request.json.get("name"),
+                "date": request.json.get("date"),
+                "type": request.json.get("type"),
                 "description": request.json.get("description"),
                 "location": request.json.get("location"),
                 "start_time": request.json.get("start_time"),
                 "end_time": request.json.get("end_time")
             }
-            if filter_dict["event_date"] is None or filter_dict["event_type"] is None or filter_dict["event_name"] is None:
-                return jsonify({"error": "event_name, event_date and event_type are required"}), 400
+            if filter_dict["date"] is None or filter_dict["type"] is None or filter_dict["name"] is None:
+                return jsonify({"error": "name, date and type are required"}), 400
             
             query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="event_date", mode="INSERT")
             query += " RETURNING event_id"
@@ -74,7 +74,7 @@ def addEvent():
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@events_bp.route("/attendance", methods=["GET"]) # cougar.ai/events/attendence&event_id=1 
+@events_bp.route("/attendance", methods=["GET"]) 
 def getAttendance():
     try:
         connection = connect()
@@ -119,9 +119,9 @@ def updateEvent(event_id):
         connection = connect()
         with connection.cursor() as cur:
             filter_dict = {
-                "event_name": request.json.get("event_name"),
-                "event_date": request.json.get("event_date"),
-                "event_type": request.json.get("event_type"),
+                "name": request.json.get("name"),
+                "date": request.json.get("date"),
+                "type": request.json.get("type"),
                 "description": request.json.get("description"),
                 "location": request.json.get("location"),
             }
