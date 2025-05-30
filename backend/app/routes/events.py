@@ -103,6 +103,7 @@ def getAttendance():
             FROM points 
             JOIN events ON points.event_id = events.event_id 
             JOIN users ON points.student_id = users.student_id
+            GROUP BY points.student_id, points.event_id, events.description, events.location,
             """
 
             query, params = build_sql_querys(base_query, filter_dict, date_column="points.date")
