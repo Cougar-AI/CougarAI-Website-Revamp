@@ -1,0 +1,1708 @@
+openapi: 3.1.0
+info:
+  title: CougarAI
+  version: 1.0.0
+  description: API for CougarAI
+
+servers:
+  - url: http://98.142.250.242:5000
+
+tags:
+  - name: auth
+  - name: discord
+  - name: events
+  - name: officers
+  - name: payments
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: User login
+      description: Authenticates a student and returns a JWT token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                student_id:
+                  type: integer
+                password:
+                  type: string
+              required:
+                - student_id
+                - password
+            example:
+              student_id: 12345
+              password: pass123
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  student_id:
+                    type: integer
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                student_id: 12345
+        '400':
+          description: Missing student ID or password
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Student ID and password are required"
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid student ID or password"
+
+  /auth/protected:
+    get:
+      tags:
+        - auth
+      summary: Protected route
+      description: |
+        Requires a valid JWT token.
+        Include the token in the `Authorization` header like:
+        `Authorization: Bearer <your_token_here>`
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Authorized access
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "You have access to this protected route!"
+        '401':
+          description: Unauthorized access
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Token is invalid!"
+
+  /discord/announcements:
+    get:
+      tags:
+        - discord
+      summary: Retrieve Discord announcements
+      description: Retrieve Discord announcements with optional filters.
+      parameters:
+        - name: announcement_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by announcement ID
+        - name: guild_id
+          in: query
+          schema:
+            type: string
+          description: Filter by Discord guild ID
+        - name: event_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by event ID
+        - name: title
+          in: query
+          schema:
+            type: string
+          description: Filter by title
+        - name: description
+          in: query
+          schema:
+            type: string
+          description: Filter by description
+        - name: announcement_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Filter by announcement date (YYYY-MM-DD)
+        - name: created_at
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter by creation timestamp
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start of creation date range
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End of creation date range
+        - name: limit
+          in: query
+          schema:
+            type: integer
+          description: Limit number of results
+        - name: offset
+          in: query
+          schema:
+            type: integer
+          description: Skip a number of results
+      responses:
+        '200':
+          description: A list of Discord announcements
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    announcement_id:
+                      type: integer
+                    guild_id:
+                      type: string
+                    title:
+                      type: string
+                    description:
+                      type: string
+                    event_id:
+                      type: integer
+                    announcement_date:
+                      type: string
+                      format: date
+                    created_at:
+                      type: string
+                      format: date-time
+                    event_image:
+                      type: string
+                      format: uri
+                    message:
+                      type: string
+              example:
+                - announcement_id: 1
+                  guild_id: "123456789012345678"
+                  title: "Upcoming Event!"
+                  description: "Don't miss our career fair."
+                  event_id: 101
+                  announcement_date: "2025-06-05"
+                  created_at: "2025-06-01T10:00:00"
+                  event_image: "https://cdn.example.com/event.png"
+                  message: "Check Discord for details!"
+        '404':
+          description: No announcements found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No announcements found"
+
+  /discord/announcements/{guild_id}:
+    post:
+      tags:
+        - discord
+      summary: Create a new Discord announcement
+      description: Create a new Discord announcement for a specific guild.
+      parameters:
+        - name: guild_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Discord guild ID (must be 18-digit string)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                event_id:
+                  type: integer
+                announcement_date:
+                  type: string
+                  format: date
+                created_at:
+                  type: string
+                  format: date-time
+                event_image:
+                  type: string
+                  format: uri
+                message:
+                  type: string
+              required:
+                - title
+                - description
+            example:
+              title: "General Meeting"
+              description: "Join us this Friday!"
+              event_id: 204
+              announcement_date: "2025-06-07"
+              created_at: "2025-06-01T12:00:00"
+              event_image: "https://cdn.example.com/meeting.png"
+              message: "Details on our Discord!"
+      responses:
+        '201':
+          description: Announcement created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  announcement_id:
+                    type: integer
+              example:
+                message: "Announcement created successfully"
+                announcement_id: 12
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid guild ID"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+  /discord/announcements/{announcement_id}:
+    patch:
+      tags:
+        - discord
+      summary: Update an existing Discord announcement
+      description: Update an existing Discord announcement by ID.
+      parameters:
+        - name: announcement_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of the announcement to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                event_id:
+                  type: integer
+                announcement_date:
+                  type: string
+                  format: date
+                created_at:
+                  type: string
+                  format: date-time
+                event_image:
+                  type: string
+                  format: uri
+                message:
+                  type: string
+                guild_id:
+                  type: string
+            example:
+              title: "Updated Meeting"
+              description: "New info posted!"
+              message: "See Discord announcements tab."
+      responses:
+        '200':
+          description: Announcement updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Announcement updated successfully"
+        '404':
+          description: Announcement not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Announcement not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+    delete:
+      tags:
+        - discord
+      summary: Delete a Discord announcement
+      description: Delete a Discord announcement by ID.
+      parameters:
+        - name: announcement_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: ID of the announcement to delete
+      responses:
+        '200':
+          description: Announcement deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Announcement deleted successfully"
+        '404':
+          description: Announcement not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Announcement not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+  /discord/config/{guild_id}:
+    get:
+      tags:
+        - discord
+      summary: Retrieve Discord configuration
+      description: Retrieve Discord configuration for a specific guild.
+      parameters:
+        - name: guild_id
+          in: path
+          description: Discord guild/server ID (18-digit string)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful retrieval of Discord config
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guild_id:
+                    type: string
+                    description: Guild ID
+                  announcement_channel:
+                    type: string
+                  welcome_channel:
+                    type: string
+                  log_channel:
+                    type: string
+                  executive_role:
+                    type: string
+                  member_role:
+                    type: string
+              example:
+                guild_id: "123456789012345678"
+                announcement_channel: "111111111111111111"
+                welcome_channel: "222222222222222222"
+                log_channel: "333333333333333333"
+                executive_role: "444444444444444444"
+                member_role: "555555555555555555"
+        '404':
+          description: No config found for the given guild ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No config found"
+
+    post:
+      tags:
+        - discord
+      summary: Create or upsert Discord configuration
+      description: |
+        Create or upsert a Discord configuration for a guild. Will update if a config already exists.
+      parameters:
+        - name: guild_id
+          in: path
+          description: Discord guild/server ID (18-digit string)
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                announcement_channel:
+                  type: string
+                welcome_channel:
+                  type: string
+                log_channel:
+                  type: string
+                executive_role:
+                  type: string
+                member_role:
+                  type: string
+            example:
+              announcement_channel: "111111111111111111"
+              welcome_channel: "222222222222222222"
+              log_channel: "333333333333333333"
+              executive_role: "444444444444444444"
+              member_role: "555555555555555555"
+      responses:
+        '201':
+          description: Discord config created/updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Discord config created/updated successfully"
+        '400':
+          description: Invalid guild ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid guild ID"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+    patch:
+      tags:
+        - discord
+      summary: Update Discord configuration
+      description: Update existing fields in a Discord configuration for a specific guild.
+      parameters:
+        - name: guild_id
+          in: path
+          description: Discord guild/server ID (18-digit string)
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                announcement_channel:
+                  type: string
+                welcome_channel:
+                  type: string
+                log_channel:
+                  type: string
+                executive_role:
+                  type: string
+                member_role:
+                  type: string
+            example:
+              log_channel: "999999999999999999"
+              executive_role: "888888888888888888"
+      responses:
+        '200':
+          description: Discord config updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Discord config updated successfully"
+        '400':
+          description: Invalid guild ID or bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid guild ID"
+        '404':
+          description: No config found for the given guild ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No config found for the given guild ID"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+    delete:
+      tags:
+        - discord
+      summary: Delete Discord configuration
+      description: Delete the Discord configuration for a specific guild.
+      parameters:
+        - name: guild_id
+          in: path
+          description: Discord guild/server ID (18-digit string)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discord config deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Discord config deleted successfully"
+        '400':
+          description: Invalid guild ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid guild ID"
+        '404':
+          description: No config found for the given guild ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No config found for the given guild ID"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+  /events:
+    get:
+      tags:
+        - events
+      summary: Retrieve events
+      description: Retrieve events based on optional query parameters.
+      parameters:
+        - name: event_id
+          in: query
+          description: Filter by event ID
+          required: false
+          schema:
+            type: integer
+        - name: type
+          in: query
+          description: Filter by event type
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Limit number of results
+          required: false
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          description: Skip a number of results
+          required: false
+          schema:
+            type: integer
+        - name: description
+          in: query
+          description: Filter by event description
+          required: false
+          schema:
+            type: string
+        - name: date
+          in: query
+          description: Filter by event date (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: location
+          in: query
+          description: Filter by event location
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A list of events matching the filters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    event_id:
+                      type: integer
+                    name:
+                      type: string
+                    date:
+                      type: string
+                      format: date
+                    type:
+                      type: string
+                    description:
+                      type: string
+                    location:
+                      type: string
+                    start_time:
+                      type: string
+                    end_time:
+                      type: string
+              example:
+                - event_id: 101
+                  name: "Resume Workshop"
+                  date: "2025-02-10"
+                  type: "Workshop"
+                  description: "Learn how to build your resume"
+                  location: "Room 210"
+                  start_time: "14:00"
+                  end_time: "16:00"
+        '404':
+          description: No events found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No events found"
+
+    post:
+      tags:
+        - events
+      summary: Add a new event
+      description: Add a new event to the system.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                type:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+                start_time:
+                  type: string
+                end_time:
+                  type: string
+              required:
+                - name
+                - date
+                - type
+            example:
+              name: "Networking Night"
+              date: "2025-03-05"
+              type: "Social"
+              description: "Meet industry professionals"
+              location: "Student Center South"
+              start_time: "18:00"
+              end_time: "20:00"
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Success"
+        '400':
+          description: Missing required fields (name, date, or type)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "name, date and type are required"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Some server error message"
+
+  /events/{event_id}:
+    delete:
+      tags:
+        - events
+      summary: Delete an event by ID
+      description: Delete an event by its event ID.
+      parameters:
+        - name: event_id
+          in: path
+          description: Event ID to delete
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Event deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Event deleted successfully"
+        '404':
+          description: Event ID not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Event ID 101 not found"
+
+    patch:
+      tags:
+        - events
+      summary: Update an event
+      description: Update an event by its event ID.
+      parameters:
+        - name: event_id
+          in: path
+          description: Event ID to update
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                type:
+                  type: string
+                description:
+                  type: string
+                location:
+                  type: string
+            example:
+              location: "Student Center Ballroom"
+              description: "Updated venue details"
+      responses:
+        '200':
+          description: Event updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Event updated successfully"
+        '400':
+          description: Invalid date format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid date format"
+        '404':
+          description: Event ID not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Event ID 101 not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Some server error message"
+
+  /events/attendance:
+    get:
+      tags:
+        - events
+      summary: Retrieve attendance records
+      description: |
+        Retrieve attendance records for events. Must provide either `event_id` or `student_id` (but not both).
+      parameters:
+        - name: event_id
+          in: query
+          description: Filter by event ID (cannot be used together with student_id)
+          required: false
+          schema:
+            type: integer
+        - name: student_id
+          in: query
+          description: Filter by student ID (cannot be used together with event_id)
+          required: false
+          schema:
+            type: integer
+        - name: description
+          in: query
+          description: Filter by event description
+          required: false
+          schema:
+            type: string
+        - name: location
+          in: query
+          description: Filter by event location
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Limit results
+          required: false
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          description: Skip results
+          required: false
+          schema:
+            type: integer
+        - name: start_date
+          in: query
+          description: Start date range (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: End date range (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: A list of attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    points_id:
+                      type: integer
+                    event_id:
+                      type: integer
+                    student_id:
+                      type: integer
+                    date:
+                      type: string
+                      format: date
+                    description:
+                      type: string
+                    location:
+                      type: string
+                    name:
+                      type: string
+                    type:
+                      type: string
+                    first_name:
+                      type: string
+                    last_name:
+                      type: string
+              example:
+                - points_id: 501
+                  event_id: 101
+                  student_id: 1234567
+                  date: "2025-03-05"
+                  description: "Meet industry professionals"
+                  location: "Student Center South"
+                  name: "Networking Night"
+                  type: "Social"
+                  first_name: "Jane"
+                  last_name: "Doe"
+        '400':
+          description: Bad request (either both or neither event_id/student_id provided)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                both_provided:
+                  summary: Both event_id and student_id provided
+                  value:
+                    error: "Please provide either event_id or student_id, not both"
+                neither_provided:
+                  summary: Neither event_id nor student_id provided
+                  value:
+                    error: "Please provide either event_id or student_id"
+        '404':
+          description: No attendance found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No attendance found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Some server error message"
+
+  /officers:
+    get:
+      tags:
+        - officers
+      summary: Retrieve officers
+      description: Retrieve officer records based on optional query parameters.
+      parameters:
+        - name: student_id
+          in: query
+          description: Filter by student ID
+          required: false
+          schema:
+            type: integer
+        - name: join_date
+          in: query
+          description: Filter by join date (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          description: Filter by end date (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: limit
+          in: query
+          description: Limit number of results
+          required: false
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          description: Skip a number of results
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A list of officer records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    student_id:
+                      type: integer
+                    join_date:
+                      type: string
+                      format: date
+                    end_date:
+                      type:
+                        - string
+                        - "null"
+                      format: date
+                    role:
+                      type: string
+              example:
+                - student_id: 1234567
+                  join_date: "2024-01-01"
+                  end_date: null
+                  role: "Treasurer"
+                - student_id: 2345678
+                  join_date: "2023-06-15"
+                  end_date: "2024-05-01"
+                  role: "Secretary"
+        '400':
+          description: Invalid query parameter (e.g., invalid date format)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Invalid join_date format"
+        '404':
+          description: No officers found matching the filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No officers found"
+
+  /officers/{student_id}:
+    parameters:
+      - name: student_id
+        in: path
+        description: Officer’s 7-digit student ID
+        required: true
+        schema:
+          type: integer
+          minimum: 1000000
+          maximum: 9999999
+
+    get:
+      tags:
+        - officers
+      summary: Retrieve a specific officer
+      description: Retrieve a specific officer's record by student ID.
+      responses:
+        '200':
+          description: Officer record found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  student_id:
+                    type: integer
+                  join_date:
+                    type: string
+                    format: date
+                  end_date:
+                    type:
+                      - string
+                      - "null"
+                    format: date
+                  role:
+                    type: string
+              example:
+                student_id: 1234567
+                join_date: "2024-01-01"
+                end_date: null
+                role: "Treasurer"
+        '404':
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Officer not found"
+
+    post:
+      tags:
+        - officers
+      summary: Add a new officer
+      description: Add a new officer with the specified student ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                join_date:
+                  type: string
+                  format: date
+                end_date:
+                  type:
+                    - string
+                    - "null"
+                  format: date
+                role:
+                  type: string
+              required:
+                - join_date
+                - role
+            example:
+              join_date: "2024-01-01"
+              end_date: null
+              role: "Secretary"
+      responses:
+        '201':
+          description: Officer added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: integer
+              example:
+                results:
+                  - 1234567
+        '400':
+          description: Validation error (student_id format or missing fields or invalid date)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                invalid_student_id:
+                  summary: Student ID not a 7-digit number
+                  value:
+                    error: "student_id must be a 7-digit number"
+                missing_fields:
+                  summary: Missing join_date or role
+                  value:
+                    error: "student_id, join_date and role are required"
+                invalid_join_date:
+                  summary: join_date format invalid
+                  value:
+                    error: "Invalid join_date format"
+                failed_insert:
+                  summary: Insertion failed
+                  value:
+                    error: "Failed to add officer"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+    patch:
+      tags:
+        - officers
+      summary: Update an officer
+      description: Update an officer’s information by student ID.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                join_date:
+                  type: string
+                  format: date
+                end_date:
+                  type:
+                    - string
+                    - "null"
+                  format: date
+                role:
+                  type: string
+            example:
+              role: "Vice President"
+              end_date: "2025-05-31"
+      responses:
+        '200':
+          description: Officer updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Officer updated successfully"
+        '400':
+          description: Validation error (student_id format or invalid date)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                invalid_student_id:
+                  summary: Student ID not a 7-digit number
+                  value:
+                    error: "student_id must be a 7-digit number"
+                invalid_join_date:
+                  summary: join_date format invalid
+                  value:
+                    error: "Invalid join_date format"
+                invalid_end_date:
+                  summary: end_date format invalid
+                  value:
+                    error: "Invalid end_date format"
+        '404':
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Officer not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+    delete:
+      tags:
+        - officers
+      summary: Delete an officer
+      description: Delete an officer from the database by student ID.
+      responses:
+        '200':
+          description: Officer deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Officer deleted successfully"
+        '404':
+          description: Officer not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Officer not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+  /payments:
+    get:
+      tags:
+        - payments
+      summary: Retrieve payment records
+      description: Retrieve payment records with optional filters.
+      parameters:
+        - name: payment_id
+          in: query
+          schema:
+            type: integer
+          required: false
+          description: Filter by specific payment ID
+        - name: student_id
+          in: query
+          schema:
+            type: integer
+          required: false
+          description: Filter by student ID
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          required: false
+          description: Filter payments from this date onward (YYYY-MM-DD)
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          required: false
+          description: Filter payments up to this date (YYYY-MM-DD)
+      responses:
+        '200':
+          description: Successful retrieval of payment records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    payment_id:
+                      type: integer
+                    student_id:
+                      type: integer
+                    date:
+                      type: string
+                      format: date
+                    amount:
+                      type: number
+              example:
+                - payment_id: 1
+                  student_id: 1234567
+                  date: "2025-03-15"
+                  amount: 25.0
+                - payment_id: 2
+                  student_id: 1234567
+                  date: "2025-04-01"
+                  amount: 30.0
+        '404':
+          description: No payments found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "No payments found"
+
+  /payments/{student_id}:
+    post:
+      tags:
+        - payments
+      summary: Create a new payment for a student
+      description: Create a new payment record for a student.
+      parameters:
+        - name: student_id
+          in: path
+          schema:
+            type: integer
+          required: true
+          description: ID of the student for whom to create the payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                  description: Date of payment (YYYY-MM-DD). Defaults to today if not provided.
+                amount:
+                  type: number
+                  description: Amount paid by the student
+              required:
+                - amount
+            example:
+              date: "2025-03-15"
+              amount: 25.00
+      responses:
+        '201':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  payment:
+                    type: object
+                    properties:
+                      payment_id:
+                        type: integer
+                      student_id:
+                        type: integer
+                      date:
+                        type: string
+                        format: date
+                      amount:
+                        type: number
+              example:
+                message: "Payment created successfully"
+                payment:
+                  payment_id: 4
+                  student_id: 1234567
+                  date: "2025-03-15"
+                  amount: 25.0
+        '400':
+          description: Invalid request or business rule violation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_amount:
+                  summary: Missing amount
+                  value:
+                    error: "Amount is required to be specified"
+                invalid_amount:
+                  summary: Amount not a number
+                  value:
+                    error: "Amount must be a valid number"
+                invalid_date:
+                  summary: Invalid date format
+                  value:
+                    error: "Invalid date format"
+                duplicate_payment:
+                  summary: Payment exists in last 3 months
+                  value:
+                    error: "Payment already exists for this student in the last semester (3 months)"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+  /payments/{payment_id}:
+    delete:
+      tags:
+        - payments
+      summary: Delete a payment by ID
+      description: Delete a payment record by its ID.
+      parameters:
+        - name: payment_id
+          in: path
+          schema:
+            type: integer
+          required: true
+          description: ID of the payment to delete
+      responses:
+        '200':
+          description: Payment deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Payment deleted successfully"
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "Payment not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              example:
+                error: "some server error message"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
