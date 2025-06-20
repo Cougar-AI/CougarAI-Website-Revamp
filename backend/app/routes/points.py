@@ -169,7 +169,8 @@ def getTotalPoints():
                 return jsonify({"error": "No points found"}), 404
             return jsonify(result)
 
-    except:
+    except Exception as e:
+        print(f"Error retrieving total points: {e}")
         return jsonify({"error": "Failed to retrieve total points"}), 500
     
 
