@@ -165,7 +165,10 @@ def getTotalPoints():
             cur.execute(query, tuple(params))
             result = cur.fetchone()
 
-            return jsonify(result) if (result and result[0] is not None) else jsonify({"error": "No points found"}), 404
+            if result is None or result[0] is None:
+                return jsonify({"error": "No points found"}), 404
+            return jsonify(result)
+
     except:
         return jsonify({"error": "Failed to retrieve total points"}), 500
     
