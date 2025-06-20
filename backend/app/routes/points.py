@@ -149,13 +149,13 @@ def getStudentPoints(student_id):
 def getTotalPoints():
     try:
         connection = connect()
-        with connection.cursor() as cur:
+        with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             filter_dict = {
                 "points.student_id": request.args.get("student_id", type=int),
                 "start_date": request.args.get("start_date"),
                 "end_date": request.args.get("end_date"),
             }
-     
+
             if filter_dict["points.student_id"] is not None:
                 query_base = (
                     "SELECT users.first_name, users.last_name, points.student_id, "
@@ -165,7 +165,6 @@ def getTotalPoints():
             else:
                 query_base = "SELECT SUM(points.points) as total_points FROM points "
 
-
             query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
 
             if filter_dict["points.student_id"] is not None:
@@ -173,27 +172,30 @@ def getTotalPoints():
 
             cur.execute(query, tuple(params))
             result = cur.fetchone()
+            print("Result:", result)
 
-            if result is None or result[0] is None:
+            if result is None or ("total_points" in result and result["total_points"] is None):
                 return jsonify({"error": "No points found"}), 404
 
-            # 👇 This is the fix:
             if filter_dict["points.student_id"] is not None:
                 result_dict = {
-                    "first_name": result[0],
-                    "last_name": result[1],
-                    "student_id": result[2],
-                    "total_points": result[3],
+                    "first_name": result["first_name"],
+                    "last_name": result["last_name"],
+                    "student_id": result["student_id"],
+                    "total_points": result["total_points"],
                 }
             else:
-                result_dict = {"total_points": result[0]}
+                result_dict = {"total_points": result["total_points"]}
 
             return jsonify(result_dict)
 
-
     except Exception as e:
-        print("Traceback:", traceback.format_exc())  # Print the full traceback for debugging
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": "Failed to retrieve total points"}), 500
+    finally:
+        connection.close()
+
     
 
 @points_bp.route("/<int:point_id>", methods=["GET"])
