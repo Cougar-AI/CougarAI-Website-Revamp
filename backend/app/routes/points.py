@@ -1,4 +1,5 @@
 from app.imports import *
+import traceback  # at the top
 
 
 points_bp = Blueprint('points', __name__)
@@ -191,7 +192,7 @@ def getTotalPoints():
 
 
     except Exception as e:
-        print(f"Error retrieving total points: {e}")
+        print("Traceback:", traceback.format_exc())  # Print the full traceback for debugging
         return jsonify({"error": "Failed to retrieve total points"}), 500
     
 
