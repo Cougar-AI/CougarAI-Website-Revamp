@@ -175,7 +175,20 @@ def getTotalPoints():
 
             if result is None or result[0] is None:
                 return jsonify({"error": "No points found"}), 404
-            return jsonify(result)
+
+            # 👇 This is the fix:
+            if filter_dict["points.student_id"] is not None:
+                result_dict = {
+                    "first_name": result[0],
+                    "last_name": result[1],
+                    "student_id": result[2],
+                    "total_points": result[3],
+                }
+            else:
+                result_dict = {"total_points": result[0]}
+
+            return jsonify(result_dict)
+
 
     except Exception as e:
         print(f"Error retrieving total points: {e}")
