@@ -156,9 +156,14 @@ def getTotalPoints():
             }
      
             if filter_dict["points.student_id"] is not None:
-                query_base = "SELECT users.first_name, users.last_name, points.student_id, SUM(points.points) as total_points FROM points JOIN users on points.student_id = users.student_id "
+                query_base = (
+                    "SELECT users.first_name, users.last_name, points.student_id, "
+                    "SUM(points.points) as total_points FROM points "
+                    "JOIN users on points.student_id = users.student_id "
+                )
             else:
                 query_base = "SELECT SUM(points.points) as total_points FROM points "
+
 
             query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
 
