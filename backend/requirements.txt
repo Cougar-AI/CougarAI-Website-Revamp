@@ -5,3 +5,5 @@ python-dotenv
 gunicorn
 bcrypt
 PyJWT
+pytest
+pytest-flask
