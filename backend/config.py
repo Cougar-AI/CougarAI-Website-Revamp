@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-class BaseConfig:S
+class BaseConfig:
     """Base configuration."""
     SECRET_KEY = os.getenv('SECRET_KEY', 'my_precious_secret_key')
     DEBUG = False
