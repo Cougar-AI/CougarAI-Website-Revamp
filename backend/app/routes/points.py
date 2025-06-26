@@ -149,7 +149,7 @@ def getStudentPoints(student_id):
 def getTotalPoints():
     try:
         connection = connect()
-        with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with connection.cursor() as cur:
             filter_dict = {
                 "points.student_id": request.args.get("student_id", type=int),
                 "start_date": request.args.get("start_date"),
