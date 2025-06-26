@@ -5,6 +5,8 @@ python-dotenv
 gunicorn
 bcrypt
 PyJWT
+pytest
+pytest-flask
 google-api-python-client
 google-auth
 google-auth-oauthlib

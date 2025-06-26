@@ -1,13 +1,12 @@
 from app.imports import *
-
-load_dotenv()   # must run before os.getenv()
+from flask import current_app
 
 def connect():
         return psycopg2.connect(
-            dbname = os.getenv("DB_NAME"),
-            user = os.getenv("DB_USER"),
-            password = os.getenv("DB_PASS"),
-            host = os.getenv("DB_HOST"),
-            port = os.getenv("DB_PORT"),
+            dbname = current_app.config["DB_NAME"],
+            user = current_app.config["DB_USER"],
+            password = current_app.config["DB_PASS"],
+            host = current_app.config["DB_HOST"],
+            port = current_app.config["DB_PORT"],
             cursor_factory=psycopg2.extras.RealDictCursor # will make results be dictionary, and not tuple
         )
