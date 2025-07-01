@@ -35,6 +35,8 @@ Thumbs.db
 # coverage reports
 /backend/htmlcov/
 /backend/.coverage
+# google api 
+/backend/google
 
 # === General ===
 # dotenv
@@ -46,3 +48,4 @@ Thumbs.db
 .idea/
 # JetBrains
 *.iml
+
