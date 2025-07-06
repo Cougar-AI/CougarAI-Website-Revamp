@@ -16,8 +16,8 @@ def getPoints():
             "points.points": request.args.get("points", type=int),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
-            "limit": request.args.get("limit"),
-            "offset": request.args.get("offset"),
+            "limit": request.args.get("limit", type=int),
+            "offset": request.args.get("offset", type=int)
         }
         query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date")
         query += " ORDER BY points.date DESC"
