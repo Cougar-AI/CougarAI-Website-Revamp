@@ -52,8 +52,10 @@ def getLeaderboard():
             "offset": request.args.get("offset", type=int)
         }
 
-        query, params = build_sql_querys("SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id", filter_dict, date_column="points.date", order_by="total_points")
-        query += " GROUP BY users.student_id, users.first_name, users.last_name"
+        query, params = build_sql_querys("SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id", filter_dict, 
+                                         date_column="points.date", 
+                                         order_by="total_points",
+                                         group_by=["users.student_id", "users.first_name", "users.last_name"])
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()

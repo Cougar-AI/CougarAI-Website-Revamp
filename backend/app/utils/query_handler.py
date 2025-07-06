@@ -1,7 +1,7 @@
 from app.utils.date_validation import is_valid_date 
 from datetime import datetime
 
-def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC"): # mainly for get queries
+def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC", group_by=None): # mainly for get queries
     filters = [] # stores the SQL Filters 
     params = [] # stores the variables 
     mode = mode.upper()
@@ -67,6 +67,13 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
 
     if mode == "WHERE":
         
+        if group_by:
+            if isinstance(group_by, list):
+                clause = ", ".join(group_by)
+            else:
+                group_clause = group_by
+            query += f" GROUP BY {group_clause}"
+
         if order_by is not None:
             sort_dir = sort_dir.upper()
             if sort_dir not in ["ASC", "DESC"]:
