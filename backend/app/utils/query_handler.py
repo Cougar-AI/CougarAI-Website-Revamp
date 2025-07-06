@@ -59,16 +59,24 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
 
 
     if mode == "WHERE":
-        if limit is not None:
-            if not isinstance(limit, int) or limit < 0:
+       if limit is not None:
+        try:
+            limit = int(limit)
+            if limit < 0:
                 raise ValueError("Limit must be a non-negative integer.")
             query += " LIMIT %s"
             params.append(limit)
+        except ValueError:
+            raise ValueError("Limit must be a non-negative integer.")
 
-        if offset is not None:
-            if not isinstance(offset, int) or offset < 0:
+    if offset is not None:
+        try:
+            offset = int(offset)
+            if offset < 0:
                 raise ValueError("Offset must be a non-negative integer.")
             query += " OFFSET %s"
             params.append(offset)
+        except ValueError:
+            raise ValueError("Offset must be a non-negative integer.")
 
     return query, params
