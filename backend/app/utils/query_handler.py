@@ -1,4 +1,5 @@
 from app.utils.date_validation import is_valid_date 
+from datetime import datetime
 
 def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC"): # mainly for get queries
     filters = [] # stores the SQL Filters 
@@ -31,20 +32,26 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
             
     if mode == "WHERE":
         if start_date and end_date:
-            if not is_valid_date(start_date) or not is_valid_date(end_date):
-                raise ValueError("Invalid date format. Use YYYY-MM-DD.")
+            if not is_valid_date(start_date, fmt="%m-%d-%Y") or not is_valid_date(end_date, fmt="%m-%d-%Y"):
+                raise ValueError("Invalid date format. Use MM-DD-YYYY.")
+            start = datetime.strptime(start_date, "%m-%d-%Y").date()
+            end = datetime.strptime(end_date, "%m-%d-%Y").date()
             filters.append(f"{date_column} BETWEEN %s AND %s")
-            params.extend([start_date, end_date])
+            params.extend([start, end])
+
         elif start_date:
-            if not is_valid_date(start_date):
-                raise ValueError("Invalid start date format. Use YYYY-MM-DD.")
+            if not is_valid_date(start_date, fmt="%m-%d-%Y"):
+                raise ValueError("Invalid start date format. Use MM-DD-YYYY.")
+            start = datetime.strptime(start_date, "%m-%d-%Y").date()
             filters.append(f"{date_column} >= %s")
-            params.append(start_date)
+            params.append(start)
+
         elif end_date:
-            if not is_valid_date(end_date):
-                raise ValueError("Invalid end date format. Use YYYY-MM-DD.")
+            if not is_valid_date(end_date, fmt="%m-%d-%Y"):
+                raise ValueError("Invalid end date format. Use MM-DD-YYYY.")
+            end = datetime.strptime(end_date, "%m-%d-%Y").date()
             filters.append(f"{date_column} <= %s")
-            params.append(end_date)
+            params.append(end)
 
     query = base_query
 
