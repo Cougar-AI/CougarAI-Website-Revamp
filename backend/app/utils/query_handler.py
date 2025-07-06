@@ -69,7 +69,7 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
         
         if group_by:
             if isinstance(group_by, list):
-                clause = ", ".join(group_by)
+                group_clause = ", ".join(group_by)
             else:
                 group_clause = group_by
             query += f" GROUP BY {group_clause}"
