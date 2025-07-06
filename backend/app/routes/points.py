@@ -9,7 +9,7 @@ def getPoints():
     with connection.cursor() as cur:
 
         filter_dict = {
-            "points.points_id": request.args.get("points_ids", type=int),
+            "points.points_id": request.args.get("points_id", type=int),
             "points.student_id": request.args.get("student_id", type=int),
             "points.event_id": request.args.get("event_id", type=int),
             "points.date": request.args.get("date"),
