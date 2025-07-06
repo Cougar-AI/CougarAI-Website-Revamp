@@ -9,7 +9,7 @@ def getPoints():
     with connection.cursor() as cur:
 
         filter_dict = {
-            "points.points_id": request.args.get("point_ids", type=int),
+            "points.points_id": request.args.get("points_ids", type=int),
             "points.student_id": request.args.get("student_id", type=int),
             "points.event_id": request.args.get("event_id", type=int),
             "points.date": request.args.get("date"),
@@ -24,12 +24,12 @@ def getPoints():
         results = cur.fetchall()
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
         
-@points_bp.route("/<int:point_id>", methods=["DELETE"])
-def deletePoints(point_id):
+@points_bp.route("/<int:points_id>", methods=["DELETE"])
+def deletePoints(points_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
-            cur.execute("DELETE FROM points WHERE points_id = %s", (point_id,))
+            cur.execute("DELETE FROM points WHERE points_id = %s", (points_id,))
             connection.commit()
             return jsonify({"message": "Point deleted successfully"}), 200
     except Exception as e:
@@ -198,11 +198,11 @@ def getTotalPoints():
 
     
 
-@points_bp.route("/<int:point_id>", methods=["GET"])
-def getPointById(point_id):
+@points_bp.route("/<int:points_id>", methods=["GET"])
+def getPointById(points_id):
     connection = connect()
     with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur: # converts from a tuple to dict used in the jsonify
-        cur.execute("SELECT * FROM points WHERE points_id = %s", (point_id,))
+        cur.execute("SELECT * FROM points WHERE points_id = %s", (points_id,))
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Point not found"}), 404
     
