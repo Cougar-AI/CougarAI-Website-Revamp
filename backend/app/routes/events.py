@@ -1,7 +1,5 @@
 from app.imports import *
 
-
-
 events_bp = Blueprint('events', __name__)
 @events_bp.route("/", methods=["GET"])
 def getEvents():

@@ -6,6 +6,7 @@ from app.routes.events import events_bp
 from app.routes.officers import officers_bp
 from app.routes.points import points_bp
 from app.routes.auth import auth_bp
+from app.routes.forms import forms_bp
 
 blueprints_with_prefixes = {
     discord_bp: '/discord',
@@ -14,5 +15,6 @@ blueprints_with_prefixes = {
     events_bp:'/events',
     officers_bp:'/officers',
     points_bp:'/points',
-    auth_bp:'/auth'
+    auth_bp:'/auth',
+    forms_bp:'/forms'
 }
