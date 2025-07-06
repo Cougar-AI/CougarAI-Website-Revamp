@@ -8,7 +8,6 @@ def getOfficers():
     with connection.cursor() as cur:
         filter_dict = {
             "student_id": request.args.get("student_id", type=int),
-            "student_id": request.args.get("student_id", type=int),
             "join_date": request.args.get("join_date"),
             "end_date": request.args.get("end_date"),
             "limit": request.args.get("limit", type=int),
@@ -18,8 +17,7 @@ def getOfficers():
         if "join_date" in filter_dict and filter_dict["join_date"] and not is_valid_date(filter_dict["join_date"]):
             return jsonify({"error": "Invalid join_date format"}), 400
 
-        query, params = build_sql_querys("SELECT * FROM officers", filter_dict, date_column="join_date")
-        query += " ORDER BY join_date DESC"
+        query, params = build_sql_querys("SELECT * FROM officers", filter_dict, date_column="join_date", order_by="join_date")
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()

@@ -19,8 +19,7 @@ def getPoints():
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int)
         }
-        query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date")
-        query += " ORDER BY points.date DESC"
+        query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date", order_by="points.date")
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -53,8 +52,8 @@ def getLeaderboard():
             "offset": request.args.get("offset", type=int)
         }
 
-        query, params = build_sql_querys("SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id", filter_dict, date_column="points.date")
-        query += " GROUP BY users.student_id, users.first_name, users.last_name ORDER BY total_points DESC"
+        query, params = build_sql_querys("SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id", filter_dict, date_column="points.date", order_by="total_points")
+        query += " GROUP BY users.student_id, users.first_name, users.last_name"
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()

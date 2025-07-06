@@ -1,6 +1,6 @@
 from app.utils.date_validation import is_valid_date 
 
-def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE"): # mainly for get queries
+def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC"): # mainly for get queries
     filters = [] # stores the SQL Filters 
     params = [] # stores the variables 
     mode = mode.upper()
@@ -59,15 +59,22 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
 
 
     if mode == "WHERE":
-       if limit is not None:
-        try:
-            limit = int(limit)
-            if limit < 0:
+        
+        if order_by is not None:
+            sort_dir = sort_dir.upper()
+            if sort_dir not in ["ASC", "DESC"]:
+                sort_dir = "DESC"
+            query += f" ORDER BY {order_by} {sort_dir}"
+
+        if limit is not None:
+            try:
+                limit = int(limit)
+                if limit < 0:
+                    raise ValueError("Limit must be a non-negative integer.")
+                query += " LIMIT %s"
+                params.append(limit)
+            except ValueError:
                 raise ValueError("Limit must be a non-negative integer.")
-            query += " LIMIT %s"
-            params.append(limit)
-        except ValueError:
-            raise ValueError("Limit must be a non-negative integer.")
 
     if offset is not None:
         try:
