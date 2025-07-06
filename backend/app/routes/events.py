@@ -16,6 +16,8 @@ def getEvents():
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int),
             "description": request.args.get("description"),
+            "start_date": request.args.get("start_date"),
+            "end_date": request.args.get("end_date"),
             "date": date,
             "location": request.args.get("location"),
         }
