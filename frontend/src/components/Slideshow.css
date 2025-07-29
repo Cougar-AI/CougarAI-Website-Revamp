@@ -1,27 +1,20 @@
 .swiper { 
     position: relative;
-    margin-bottom: 60px;
+    margin-bottom: 0;
+    height: 100%;
 }
 
 .swiper-slide img {
-    width: 600px;
-    height: 400px;
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    margin-bottom: 60px;
 }
 
-.swiper-button-prev {
-    left: 0;   
-    right: auto;
-    top: 50%;
-    transform: translateY(-50%);
-    color: red;  
-}
-
-.swiper-button-next {
-    right: 0;     
-    left: auto;
+.swiper-button-prev,
+.swiper-button-next {  
     top: 50%;
     transform: translateY(-50%);
     color: red;
+    width: 40px;
+    height: 40px;
 }

@@ -14,20 +14,19 @@ const images = [
 
 export default function Slideshow() {
     return (
-        <div style={{ width: '600px', height: '400px' }}>
+        <div style={{ width: '1000px', height: '600px' }}>
             <Swiper 
                 modules={[Navigation, Autoplay]}
                 navigation
                 autoplay={{ delay: 5000, disableOnInteraction: false }}
                 loop
-                style={{ width: '100%', height: '100%' }}
             >
                 {images.map((src, i) => (
                     <SwiperSlide key={i}>
-                        <img src={src} alt={'Slide ${I + 1}'} style={{ width: '100%', objectFit: 'cover' }} />
+                        <img src={src} alt={'Slide ${I + 1}'} />
                     </SwiperSlide>
                 ))}
             </Swiper>
         </div>
-    )
-}
+    );
+};
