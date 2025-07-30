@@ -1,5 +1,6 @@
 import React from 'react';
 import logo from '../assets/logo.png'
+import { Link } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
     return (
@@ -9,12 +10,13 @@ const Navbar: React.FC = () => {
                 <span className="text-xl font-bold">CougarAI</span>
             </div>
         <ul className="flex space-x-5">
-            <li><a href="/" className="hover:text-gray-300">Home</a></li>
-            <li><a href="/About" className="hover:text-gray-300">About Us</a></li>
-            <li><a href="/Memberships" className="hover:text-gray-300">Memberships</a></li>
-            <li><a href="/Contact" className="hover:text-gray-300">Contact</a></li>
-            <li><a href="/Calendar" className="hover:text-gray-300">Calendar</a></li>
-            <li><a href="/Sponsorships" className="hover:text-gray-300">Sponsorships</a></li>
+            <li><Link to="/" className="hover:text-gray-300">Home</Link></li>
+            <li><Link to="/About" className="hover:text-gray-300">About Us</Link></li>
+            <li><Link to="/Memberships" className="hover:text-gray-300">Memberships</Link></li>
+            <li><Link to="/Contact" className="hover:text-gray-300">Contact</Link></li>
+            <li><Link to="/Calendar" className="hover:text-gray-300">Calendar</Link></li>
+            <li><Link to="/Sponsors" className="hover:text-gray-300">Sponsors</Link></li>
+            <li><Link to="/Profile" className="hover:text-gray-300">Profile</Link></li>
         </ul>
         </nav>
     );

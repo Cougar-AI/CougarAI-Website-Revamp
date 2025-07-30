@@ -119,11 +119,11 @@ const About = () => {
 
   return (
     <div 
-      className="text-white bg-cover bg-center min-h-screen w-full"
+      className="flex flex-col min-h-screen text-white bg-cover bg-center w-full"
       style={{ backgroundImage: "url('/bgphoto.jpg')" }}
     >
       <Navbar />
-      <main className="px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
+      <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">About Us</h1>
 
         {!selectedDept && (
