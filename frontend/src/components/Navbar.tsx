@@ -1,6 +1,9 @@
 import React from 'react';
 import logo from '../assets/logo.png'
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
+const link = 'hover:text-gray-300'
+const active = 'underline underline-offset-8'
+import { cn } from '../lib/utils.ts'
 
 const Navbar: React.FC = () => {
     return (
@@ -10,13 +13,13 @@ const Navbar: React.FC = () => {
                 <span className="text-xl font-bold">CougarAI</span>
             </div>
         <ul className="flex space-x-5">
-            <li><Link to="/" className="hover:text-gray-300">Home</Link></li>
-            <li><Link to="/About" className="hover:text-gray-300">About Us</Link></li>
-            <li><Link to="/Memberships" className="hover:text-gray-300">Memberships</Link></li>
-            <li><Link to="/Contact" className="hover:text-gray-300">Contact</Link></li>
-            <li><Link to="/Calendar" className="hover:text-gray-300">Calendar</Link></li>
-            <li><Link to="/Sponsors" className="hover:text-gray-300">Sponsors</Link></li>
-            <li><Link to="/Profile" className="hover:text-gray-300">Profile</Link></li>
+            <NavLink to="/" className={({isActive}) => cn(link, isActive && active)}>Home</NavLink>
+            <NavLink to="/About" className={({isActive}) => cn(link, isActive && active)}>About Us</NavLink>
+            <NavLink to="/Memberships" className={({isActive}) => cn(link, isActive && active)}>Memberships</NavLink>
+            <NavLink to="/Contact" className={({isActive}) => cn(link, isActive && active)}>Contact</NavLink>
+            <NavLink to="/Calendar" className={({isActive}) => cn(link, isActive && active)}>Calendar</NavLink>
+            <NavLink to="/Sponsors" className={({isActive}) => cn(link, isActive && active)}>Sponsors</NavLink>
+            <NavLink to="/Profile" className={({isActive}) => cn(link, isActive && active)}>Profile</NavLink>
         </ul>
         </nav>
     );

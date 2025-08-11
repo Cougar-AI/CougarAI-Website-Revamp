@@ -1,8 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import Navbar from '../components/Navbar';
 import logo from '../assets/logo.png';
-import Footer from '../components/Footer';
 import Slideshow from '../components/Slideshow';
 
 const Home = () => {
@@ -11,7 +9,6 @@ const Home = () => {
       className="flex flex-col min-h-screen text-white bg-cover bg-center w-full"
       style={{ backgroundImage: "url('/bgphoto.jpg')" }}
     >
-      <Navbar />
       <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
         {/* Big welcome logo */}
         <img
@@ -23,7 +20,7 @@ const Home = () => {
         <h1 className="text-3xl font-bold">Welcome to CougarAI! Here we offer... </h1>
 
         {/* Containers with org features. */}
-        <section className="bg-red-700 p-8 rounded-xl max-w-10xl w-[90%] mx-auto mt-16">
+        <section className="bg-red-700 p-8 rounded-xl max-w-7xl w-[90%] mx-auto mt-16">
           <div className="flex flex-col md:flex-row justify-center gap-8 text-black">
             {[
               /* Features with their descriptions */
@@ -57,7 +54,6 @@ const Home = () => {
         </Link>
         
       </main>
-      <Footer />
     </div>
   );
 };

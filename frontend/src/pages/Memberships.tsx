@@ -1,5 +1,3 @@
-import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 import { Link } from 'react-router-dom'
 
 const Memberships = () => {
@@ -8,7 +6,6 @@ const Memberships = () => {
             className="flex flex-col min-h-screen text-white bg-cover bg-center w-full"
             style={{ backgroundImage: "url('/bgphoto.jpg')" }}
         >
-            <Navbar />
             <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
                 <h1 className="text-4xl font-bold mb-8">Memberships</h1>
 
@@ -40,7 +37,6 @@ const Memberships = () => {
                     </div>
                 </div>
             </main>
-            <Footer />
         </div>
     );
 };
