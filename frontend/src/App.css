@@ -1,6 +1,7 @@
 #root {
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0rem;
+  padding: 2rem;
   text-align: center;
 }
 
@@ -33,7 +34,7 @@
 }
 
 .card {
-  padding: 1em;
+  padding: 2em;
 }
 
 .read-the-docs {
