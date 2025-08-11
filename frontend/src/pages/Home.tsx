@@ -5,12 +5,7 @@ import Slideshow from '../components/Slideshow';
 
 const Home = () => {
   return (
-    <div 
-      className="flex flex-col min-h-screen text-white bg-cover bg-center w-full"
-      style={{ backgroundImage: "url('/bgphoto.jpg')" }}
-    >
-      <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
-        {/* Big welcome logo */}
+    <div className="mx-auto max-w-3xl text-center">
         <img
           src={logo}
           alt="CougarAI Logo"
@@ -52,8 +47,6 @@ const Home = () => {
               Login
             </button>
         </Link>
-        
-      </main>
     </div>
   );
 };

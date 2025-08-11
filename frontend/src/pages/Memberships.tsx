@@ -2,11 +2,7 @@ import { Link } from 'react-router-dom'
 
 const Memberships = () => {
     return (
-        <div 
-            className="flex flex-col min-h-screen text-white bg-cover bg-center w-full"
-            style={{ backgroundImage: "url('/bgphoto.jpg')" }}
-        >
-            <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
+        <div className="mx-auto max-w-3xl text-center">
                 <h1 className="text-4xl font-bold mb-8">Memberships</h1>
 
                 <p className="max-w-3xl text-center text-lg mb-12">
@@ -36,7 +32,6 @@ const Memberships = () => {
                         $25 / Year
                     </div>
                 </div>
-            </main>
         </div>
     );
 };

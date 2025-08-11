@@ -1,90 +1,60 @@
 import { useState } from 'react';
-import { departments } from '../data/officers';
+import { departments, type Department } from '@/data/officers';
+import OfficerCard from '@/components/OfficerCard';
 
-const About = () => {
-  const [selectedDept, setSelectedDept] = useState(null);
+export default function About() {
+  const [selectedDept, setSelectedDept] = useState<Department | null>(null);
 
   return (
-    <div 
-      className="flex flex-col min-h-screen text-white bg-cover bg-center w-full"
-      style={{ backgroundImage: "url('/bgphoto.jpg')" }}
-    >
-      <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">About Us</h1>
+    <div className="w-full">
+      <h1 className="mb-8 text-center text-3xl font-bold">About Us</h1>
 
-        {!selectedDept && (
-          <>
-            <div className="border-8 border-red-700 rounded-xl p-2 w-fit mb-16">
-              <img 
-                src="/mockAboutPhoto.webp" 
-                alt="CougarAI Team" 
-                className="w-full h-auto rounded-lg"
-              />
-            </div>
+      {!selectedDept && (
+        <>
+          <div className="mx-auto mb-16 w-fit rounded-xl border-8 border-red-700 p-2">
+            <img src="/mockAboutPhoto.webp" alt="CougarAI Team" className="h-auto w-full rounded-lg" />
+          </div>
 
-            <p className="max-w-3xl text-center text-lg mb-16">
-              We are your #1 organization at the University of Houston for students wanting
-              to learn more about the field of Artificial Intelligence. Anyone and everyone
-              is welcome to join. We encourage all to learn about the rapidly evolving field of AI/ML.
-            </p>
+          <p className="mx-auto mb-16 max-w-3xl text-center text-lg">
+            We are your #1 organization at the University of Houston for students wanting to learn more about AI.
+            Anyone is welcome to join—we encourage all to explore the rapidly evolving field of AI/ML.
+          </p>
 
-            <h2 className="text-3xl font-bold mb-16">Our Officers!</h2>
+          <h2 className="mb-6 text-center text-3xl font-bold">Our Officers</h2>
 
-            <section className="bg-red-700 rounded-xl px-16 py-16 w-full max-w-7xl mx-auto text-center mb-16">
-              <h3 className="text-white text-xl font-bold mb-8"> SELECT DEPARTMENT</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-16">
-                {departments.map((dept, index) => (
-                  <button 
-                    key={index}
-                    className="bg-white hover:bg-gray-200 text-black font-semibold px-8 py-16 rounded shadow transition"
-                    onClick={() => setSelectedDept(dept)}
-                  >
-                    {dept.name}
-                  </button>
-                ))}
-              </div>
-            </section>
-          </>
-        )}
-
-        {selectedDept && (
-          <section className="bg-red-700 rounded-xl p-8 max-w-5xl w-full text-center">
-            <h2 className="text-2xl font-bold mb-4">{selectedDept.name}</h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {selectedDept.officers.map((officer, i) => (
-                <div key={i} className="bg-gray-100 text-black p-4 rounded shadow">
-                  <img 
-                    src={officer.photo} 
-                    alt={officer.name} 
-                    className="w-32 h-32 rounded-full mx-auto mb-4 object-cover"
-                  />
-                  <h3 className="text-xl font-semibold">{officer.name}</h3>
-                  <p className="mb-2">{officer.position}</p>
-                  <a 
-                    href={officer.linkedin} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-blue-400 hover:underline"
-                  >
-                    LinkedIn
-                  </a>
-                </div>
+          <section className="mx-auto mb-16 w-full max-w-6xl rounded-xl bg-red-700 px-6 py-10 text-center">
+            <h3 className="mb-6 text-xl font-bold text-white">Select Department</h3>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3">
+              {departments.map((dept) => (
+                <button
+                  key={dept.id}
+                  className="rounded bg-white px-6 py-10 font-semibold text-black shadow transition hover:bg-gray-200"
+                  onClick={() => setSelectedDept(dept)}
+                >
+                  {dept.name}
+                </button>
               ))}
             </div>
-
-            <button
-              className="mt-8 bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-6 rounded"
-              onClick={() => setSelectedDept(null)}
-            >
-              Back to Departments
-            </button>
           </section>
-        )}
+        </>
+      )}
 
-      </main>
+      {selectedDept && (
+        <section className="mx-auto w-full max-w-5xl rounded-xl bg-red-700 p-8 text-center">
+          <h2 className="mb-4 text-2xl font-bold text-white">{selectedDept.name}</h2>
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+            {selectedDept.officers.map((officer) => (
+              <OfficerCard key={officer.id} officer={officer} />
+            ))}
+          </div>
+          <button
+            className="mt-8 rounded bg-red-700 px-6 py-2 font-bold text-white hover:bg-red-800"
+            onClick={() => setSelectedDept(null)}
+          >
+            Back to Departments
+          </button>
+        </section>
+      )}
     </div>
   );
-};
-
-export default About;
+}
