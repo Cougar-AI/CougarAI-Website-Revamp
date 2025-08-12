@@ -10,7 +10,7 @@ export default function RootLayout() {
       style={{ backgroundImage: `url(${bg})` }}
     >
       {/* Background overlay for consistent contrast */}
-      <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
+      <div className="absolute inset-0 bg-black/10" aria-hidden="true" />
 
       <a
         href="#main"
