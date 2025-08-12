@@ -88,7 +88,7 @@ export default function SponsorPage() {
 
       <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 md:pt-24">
         <header className="mx-auto max-w-4xl text-center">
-          <h1 className="text-white text-5xl font-semibold leading-snug">
+          <h1 className="text-white text-4xl font-semibold leading-snug">
             This page is dedicated to our sponsors who have helped our
             organization succeed and continue to succeed.
           </h1>
