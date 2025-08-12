@@ -5,10 +5,18 @@ import SiteBackground from '@/components/SiteBackground';
 
 export default function RootLayout() {
   return (
-    <div className="relative flex min-h-screen flex-col bg-black text-white">
+    <div
+      className="
+        relative isolate flex min-h-screen flex-col bg-black text-white
+        [--accent:#e11d48] [--accent2:#2563eb] [--accent3:#22c55e]
+      "
+    >
       <SiteBackground />
 
-      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50"
+      >
         Skip to content
       </a>
 
@@ -26,4 +34,3 @@ export default function RootLayout() {
     </div>
   );
 }
-

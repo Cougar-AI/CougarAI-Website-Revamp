@@ -65,7 +65,7 @@ const PriceCard: React.FC<{
 
 const Memberships: React.FC = () => {
   return (
-    <div className="relative min-h-[calc(100vh-96px)] bg-black text-white">
+    <div className="relative min-h-[calc(100vh-96px)] text-white">
 
       <main className="mx-auto max-w-6xl px-6 py-16 lg:py-24">
         {/* Hero */}
