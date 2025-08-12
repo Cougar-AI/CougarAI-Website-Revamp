@@ -44,7 +44,6 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
       >
         <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl">
           {logoSrc ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={logoSrc}
               alt={`${name} logo`}
@@ -85,18 +84,7 @@ function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
 
 export default function SponsorPage() {
   return (
-    <main className="relative min-h-screen bg-black font-['Oxanium'] overflow-hidden">
-      {/* soft background accents */}
-      <div
-        className="pointer-events-none absolute -top-32 -left-32 size-[500px] rounded-full blur-3xl
-                   bg-rose-700/20"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-40 -right-32 size-[520px] rounded-full blur-3xl
-                   bg-fuchsia-600/20"
-        aria-hidden="true"
-      />
+    <main className="relative min-h-screen font-['Oxanium'] overflow-hidden">
 
       <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 md:pt-24">
         <header className="mx-auto max-w-4xl text-center">

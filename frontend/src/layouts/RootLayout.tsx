@@ -1,21 +1,14 @@
 import { Outlet } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import bg from '@/assets/bgphoto.jpg';
+import SiteBackground from '@/components/SiteBackground';
 
 export default function RootLayout() {
   return (
-    <div
-      className="relative flex min-h-screen flex-col text-white bg-cover bg-center bg-fixed"
-      style={{ backgroundImage: `url(${bg})` }}
-    >
-      {/* Background overlay for consistent contrast */}
-      <div className="absolute inset-0 bg-black/10" aria-hidden="true" />
+    <div className="relative flex min-h-screen flex-col bg-black text-white">
+      <SiteBackground />
 
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50"
-      >
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50">
         Skip to content
       </a>
 
@@ -33,3 +26,4 @@ export default function RootLayout() {
     </div>
   );
 }
+

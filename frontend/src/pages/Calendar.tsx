@@ -1,13 +1,5 @@
 import React, { useMemo, useState } from "react";
 
-/**
- * CougarAI Calendar
- * - Consistent with site styling (black bg, rose-700 accents, Oxanium font)
- * - Accessible filter controls (keyboard + ARIA)
- * - Responsive calendar grid with event chips
- * - Simple local state; easy to swap in real data later
- */
-
 // ----- Types & Data -----
 const TYPE_OPTIONS = [
   { label: "All", value: "all" },
