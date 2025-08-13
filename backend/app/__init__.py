@@ -1,7 +1,6 @@
 from flask import Flask
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
-from app.imports import *
 
 db = SQLAlchemy()
 
@@ -18,10 +17,10 @@ def create_app(config_class='config.DevelopmentConfig'):
 
     # Register any blueprints your app expects (safe if none exist)
     try:
+        from app.imports.routes_import import blueprints_with_prefixes
         for blueprint, prefix in blueprints_with_prefixes.items():
             app.register_blueprint(blueprint, url_prefix=prefix)
-    except NameError:
-        # If blueprints_with_prefixes isn't defined, just skip quietly for tests
+    except Exception:
         pass
 
     return app
