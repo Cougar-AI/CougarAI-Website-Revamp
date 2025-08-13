@@ -1,17 +1,17 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
+
 
 load_dotenv()
 
 class BaseConfig:
-    """Base configuration."""
-    SECRET_KEY = os.getenv('SECRET_KEY', 'my_precious_secret_key')
     DEBUG = False
     TESTING = False
     PRODUCTION = False
+    JWT_SECRET = os.environ.get("JWT_SECRET", "change-me-too")
 
 class DevelopmentConfig(BaseConfig):
-    """Development configuration."""
     DEBUG = True
     DB_NAME = os.getenv("DEV_DB_NAME")
     DB_USER = os.getenv("DEV_DB_USER")
@@ -20,14 +20,10 @@ class DevelopmentConfig(BaseConfig):
     DB_PORT = os.getenv("DEV_DB_PORT")
 
 
-class TestingConfig(BaseConfig):
-    """Testing configuration."""
+class TestConfig(BaseConfig):
     TESTING = True
-    DB_NAME = os.getenv("TEST_DB_NAME", "test_db")
-    DB_USER = os.getenv("TEST_DB_USER", "test_user")
-    DB_PASS = os.getenv("TEST_DB_PASS", "test_pass")
-    DB_HOST = os.getenv("TEST_DB_HOST", "localhost")
-    DB_PORT = os.getenv("TEST_DB_PORT", "5433")
+    SQLALCHEMY_DATABASE_URI = "postgresql://test_user:test_pass@localhost:5432/test_db"
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 class ProductionConfig(BaseConfig):
     """Production configuration."""

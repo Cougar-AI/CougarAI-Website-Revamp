@@ -12,7 +12,7 @@ import Memberships from './pages/Memberships.tsx';
 import Contact from './pages/Contact.tsx';
 import Calendar from './pages/Calendar.tsx';
 import Sponsors from './pages/Sponsors.tsx';
-import Profile from './pages/Profile.tsx';
+import Login from './pages/Login.tsx';
 import NotFound from './pages/NotFound.tsx';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
@@ -35,7 +35,7 @@ export default function App() {
             <Route path={'/contact'} element={<Contact />} />
             <Route path={'/calendar'} element={<Calendar />} />
             <Route path={'/sponsors'} element={<Sponsors />} />
-            <Route path={'/profile'} element={<Profile />} />
+            <Route path={'/login'} element={<Login />} />
 
             {/* Real 404 */}
             <Route path="*" element={<NotFound />} />
