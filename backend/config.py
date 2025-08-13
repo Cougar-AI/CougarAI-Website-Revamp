@@ -26,6 +26,7 @@ class TestConfig(BaseConfig):
         "DATABASE_URL",
         "postgresql://test_user:test_pass@localhost:5432/test_db",
     )
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 class ProductionConfig(BaseConfig):
     """Production configuration."""

@@ -6,6 +6,12 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 
+@pytest.fixture(scope="session")
+def docker_compose_file(pytestconfig):
+    # Ensures pytest-docker finds tests/docker-compose.yml reliably
+    return os.path.join(str(pytestconfig.rootpath), "tests", "docker-compose.yml")
+
+
 # --- session-wide PostgreSQL service ---------------------------
 @pytest.fixture(scope="session")
 def _postgres_url(docker_services):
@@ -47,7 +53,7 @@ def _postgres_url(docker_services):
 @pytest.fixture(scope="session")
 def app(_postgres_url):
     from app import create_app
-    return create_app("app.config.TestConfig")
+    return create_app("config.TestConfig")
 
 
 @pytest.fixture(scope="session")

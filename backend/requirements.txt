@@ -6,7 +6,12 @@ gunicorn
 bcrypt
 PyJWT
 pytest
+pytest-asyncio
+pytest-cov
+pytest-docker
 pytest-flask
+SQLAlchemy
+flask-sqlalchemy
 google-api-python-client
 google-auth
 google-auth-oauthlib
