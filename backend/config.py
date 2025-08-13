@@ -22,7 +22,6 @@ class DevelopmentConfig(BaseConfig):
 
 class TestConfig(BaseConfig):
     TESTING = True
-    JWT_SECRET = "change-me-too"
     SQLALCHEMY_DATABASE_URI = "postgresql://test_user:test_pass@localhost:5432/test_db"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
