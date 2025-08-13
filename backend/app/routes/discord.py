@@ -31,7 +31,7 @@ def createDiscordConfig(guild_id):
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@discord_bp.route("config/<string:guild_id>", methods=["PATCH"])
+@discord_bp.route("/config/<string:guild_id>", methods=["PATCH"])
 def updatediscordConfig(guild_id):
     try:
         connection = connect()
