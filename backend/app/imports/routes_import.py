@@ -10,7 +10,6 @@ from app.routes.profiles import profile_bp
 
 blueprints_with_prefixes = {
     discord_bp: '/discord',
-    # users_bp: '/users',
     profile_bp: '/profile',
     payments_bp:'/payments',
     events_bp:'/events',
