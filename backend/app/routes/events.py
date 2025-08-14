@@ -25,7 +25,7 @@ def getEvents():
             "end_date": request.args.get("end_date"),
             "starts_at": starts_at,
             "ends_at": ends_at,
-            "capacity": request.args.get("capacity", type=int),
+            "capacity": request.args.get("capacity"),
             "location": request.args.get("location"),
         }
 
@@ -64,7 +64,7 @@ def addEvent():
                 "location": request.json.get("location"),
                 "starts_at": request.json.get("starts_at"),
                 "ends_at": request.json.get("ends_at"),
-                "capacity": request.json.get("capacity", type=int)
+                "capacity": request.json.get("capacity")
             }
             if filter_dict["starts_at"] is None or filter_dict["event_type"] is None or filter_dict["name"] is None:
                 return jsonify({"error": "name, starts_at and event_type are required"}), 400
@@ -134,7 +134,7 @@ def updateEvent(event_id):
             filter_dict = {
                 "name": request.json.get("name"),
                 "event_type": request.json.get("event_type"),
-                "capacity": request.json.get("capacity", type=int),
+                "capacity": request.json.get("capacity"),
                 "starts_at": request.json.get("starts_at"),
                 "ends_at": request.json.get("ends_at"),
                 "description": request.json.get("description"),
