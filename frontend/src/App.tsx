@@ -14,6 +14,7 @@ import Calendar from './pages/Calendar.tsx';
 import Sponsors from './pages/Sponsors.tsx';
 import Login from './pages/Login.tsx';
 import NotFound from './pages/NotFound.tsx';
+import Registration from './pages/Registration.tsx';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   try {
@@ -36,6 +37,7 @@ export default function App() {
             <Route path={'/calendar'} element={<Calendar />} />
             <Route path={'/sponsors'} element={<Sponsors />} />
             <Route path={'/login'} element={<Login />} />
+            <Route path={'/register'} element={<Registration />} />
 
             {/* Real 404 */}
             <Route path="*" element={<NotFound />} />
