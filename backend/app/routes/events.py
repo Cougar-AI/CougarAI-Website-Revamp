@@ -106,10 +106,10 @@ def getAttendance():
             base_query = """
             SELECT points.*, 
             events.description, events.location, events.name, events.event_type, events.starts_at, events.ends_at,
-            users.first_name, users.last_name
+            profile.first_name, profile.last_name
             FROM points 
             JOIN events ON points.event_id = events.event_id 
-            JOIN users ON points.student_id = users.student_id
+            JOIN profile ON points.student_id = profile.student_id
             """
 
             query, params = build_sql_querys(base_query, filter_dict, date_column="events.starts_at")
@@ -117,12 +117,12 @@ def getAttendance():
                 GROUP BY 
                     points.points_id, 
                     events.description, events.location, events.name, events.event_type, events.starts_at, events.ends_at,
-                    users.first_name, users.last_name
+                    profile.first_name, profile.last_name
             """
 
             cur.execute(query, tuple(params))
             results = cur.fetchall()
-            return (jsonify(results), 200) if results else (jsonify({"error": "No attendence found"}), 404)
+            return (jsonify(results), 200) if results else (jsonify({"error": "No attendance found"}), 404)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     

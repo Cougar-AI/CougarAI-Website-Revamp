@@ -14,10 +14,10 @@ def getProfile():
             "last_name": request.args.get("last_name"),
             "discord_id": request.args.get("discord_id"),
             "shirt_size": request.args.get("shirt_size"),
-            "phone": request.args.get("phone"),
             "grade_level": request.args.get("grade_level"),
             "gender": request.args.get("gender", type=int),
             "join_source": request.args.get("join_source"),
+            "phone": request.args.get("phone"),
         }
 
         query, params = build_sql_querys("SELECT * FROM profile", filter_dict)
