@@ -1,3 +1,4 @@
+# app/__init__.py (your factory file)
 from flask import Flask
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
@@ -10,17 +11,21 @@ def create_app(config_class='config.DevelopmentConfig'):
     CORS(app)
 
     uri = app.config.get("SQLALCHEMY_DATABASE_URI")
-    if uri:
-        # reasonable default to avoid warnings
-        app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
-        db.init_app(app)
+    if not uri:
+        # Fail early with a clear message
+        raise RuntimeError(
+            "Missing SQLALCHEMY_DATABASE_URI. Set SQLALCHEMY_DATABASE_URI or DB_NAME/DB_USER/DB_PASS/DB_HOST/DB_PORT."
+        )
 
-    # Register any blueprints your app expects (safe if none exist)
+    app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
+    db.init_app(app)
+
+    # Register blueprints; don't swallow errors silently
     try:
         from app.imports.routes_import import blueprints_with_prefixes
         for blueprint, prefix in blueprints_with_prefixes.items():
             app.register_blueprint(blueprint, url_prefix=prefix)
-    except Exception:
-        pass
+    except Exception as e:
+        app.logger.warning("Blueprint registration skipped: %r", e)
 
     return app

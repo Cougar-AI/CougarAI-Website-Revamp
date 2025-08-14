@@ -1,41 +1,37 @@
+# config.py
 import os
-from pathlib import Path
-from dotenv import load_dotenv
+from dotenv import load_dotenv, find_dotenv
 
+# Load .env if present, but don't overwrite process env
+load_dotenv(find_dotenv(), override=False)
 
-load_dotenv()
+def _build_uri():
+    name = os.getenv("DB_NAME")
+    user = os.getenv("DB_USER")
+    pw   = os.getenv("DB_PASS") or os.getenv("DB_PASSWORD")
+    host = os.getenv("DB_HOST", "127.0.0.1")
+    port = os.getenv("DB_PORT", "5432")
+    if all([name, user, pw, host, port]):
+        return f"postgresql://{user}:{pw}@{host}:{port}/{name}"
 
 class BaseConfig:
     DEBUG = False
     TESTING = False
     PRODUCTION = False
-    JWT_SECRET = os.environ.get("JWT_SECRET", "change-me-too")
+    JWT_SECRET = os.getenv("JWT_SECRET", "change-me-too")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 class DevelopmentConfig(BaseConfig):
-    DB_NAME = os.getenv("DB_NAME")
-    DB_USER = os.getenv("DB_USER")
-    DB_PASS = os.getenv("DB_PASS")
-    DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "5432")
-    if all([DB_NAME, DB_USER, DB_PASS, DB_HOST, DB_PORT]):
-        SQLALCHEMY_DATABASE_URI = (
-            f"postgresql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-        )
-        SQLALCHEMY_TRACK_MODIFICATIONS = False
-
+    DEBUG = True
+    SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or _build_uri()
 
 class TestConfig(BaseConfig):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = os.getenv(
-    "DATABASE_URL",
-    "postgresql://test_user:test_pass@localhost:5432/test_db",
+        "DATABASE_URL",
+        "postgresql://test_user:test_pass@127.0.0.1:5432/test_db",
     )
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 class ProductionConfig(BaseConfig):
     PRODUCTION = True
-    DB_NAME = os.getenv("DB_NAME")
-    DB_USER = os.getenv("DB_USER")
-    DB_PASS = os.getenv("DB_PASS")
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
+    SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or _build_uri()

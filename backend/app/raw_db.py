@@ -1,82 +1,59 @@
-# backend/app/raw_db.py
+# app/raw_db.py
+from app.imports import *
+from flask import current_app
+from urllib.parse import urlparse, unquote
 import os
-from urllib.parse import urlparse, parse_qs
-from flask import current_app, has_app_context
-import psycopg2
-from psycopg2.extras import RealDictCursor
 
-def _cfg(key, *env_keys, default=None):
-    # prefer Flask config (when available), otherwise env
-    if has_app_context():
-        v = current_app.config.get(key)
-        if v not in (None, ""):
-            return v
-    for k in env_keys:
-        v = os.getenv(k)
-        if v not in (None, ""):
-            return v
-    return default
+REQUIRED = ("dbname", "user", "password")
 
-def _kwargs_from_uri(uri: str) -> dict:
+def _from_uri(uri: str):
+    if uri.startswith("postgres://"):
+        uri = "postgresql://" + uri[len("postgres://"):]
     u = urlparse(uri)
-    opts = {
+    return {
         "dbname": (u.path or "/").lstrip("/"),
-        "user": u.username,
-        "password": u.password,
-        "host": u.hostname or "127.0.0.1",  # force TCP if missing
-        "port": int(u.port) if u.port else 5432,
-        "cursor_factory": RealDictCursor,
+        "user": unquote(u.username) if u.username else None,
+        "password": unquote(u.password) if u.password else None,
+        "host": u.hostname or "127.0.0.1",
+        "port": u.port or 5432,
     }
-    # carry through common query params (ssl, timeouts, etc.)
-    q = {k: v[0] for k, v in parse_qs(u.query).items() if v}
-    for k in ("sslmode", "sslrootcert", "sslcert", "sslkey", "application_name"):
-        if k in q:
-            opts[k] = q[k]
-    if "connect_timeout" in q:
-        try:
-            opts["connect_timeout"] = int(q["connect_timeout"])
-        except ValueError:
-            pass
-    return opts
 
-def connect():
-    # 1) Full URL if provided (supports SQLALCHEMY_DATABASE_URI, DATABASE_URL, DB_URL)
-    uri = _cfg("SQLALCHEMY_DATABASE_URI", "DATABASE_URL", "DB_URL")
-    if uri:
-        kw = _kwargs_from_uri(uri)
-    else:
-        # 2) Discrete pieces (support both DB_* and PG* names)
-        dbname = _cfg("DB_NAME", "PGDATABASE", default="CougarAI_Database")
-        user   = _cfg("DB_USER", "PGUSER")
-        pwd    = _cfg("DB_PASS", "PGPASSWORD", default="")
-        host   = _cfg("DB_HOST", "PGHOST", default="127.0.0.1")  # force TCP
-        port   = int(_cfg("DB_PORT", "PGPORT", default="5432"))
+def _from_config():
+    return {
+        "dbname": current_app.config.get("DB_NAME") or os.getenv("DB_NAME"),
+        "user": current_app.config.get("DB_USER") or os.getenv("DB_USER"),
+        "password": (
+            current_app.config.get("DB_PASS")
+            or os.getenv("DB_PASS")
+            or os.getenv("DB_PASSWORD")
+        ),
+        "host": current_app.config.get("DB_HOST") or os.getenv("DB_HOST") or "127.0.0.1",
+        "port": int(current_app.config.get("DB_PORT") or os.getenv("DB_PORT") or 5432),
+    }
 
-        if not all([dbname, user, host, port]):
-            # Fail fast with a clear message so you know why it fell back to a socket.
-            raise RuntimeError(
-                "Database config incomplete: set SQLALCHEMY_DATABASE_URI or "
-                "DB_NAME/DB_USER/DB_PASS/DB_HOST/DB_PORT (or PG* equivalents)."
-            )
-
-        kw = {
-            "dbname": dbname,
-            "user": user,
-            "password": pwd,
-            "host": host,
-            "port": port,
-            "cursor_factory": RealDictCursor,
-        }
-
-        sslmode = _cfg("DB_SSLMODE", "PGSSLMODE")
-        if sslmode:
-            kw["sslmode"] = sslmode
-
-    # Optional: log non-secret target so you can see what’s actually used
-    if has_app_context() and getattr(current_app, "logger", None):
-        current_app.logger.info(
-            "DB connect -> host=%s port=%s db=%s user=%s",
-            kw.get("host"), kw.get("port"), kw.get("dbname"), kw.get("user"),
+def _validate(dsn: dict):
+    missing = [k for k in REQUIRED if not dsn.get(k)]
+    if missing:
+        raise RuntimeError(
+            "Database configuration incomplete. Missing: "
+            + ", ".join(missing)
+            + ". Ensure DB_NAME, DB_USER, DB_PASS/DB_PASSWORD (and optionally DB_HOST, DB_PORT) are set, "
+              "or provide a full SQLALCHEMY_DATABASE_URI/DATABASE_URL."
         )
 
-    return psycopg2.connect(**kw)
+def connect():
+    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI") or os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
+    if uri:
+        dsn = _from_uri(uri)
+    else:
+        dsn = _from_config()
+
+    _validate(dsn)
+    return psycopg2.connect(
+        dbname=dsn["dbname"],
+        user=dsn["user"],
+        password=dsn["password"],
+        host=dsn["host"],
+        port=dsn["port"],
+        cursor_factory=psycopg2.extras.RealDictCursor,
+    )
