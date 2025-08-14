@@ -3,7 +3,7 @@ from app.imports import *
 profile_bp = Blueprint('profile', __name__)
 
 @profile_bp.route("/", methods=["GET"])
-def getProfiles():
+def getProfile():
     connection = connect()
     with connection.cursor() as cur:
 
@@ -24,7 +24,7 @@ def getProfiles():
         
         cur.execute(query, tuple(params))
         results = cur.fetchall()
-        return (jsonify(results), 200) if results else (jsonify({"error": "No profiles found"}), 404)
+        return (jsonify(results), 200) if results else (jsonify({"error": "No profile found"}), 404)
 
 
 @profile_bp.route("/<int:student_id>", methods=["DELETE"])
