@@ -78,7 +78,7 @@ def addProfile():
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@profile_bp.route("/<int:student_id>", methods=["PATCH"])
+@profile_bp.route("/<string:student_id>", methods=["PATCH"])
 def updateProfile(student_id):
     try:
         connection = connect()
