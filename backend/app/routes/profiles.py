@@ -94,8 +94,8 @@ def updateProfile(student_id):
             grade_level = request.json.get("grade_level")
 
             # Validate required fields
-            if not all([first_name, last_name, student_id]):
-                return jsonify({"error": "first_name, last_name, and student_id are required"}), 400
+            if not all([student_id]):
+                return jsonify({"error": "student_id is required"}), 400
 
             allowed_sizes = {"XS", "S", "M", "L", "XL", "XXL"}
             if shirt_size and shirt_size not in allowed_sizes:
