@@ -83,33 +83,30 @@ def updateProfile(student_id):
     try:
         connection = connect()
         with connection.cursor() as cur:
-            first_name = request.json.get("first_name")
-            last_name = request.json.get("last_name")
-            discord_id = request.json.get("discord_id")
-            shirt_size = request.json.get("shirt_size")
-            major = request.json.get("major")
-            gender = request.json.get("gender")
-            join_source = request.json.get("join_source")
-            phone = request.json.get("phone")
-            grade_level = request.json.get("grade_level")
+            filter_dict = {
+                "first_name": request.json.get("first_name"),
+                "last_name": request.json.get("last_name"),
+                "discord_id": request.json.get("discord_id"),
+                "shirt_size": request.json.get("shirt_size"),
+                "gender": request.json.get("gender"),
+                "join_source": request.json.get("join_source"),
+                "phone": request.json.get("phone"),
+                "grade_level": request.json.get("grade_level"),
+                "major": request.json.get("major"),
+            }
 
-            # Validate required fields
-            if not all([student_id]):
-                return jsonify({"error": "student_id is required"}), 400
+            query, params = build_sql_querys("UPDATE profile", filter_dict, mode="SET")
+            query += " WHERE student_id = %s"
+            params.append(student_id)
 
-            allowed_sizes = {"XS", "S", "M", "L", "XL", "XXL"}
-            if shirt_size and shirt_size not in allowed_sizes:
-                return jsonify({"error": f"shirt_size must be one of: {', '.join(sorted(allowed_sizes))}"}), 400
+            cur.execute(query, tuple(params))
+            if cur.rowcount == 0:
+                return jsonify({"error": f"Student ID {student_id} not found"}), 404
 
-            allowed_grades = {"freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"}
-            if grade_level and grade_level not in allowed_grades:
-                return jsonify({"error": f"grade_level must be one of: {', '.join(sorted(allowed_grades))}"}), 400
-
-            # Update the profile
-            cur.execute("UPDATE profile SET first_name = %s, last_name = %s, discord_id = %s, shirt_size = %s, gender = %s, join_source = %s, phone = %s, grade_level = %s, major = %s WHERE student_id = %s",
-                       (first_name, last_name, discord_id, shirt_size, gender, join_source, phone, grade_level, major, student_id))
             connection.commit()
             return jsonify({"message": "Profile updated successfully"}), 200
+
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
+
