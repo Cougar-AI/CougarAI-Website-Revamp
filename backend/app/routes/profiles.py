@@ -20,7 +20,7 @@ def getProfile():
             "phone": request.args.get("phone"),
         }
 
-        query, params = build_sql_querys("SELECT * FROM profile", filter_dict, mode="SET")
+        query, params = build_sql_querys("SELECT * FROM profile", filter_dict)
         
         cur.execute(query, tuple(params))
         results = cur.fetchall()
