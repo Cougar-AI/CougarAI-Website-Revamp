@@ -243,11 +243,9 @@ def getEventType():
             "event_type": request.args.get("event_type"),
         }
 
-        if filter_dict["event_type"] is None:
-            filter_dict["event_type"] = "all"
-
-        print(filter_dict)
-        base_query = "SELECT * FROM event_type_points" if filter_dict["event_type"] == "all" else "SELECT * FROM event_type_points WHERE event_type = %s"
+        base_query = "SELECT * FROM event_type_points WHERE event_type = %s"
+        if filter_dict.get("event_type") is None:
+            base_query = "SELECT * FROM event_type_points"
 
         query, params = build_sql_querys(base_query, filter_dict)
         cur.execute(query, tuple(params))
