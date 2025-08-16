@@ -62,7 +62,7 @@ def getLeaderboard():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
 
 
-@points_bp.route("/add/<int:student_id>", methods=["POST"])
+@points_bp.route("/add/<string:student_id>", methods=["POST"])
 def addPoints(student_id):
     try:
         connection = connect()
@@ -175,7 +175,6 @@ def getTotalPoints():
 
             cur.execute(query, tuple(params))
             result = cur.fetchone()
-            print("Result:", result)
 
             if result is None or ("total_points" in result and result["total_points"] is None):
                 return jsonify({"error": "No points found"}), 404
