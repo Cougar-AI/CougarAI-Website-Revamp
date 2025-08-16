@@ -62,7 +62,7 @@ def getLeaderboard():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
 
 
-@points_bp.route("/add/<string:student_id>", methods=["POST"])
+@points_bp.route("/add/<int:student_id>", methods=["POST"])
 def addPoints(student_id):
     try:
         connection = connect()
@@ -234,5 +234,22 @@ def getMonthlyTotals():
         results = cur.fetchall()
         return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)
 
-    
+@points_bp.route("/event_type", methods=["GET"])
+def getEventType():
+    connection = connect()
+    with connection.cursor() as cur:
 
+        filter_dict = {
+            "event_type": request.args.get("event_type"),
+        }
+
+        if filter_dict["event_type"] is None:
+            filter_dict["event_type"] = "all"
+
+
+        base_query = "SELECT * FROM event_type_points" if filter_dict["event_type"] == "all" else "SELECT * FROM event_type_points WHERE event_type = %s"
+        
+        query, params = build_sql_querys(base_query, filter_dict)
+        cur.execute(query, tuple(params))
+        results = cur.fetchall()
+        return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)
