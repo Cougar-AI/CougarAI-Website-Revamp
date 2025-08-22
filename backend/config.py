@@ -37,6 +37,10 @@ class BaseConfig:
     TESTING = False
     PRODUCTION = False
     JWT_SECRET = os.getenv("JWT_SECRET", "change-me-too")
+    JWT_EMAIL_SECRET = os.getenv("JWT_EMAIL_SECRET", "change-me-email-secret")
+    SECRET_KEY_BASE = os.getenv("SECRET_KEY_BASE", "change-me-secret-key")
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    MAILER_BACKEND = os.getenv("MAILER_BACKEND", "smtp")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 

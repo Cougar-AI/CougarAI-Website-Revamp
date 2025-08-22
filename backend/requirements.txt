@@ -15,3 +15,6 @@ flask-sqlalchemy
 google-api-python-client
 google-auth
 google-auth-oauthlib
+passlib[bcrypt]
+Flask-JWT-Extended
+email-validator
