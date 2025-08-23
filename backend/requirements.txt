@@ -3,7 +3,6 @@ flask-cors
 psycopg2-binary
 python-dotenv
 gunicorn
-bcrypt
 PyJWT
 pytest
 pytest-asyncio
@@ -15,3 +14,5 @@ flask-sqlalchemy
 google-api-python-client
 google-auth
 google-auth-oauthlib
+flask-jwt-extended
+passlib[bcrypt]
