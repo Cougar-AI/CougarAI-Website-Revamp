@@ -36,8 +36,23 @@ class BaseConfig:
     DEBUG = False
     TESTING = False
     PRODUCTION = False
-    JWT_SECRET = os.getenv("JWT_SECRET", "change-me-too")
+    SECRET_KEY = os.getenv("SECRET_KEY_BASE", "changemedev")
+    JSON_AS_ASCII = False
+    JWT_SECRET_KEY = os.getenv("JWT_EMAIL_SECRET", "changemedev")
+    JWT_TOKEN_LOCATION = ["headers", "json", "query_string"]
+    JWT_ALGORITHM = "HS256"
+    
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")    
+
+    MAILER_BACKEND = os.getenv("MAILER_BACKEND", "smtp")
+    SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in {"1","true","yes","on"}
+    
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
 
 
 class DevelopmentConfig(BaseConfig):

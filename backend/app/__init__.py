@@ -2,9 +2,10 @@
 from flask import Flask
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
+from flask_jwt_extended import JWTManager
 
 db = SQLAlchemy()
-
+jwt = JWTManager()
 
 def create_app(config_class='config.DevelopmentConfig'):
     """
@@ -32,6 +33,7 @@ def create_app(config_class='config.DevelopmentConfig'):
 
     app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
     db.init_app(app)
+    jwt.init_app(app)
 
     # Register blueprints with more specific error handling
     try:
