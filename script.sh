@@ -11,13 +11,13 @@ if [[ -f .env ]]; then
   set +a                # stop auto-exporting
 fi
 
-# Map DEV_* -> expected names if not already set
-export DB_NAME="${DB_NAME:-${DEV_DB_NAME:-}}"
-export DB_USER="${DB_USER:-${DEV_DB_USER:-}}"
-export DB_PASS="${DB_PASS:-${DEV_DB_PASS:-}}"
-export DB_PASSWORD="${DB_PASSWORD:-${DB_PASS:-}}"
-export DB_HOST="${DB_HOST:-${DEV_DB_HOST:-}}"
-export DB_PORT="${DB_PORT:-${DEV_DB_PORT:-5432}}"
+# Map DEV_* / PROD_* -> expected names if not already set
+export DB_NAME="${DB_NAME:-${DEV_DB_NAME:-${PROD_DB_NAME:-}}}"
+export DB_USER="${DB_USER:-${DEV_DB_USER:-${PROD_DB_USER:-}}}"
+export DB_PASS="${DB_PASS:-${DEV_DB_PASS:-${PROD_DB_PASS:-}}}"
+export DB_PASSWORD="${DB_PASSWORD:-${DB_PASS:-${PROD_DB_PASS:-}}}"
+export DB_HOST="${DB_HOST:-${DEV_DB_HOST:-${PROD_DB_HOST:-}}}"
+export DB_PORT="${DB_PORT:-${DEV_DB_PORT:-${PROD_DB_PORT:-5432}}}"
 
 # JWT
 export JWT_SECRET_KEY="${JWT_SECRET_KEY:-${JWT_SECRET:-}}"
