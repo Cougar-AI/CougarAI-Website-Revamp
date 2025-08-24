@@ -3,15 +3,15 @@ set -Eeuo pipefail
 
 cd /root/services/Backend/CougarAI-Website-Revamp/backend
 
-# Load .env if present (backend/.env)
+# Load .env if present
 if [[ -f .env ]]; then
-  set -a                # export everything we source
+  set -a                # auto-export
   # shellcheck disable=SC1091
   source .env
-  set +a                # stop auto-exporting
+  set +a
 fi
 
-# Map DEV_* / PROD_* -> expected names if not already set
+# Map DEV_* / PROD_* → standard names if not already set
 export DB_NAME="${DB_NAME:-${DEV_DB_NAME:-${PROD_DB_NAME:-}}}"
 export DB_USER="${DB_USER:-${DEV_DB_USER:-${PROD_DB_USER:-}}}"
 export DB_PASS="${DB_PASS:-${DEV_DB_PASS:-${PROD_DB_PASS:-}}}"
@@ -22,6 +22,16 @@ export DB_PORT="${DB_PORT:-${DEV_DB_PORT:-${PROD_DB_PORT:-5432}}}"
 # JWT
 export JWT_SECRET_KEY="${JWT_SECRET_KEY:-${JWT_SECRET:-}}"
 
+# Stripe
+export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY}"
+export STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}"
+export STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET}"
+
+# Google creds
+if [[ -n "${GOOGLE_CREDS_PATH:-}" && ! "${GOOGLE_CREDS_PATH}" = /* ]]; then
+  export GOOGLE_CREDS_PATH="$(pwd)/${GOOGLE_CREDS_PATH}"
+fi
+
 # Compose URIs many libs use
 if [[ -z "${SQLALCHEMY_DATABASE_URI:-}" ]]; then
   export SQLALCHEMY_DATABASE_URI="postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
@@ -30,7 +40,7 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   export DATABASE_URL="postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 fi
 
-# Leave a breadcrumb so we can confirm what workers see
+# Debug breadcrumb
 {
   echo "=== cougarai-api env @ $(date) ==="
   echo "DB_HOST=${DB_HOST}"
@@ -40,6 +50,11 @@ fi
   echo "DB_PASSWORD_SET=$([[ -n "${DB_PASSWORD}" ]] && echo yes || echo no)"
   echo "SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}"
   echo "DATABASE_URL=${DATABASE_URL}"
+  echo "JWT_SECRET_KEY_SET=$([[ -n "${JWT_SECRET_KEY}" ]] && echo yes || echo no)"
+  echo "STRIPE_PUBLISHABLE_KEY_SET=$([[ -n "${STRIPE_PUBLISHABLE_KEY}" ]] && echo yes || echo no)"
+  echo "STRIPE_SECRET_KEY_SET=$([[ -n "${STRIPE_SECRET_KEY}" ]] && echo yes || echo no)"
+  echo "STRIPE_WEBHOOK_SECRET_SET=$([[ -n "${STRIPE_WEBHOOK_SECRET}" ]] && echo yes || echo no)"
+  echo "GOOGLE_CREDS_PATH=${GOOGLE_CREDS_PATH}"
 } > /tmp/cougarai-env.txt
 
 # Run
