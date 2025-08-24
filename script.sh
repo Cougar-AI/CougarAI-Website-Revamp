@@ -23,9 +23,10 @@ export DB_PORT="${DB_PORT:-${DEV_DB_PORT:-${PROD_DB_PORT:-5432}}}"
 export JWT_SECRET_KEY="${JWT_SECRET_KEY:-${JWT_SECRET:-}}"
 
 # Stripe
-export STRIPE_PUBLISHABLE_KEY="${STRIPE_PUBLISHABLE_KEY}"
-export STRIPE_SECRET_KEY="${STRIPE_SECRET_KEY}"
-export STRIPE_WEBHOOK_SECRET="${STRIPE_WEBHOOK_SECRET}"
+# Stripe (export only if present to avoid set -u explosions)
+[[ -n "${STRIPE_PUBLISHABLE_KEY:-}" ]] && export STRIPE_PUBLISHABLE_KEY
+[[ -n "${STRIPE_SECRET_KEY:-}" ]] && export STRIPE_SECRET_KEY
+[[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]] && export STRIPE_WEBHOOK_SECRET
 
 # Google creds
 if [[ -n "${GOOGLE_CREDS_PATH:-}" && ! "${GOOGLE_CREDS_PATH}" = /* ]]; then
@@ -51,9 +52,9 @@ fi
   echo "SQLALCHEMY_DATABASE_URI=${SQLALCHEMY_DATABASE_URI}"
   echo "DATABASE_URL=${DATABASE_URL}"
   echo "JWT_SECRET_KEY_SET=$([[ -n "${JWT_SECRET_KEY}" ]] && echo yes || echo no)"
-  echo "STRIPE_PUBLISHABLE_KEY_SET=$([[ -n "${STRIPE_PUBLISHABLE_KEY}" ]] && echo yes || echo no)"
-  echo "STRIPE_SECRET_KEY_SET=$([[ -n "${STRIPE_SECRET_KEY}" ]] && echo yes || echo no)"
-  echo "STRIPE_WEBHOOK_SECRET_SET=$([[ -n "${STRIPE_WEBHOOK_SECRET}" ]] && echo yes || echo no)"
+echo "STRIPE_PUBLISHABLE_KEY_SET=$([[ -n "${STRIPE_PUBLISHABLE_KEY:-}" ]] && echo yes || echo no)"
+echo "STRIPE_SECRET_KEY_SET=$([[ -n "${STRIPE_SECRET_KEY:-}" ]] && echo yes || echo no)"
+echo "STRIPE_WEBHOOK_SECRET_SET=$([[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]] && echo yes || echo no)"
   echo "GOOGLE_CREDS_PATH=${GOOGLE_CREDS_PATH}"
 } > /tmp/cougarai-env.txt
 
