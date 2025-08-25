@@ -36,3 +36,9 @@ def validate_password(password: str):
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return pwd_context.verify(plain, hashed)
+    except Exception:
+        return False

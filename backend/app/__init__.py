@@ -8,21 +8,15 @@ db = SQLAlchemy()
 jwt = JWTManager()
 
 def create_app(config_class='config.DevelopmentConfig'):
-    """
-    Flask application factory.
-    
-    Args:
-        config_class: Configuration class to use (defaults to DevelopmentConfig)
-        
-    Returns:
-        Flask: Configured Flask application instance
-        
-    Raises:
-        RuntimeError: If SQLALCHEMY_DATABASE_URI is not configured
-    """
     app = Flask(__name__)
     app.config.from_object(config_class)
-    CORS(app)
+    CORS(
+        app,
+        resources={r"/auth/*": {"origins": app.config.get("FRONTEND_URL")}},
+        supports_credentials=True,
+        expose_headers=["Content-Type", "Authorization"],
+        allow_headers=["Content-Type", "Authorization"],
+    )
 
     uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     if not uri:
@@ -33,6 +27,8 @@ def create_app(config_class='config.DevelopmentConfig'):
 
     app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
     db.init_app(app)
+    app.config["JWT_SECRET_KEY"] = app.config["JWT_ACCESS_SECRET"]  # access token secret
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = app.config["ACCESS_EXPIRES"]
     jwt.init_app(app)
 
     # Register blueprints with more specific error handling

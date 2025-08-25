@@ -1,4 +1,5 @@
 # config.py
+from datetime import timedelta
 import os
 from dotenv import load_dotenv, find_dotenv
 
@@ -38,9 +39,15 @@ class BaseConfig:
     PRODUCTION = False
     SECRET_KEY = os.getenv("SECRET_KEY_BASE", "changemedev")
     JSON_AS_ASCII = False
-    JWT_SECRET_KEY = os.getenv("JWT_EMAIL_SECRET", "changemedev")
-    JWT_TOKEN_LOCATION = ["headers", "json", "query_string"]
-    JWT_ALGORITHM = "HS256"
+    JWT_ACCESS_SECRET  = os.environ.get("JWT_ACCESS_SECRET",  "dev-access-secret")
+    JWT_REFRESH_SECRET = os.environ.get("JWT_REFRESH_SECRET", "dev-refresh-secret")
+    JWT_EMAIL_SECRET   = os.environ.get("JWT_EMAIL_SECRET",   "dev-email-secret")
+    JWT_RESET_SECRET   = os.environ.get("JWT_RESET_SECRET",   "dev-reset-secret")
+    
+    ACCESS_EXPIRES  = timedelta(minutes=15)
+    REFRESH_EXPIRES = timedelta(days=7)
+    VERIFY_EXPIRES  = timedelta(hours=24)
+    RESET_EXPIRES   = timedelta(minutes=30)
     
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")    
 
