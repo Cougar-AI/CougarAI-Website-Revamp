@@ -9,7 +9,8 @@ const Sponsorships = () => {
         >
             <Navbar />
             <main className="flex-grow px-4 py-8 flex flex-col items-center justify-center w-full max-w-7xl mx-auto">
-
+                <h1 className="text-4xl font-bold mb-8">Huge thanks to our sponsors!</h1>
+                
             </main>
             <Footer />
         </div>
