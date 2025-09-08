@@ -13,20 +13,15 @@ const images = [
 ]
 
 export default function Slideshow() {
-    return (
-        <div style={{ width: '1000px', height: '600px' }}>
-            <Swiper 
-                modules={[Navigation, Autoplay]}
-                navigation
-                autoplay={{ delay: 5000, disableOnInteraction: false }}
-                loop
-            >
-                {images.map((src, i) => (
-                    <SwiperSlide key={i}>
-                        <img src={src} alt={'Slide ${I + 1}'} />
-                    </SwiperSlide>
-                ))}
-            </Swiper>
-        </div>
-    );
-};
+  return (
+    <div className="w-full max-w-5xl mx-auto aspect-[5/3]">
+      <Swiper modules={[Navigation, Autoplay]} navigation autoplay={{ delay: 5000, disableOnInteraction: false }} loop>
+        {images.map((src, i) => (
+          <SwiperSlide key={src}>
+            <img src={src} alt={`Slide ${i + 1}`} className="w-full h-full object-cover" />
+          </SwiperSlide>
+        ))}
+      </Swiper>
+    </div>
+  )
+}

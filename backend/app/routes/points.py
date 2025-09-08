@@ -19,7 +19,7 @@ def getPoints():
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int)
         }
-        query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date", order_by="points.date")
+        query, params = build_sql_querys("SELECT * FROM points JOIN profile ON points.student_id = profile.student_id", filter_dict, date_column="points.date", order_by="points.date")
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -52,10 +52,10 @@ def getLeaderboard():
             "offset": request.args.get("offset", type=int)
         }
 
-        query, params = build_sql_querys("SELECT users.student_id, SUM(points.points) as total_points, users.first_name, users.last_name FROM points JOIN users on users.student_id = points.student_id", filter_dict, 
+        query, params = build_sql_querys("SELECT profile.student_id, SUM(points.points) as total_points, profile.first_name, profile.last_name FROM points JOIN profile on profile.student_id = points.student_id", filter_dict, 
                                          date_column="points.date", 
                                          order_by="total_points",
-                                         group_by=["users.student_id", "users.first_name", "users.last_name"])
+                                         group_by=["profile.student_id", "profile.first_name", "profile.last_name"])
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -86,7 +86,7 @@ def addPoints(student_id):
             if filter_dict["date"] and not is_valid_date(filter_dict["date"]):
                 return jsonify({"error": "Invalid date format. "}), 400
 
-            cur.execute("SELECT 1 FROM users WHERE student_id = %s", (student_id,))
+            cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": "Invalid student_id"}), 400
 
@@ -140,8 +140,8 @@ def getStudentPoints(student_id):
                 "offset": request.args.get("offset", type=int)
             }
 
-            query, params = build_sql_querys("SELECT * FROM points JOIN users ON points.student_id = users.student_id", filter_dict, date_column="points.date")
-            
+            query, params = build_sql_querys("SELECT * FROM points JOIN profile ON points.student_id = profile.student_id", filter_dict, date_column="points.date")
+
             cur.execute(query, tuple(params))
             results = cur.fetchall()
             return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
@@ -161,9 +161,9 @@ def getTotalPoints():
 
             if filter_dict["points.student_id"] is not None:
                 query_base = (
-                    "SELECT users.first_name, users.last_name, points.student_id, "
+                    "SELECT profile.first_name, profile.last_name, points.student_id, "
                     "SUM(points.points) as total_points FROM points "
-                    "JOIN users on points.student_id = users.student_id "
+                    "JOIN profile on points.student_id = profile.student_id "
                 )
             else:
                 query_base = "SELECT SUM(points.points) as total_points FROM points "
@@ -171,11 +171,10 @@ def getTotalPoints():
             query, params = build_sql_querys(query_base, filter_dict, date_column="points.date")
 
             if filter_dict["points.student_id"] is not None:
-                query += " GROUP BY users.first_name, users.last_name, points.student_id"
+                query += " GROUP BY profile.first_name, profile.last_name, points.student_id"
 
             cur.execute(query, tuple(params))
             result = cur.fetchone()
-            print("Result:", result)
 
             if result is None or ("total_points" in result and result["total_points"] is None):
                 return jsonify({"error": "No points found"}), 404
@@ -235,5 +234,19 @@ def getMonthlyTotals():
         results = cur.fetchall()
         return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)
 
-    
+@points_bp.route("/event_type", methods=["GET"])
+def getEventType():
+    connection = connect()
+    with connection.cursor() as cur:
 
+        filter_dict = {
+            "event_type": request.args.get("event_type"),
+        }
+
+        base_query = "SELECT * FROM event_type_points"
+        
+
+        query, params = build_sql_querys(base_query, filter_dict)
+        cur.execute(query, tuple(params))
+        results = cur.fetchall()
+        return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)

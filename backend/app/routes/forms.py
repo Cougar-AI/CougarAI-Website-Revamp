@@ -43,6 +43,23 @@ def process_sheet(spreadsheet_id):
 
                 student_id = row[student_idx].strip()
                 timestamp_str = row[timestampx].strip()
+
+                if not student_id.isdigit() and not(len(student_id) == 7):
+                    continue 
+                student_id = int(student_id)
+
+                cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
+                if cur.fetchone is None:
+                    cur.execute(
+                        """
+                        INSERT INTO profile (student_id, first_name, last_name)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (student_id) DO NOTHING
+                        """,
+                        (student_id, None, None)
+                    )
+
+
                 cur.execute("INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)", (student_id, event_id, points, datetime.strptime(timestamp_str, "%m/%d/%Y %H:%M:%S")))
                 added+=1
 

@@ -1,70 +1,519 @@
+from __future__ import annotations
+import uuid, hashlib, jwt
+from datetime import datetime, timedelta, timezone
+from typing import Tuple, Optional
 
-from app.imports import *
+from flask import Blueprint, request, jsonify, current_app, make_response
+from sqlalchemy import text
+from flask_jwt_extended import create_access_token
+from app import db
+from app.utils.passwords import validate_password, hash_password, verify_password
+from app.services.mailer import send_email
 
+auth_bp = Blueprint("auth", __name__)
 
-auth_bp = Blueprint('auth', __name__)
+# ---------------------------- Helpers ----------------------------
 
-JWT_SECRET = os.getenv('JWT_SECRET')
-if not JWT_SECRET:
-      raise RuntimeError("JWT_SECRET is not set in environment variables!")
-JWT_ALGORITHM = 'HS256'
-JWT_EXPIRATION = timedelta(days=1)
+UTC = timezone.utc
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
-def generate_token(student_id):
+def _sha256(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()
+
+def _jwt_encode(claims: dict, secret: str, minutes: Optional[int]=None, delta: Optional[timedelta]=None) -> str:
+    now = _utcnow()
+    if delta is None and minutes is not None:
+        delta = timedelta(minutes=minutes)
+    elif delta is None:
+        delta = timedelta(minutes=15)
     payload = {
-        'student_id': student_id,
-        'exp': datetime.utcnow() + JWT_EXPIRATION
+        "iat": int(now.timestamp()),
+        "exp": int((now + delta).timestamp()),
+        **claims,
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(payload, secret, algorithm="HS256")
 
-@auth_bp.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    student_id = data.get('student_id')
-    password = data.get('password')
-    if not student_id or not password:
-        return jsonify({'error': 'Student ID and password are required'}), 400
+def _jwt_decode(token: str, secret: str) -> dict:
+    return jwt.decode(token, secret, algorithms=["HS256"])
 
-    conn = connect()
+def _build_link(path: str, token: str) -> str:
+    fe = current_app.config["FRONTEND_URL"].rstrip("/")
+    return f"{fe}{path}?token={token}"
+
+def _set_refresh_cookie(resp, refresh_token: str, expires_at: datetime):
+    resp.set_cookie(
+        "refresh_token",
+        refresh_token,
+        max_age=int((expires_at - _utcnow()).total_seconds()),
+        expires=expires_at,
+        httponly=True,
+        secure=True,
+        samesite="Lax",
+        path="/auth",
+    )
+    return resp
+
+def _clear_refresh_cookie(resp):
+    resp.set_cookie(
+        "refresh_token",
+        "",
+        expires=0,
+        max_age=0,
+        httponly=True,
+        secure=True,
+        samesite="Lax",
+        path="/auth",
+    )
+    return resp
+
+def _issue_access_jwt(user_id: int, email: str) -> str:
+    # Flask-JWT-Extended access token with correct claims
+    claims = {"typ": "access", "sub": str(user_id)}
+    # create_access_token will add jti, iat, exp automatically
+    token = create_access_token(identity=str(user_id), additional_claims=claims)
+    return token
+
+def _issue_refresh_jwt_and_persist(user_id: int) -> Tuple[str, str, datetime]:
+    """Returns (token, jti, expires_at). Also persists hash row."""
+    now = _utcnow()
+    expires = now + current_app.config["REFRESH_EXPIRES"]
+    jti = str(uuid.uuid4())
+    claims = {"typ": "refresh", "sub": str(user_id), "jti": jti}
+    token = _jwt_encode(claims, current_app.config["JWT_REFRESH_SECRET"], delta=current_app.config["REFRESH_EXPIRES"])
+    token_hash = _sha256(token)
+    with db.engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO refresh_tokens (jti, user_id, expires_at, token_hash)
+                VALUES (:jti, :user_id, :expires_at, :token_hash)
+            """),
+            {"jti": jti, "user_id": user_id, "expires_at": expires, "token_hash": token_hash}
+        )
+    return token, jti, expires
+
+def _delete_refresh_by_jti(jti: str):
+    with db.engine.begin() as conn:
+        conn.execute(text("DELETE FROM refresh_tokens WHERE jti = :jti"), {"jti": jti})
+
+def _delete_all_refresh_for_user(user_id: int):
+    with db.engine.begin() as conn:
+        conn.execute(text("DELETE FROM refresh_tokens WHERE user_id = :uid"), {"uid": user_id})
+
+def _send_verify_email(user_id: int, email: str):
+    token = _jwt_encode(
+        {"typ": "verify_email", "sub": str(user_id), "jti": str(uuid.uuid4())},
+        current_app.config["JWT_EMAIL_SECRET"],
+        delta=current_app.config["VERIFY_EXPIRES"],
+    )
+    url = _build_link("/verify-email", token)
+    subject = "Verify your email"
+    text_body = (
+        "Welcome!\n\n"
+        "Please verify your email address using this link:\n"
+        f"{url}\n\n"
+        "Or copy this token into the app:\n"
+        f"{token}\n\n"
+        "This link expires in 24 hours."
+    )
+    html_body = f"""
+    <p>Welcome!</p>
+    <p>Please verify your email address by clicking:</p>
+    <p><a href="{url}">Verify Email</a></p>
+    <p>Or copy this token into the app:</p>
+    <pre style="white-space:pre-wrap;word-break:break-all">{token}</pre>
+    <p><small>Expires in 24 hours.</small></p>
+    """
+    send_email(email, subject, text_body, html_body)
+
+def _send_reset_email(user_id: int, email: str):
+    token = _jwt_encode(
+        {"typ": "reset_password", "sub": str(user_id), "jti": str(uuid.uuid4())},
+        current_app.config["JWT_RESET_SECRET"],
+        delta=current_app.config["RESET_EXPIRES"],
+    )
+    url = _build_link("/reset-password", token)
+    subject = "Reset your password"
+    text_body = (
+        "We received a request to reset your password.\n\n"
+        "Use this link within 30 minutes:\n"
+        f"{url}\n\n"
+        "Or paste this token in the app:\n"
+        f"{token}\n"
+    )
+    html_body = f"""
+    <p>We received a request to reset your password.</p>
+    <p>Use this link within 30 minutes:</p>
+    <p><a href="{url}">Reset Password</a></p>
+    <p>Or paste this token in the app:</p>
+    <pre style="white-space:pre-wrap;word-break:break-all">{token}</pre>
+    """
+    send_email(email, subject, text_body, html_body)
+
+# --------------------- Existing: Register & Verify ---------------------
+
+@auth_bp.post("/register")
+def register():
+    """
+    Body: { "email": "...", "password": "..." }
+    - Password policy enforced
+    - Idempotent, no enumeration
+    - Always returns 201 { "ok": true } if policy passes
+    - 422 with field_errors.password when policy fails
+    """
+    data = request.get_json(silent=True) or {}
+    email_raw = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+
+    if not email_raw:
+        return jsonify({"ok": False, "field_errors": {"email": ["Email is required."]}}), 422
+
+    pw_errors = validate_password(password)
+    if pw_errors:
+        return jsonify({"ok": False, "field_errors": {"password": pw_errors}}), 422
+
+    password_hash = hash_password(password)
+
+    with db.engine.begin() as conn:
+        # Insert if not exists
+        row = conn.execute(
+            text("""
+                INSERT INTO users (email, password_hash)
+                VALUES (:email, :hash)
+                ON CONFLICT (email) DO NOTHING
+                RETURNING user_id, email
+            """),
+            {"email": email_raw, "hash": password_hash}
+        ).mappings().first()
+
+        # Always fetch to get user_id for email
+        if not row:
+            row = conn.execute(
+                text("SELECT user_id, email, email_verified_at FROM users WHERE email = :email"),
+                {"email": email_raw}
+            ).mappings().first()
+
+    # Send verification email unconditionally (no enumeration leak)
     try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT * FROM users
-                 WHERE student_id = %s
-                   AND password_hash = crypt(%s, password_hash)
-                """,
-                (student_id, password)
-            )
-            user = cur.fetchone()
-    finally:
-        conn.close()
+        _send_verify_email(row["user_id"], email_raw)
+    except Exception as e:
+        current_app.logger.error("Send verify mail failed for %s: %r", email_raw, e)
 
-    if not user:
-        return jsonify({'error': 'Invalid student ID or password'}), 401
+    return jsonify({"ok": True}), 201
 
-    token = generate_token(student_id)
-    return jsonify({'token': token, 'student_id': student_id}), 200
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith('Bearer '):
-                token = auth_header.split(' ')[1]
-        if not token:
-            return jsonify({'error': 'Token is missing!'}), 401
+@auth_bp.post("/verify-email")
+def verify_email():
+    """
+    Body: { "token": "<verify_email_jwt>" }
+    Status:
+      200 { "ok": true }
+      400 { "error": "token_required" | "user_not_found" }
+      401 { "error": "invalid_or_expired_token" | "invalid_token_type" }
+      409 { "error": "already_verified" }
+    """
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "token_required"}), 400
+
+    try:
+        claims = _jwt_decode(token, current_app.config["JWT_EMAIL_SECRET"])
+    except Exception:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+
+    if claims.get("typ") != "verify_email":
+        return jsonify({"error": "invalid_token_type"}), 401
+
+    user_id = int(claims.get("sub") or 0)
+    if not user_id:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+
+    with db.engine.begin() as conn:
+        user = conn.execute(
+            text("SELECT user_id, email_verified_at FROM users WHERE user_id = :uid"),
+            {"uid": user_id}
+        ).mappings().first()
+        if not user:
+            return jsonify({"error": "user_not_found"}), 400
+        if user["email_verified_at"] is not None:
+            return jsonify({"error": "already_verified"}), 409
+        conn.execute(
+            text("UPDATE users SET email_verified_at = NOW() WHERE user_id = :uid"),
+            {"uid": user_id}
+        )
+
+    return jsonify({"ok": True}), 200
+
+# --------------------- New: Login / Resend / Forgot / Reset / Refresh / Logout ---------------------
+
+@auth_bp.post("/login")
+def login():
+    """
+    Body: { "email": "user@example.com", "password": "Secret@123" }
+    Responses:
+      201 Created; { "access_token": "<jwt>", "user": { "user_id": ..., "email": "..." } }
+      401 invalid credentials (generic; do not reveal reason)
+    Behavior:
+      - Reject if !email_verified or !is_active
+      - On success: issue access (JSON) + refresh (HttpOnly cookie), persist refresh row, update last_login
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    password = data.get("password") or ""
+
+    if not email or not password:
+        return jsonify({"error": "invalid_credentials"}), 401
+
+    with db.engine.begin() as conn:
+        user = conn.execute(
+            text("""
+                SELECT user_id, email, password_hash, email_verified_at, is_active
+                FROM users WHERE email = :email
+            """),
+            {"email": email}
+        ).mappings().first()
+
+    if not user or not user["password_hash"] or not verify_password(password, user["password_hash"]):
+        # Do not disclose whether user exists
+        return jsonify({"error": "invalid_credentials"}), 401
+
+    if user["email_verified_at"] is None or not user["is_active"]:
+        return jsonify({"error": "invalid_credentials"}), 401
+
+    # Success: access + refresh + update last_login
+    access_jwt = _issue_access_jwt(user["user_id"], user["email"])
+    refresh_token, jti, expires_at = _issue_refresh_jwt_and_persist(user["user_id"])
+
+    with db.engine.begin() as conn:
+        conn.execute(text("UPDATE users SET last_login = NOW() WHERE user_id = :uid"), {"uid": user["user_id"]})
+
+    resp = make_response(jsonify({
+        "access_token": access_jwt,
+        "user": {"user_id": user["user_id"], "email": user["email"]},
+    }), 201)
+    _set_refresh_cookie(resp, refresh_token, expires_at)
+    return resp
+
+
+@auth_bp.post("/resend-verification")
+def resend_verification():
+    """
+    Body: { "email": "user@example.com" }
+    Behavior:
+      - If user exists and unverified, email a fresh verify token
+      - Always respond 200 { "ok": true } (no enumeration)
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    if not email:
+        # Keep generic
+        return jsonify({"ok": True}), 200
+
+    try:
+        with db.engine.begin() as conn:
+            user = conn.execute(
+                text("SELECT user_id, email_verified_at FROM users WHERE email = :email"),
+                {"email": email}
+            ).mappings().first()
+        if user and user["email_verified_at"] is None:
+            _send_verify_email(user["user_id"], email)
+    except Exception as e:
+        current_app.logger.error("Resend verify failed for %s: %r", email, e)
+
+    return jsonify({"ok": True}), 200
+
+
+@auth_bp.post("/forgot-password")
+def forgot_password():
+    """
+    Body: { "email": "user@example.com" }
+    Behavior:
+      - Only send if account exists AND is verified
+      - Always return 200 { "ok": true } (no enumeration)
+    """
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip()
+    if not email:
+        return jsonify({"ok": True}), 200
+
+    try:
+        with db.engine.begin() as conn:
+            user = conn.execute(
+                text("SELECT user_id, email_verified_at FROM users WHERE email = :email"),
+                {"email": email}
+            ).mappings().first()
+        if user and user["email_verified_at"] is not None:
+            _send_reset_email(user["user_id"], email)
+    except Exception as e:
+        current_app.logger.error("Forgot-password mail failed for %s: %r", email, e)
+
+    return jsonify({"ok": True}), 200
+
+
+@auth_bp.post("/reset-password")
+def reset_password():
+    """
+    Body: { "token": "<reset_jwt>", "password": "<new-password>" }
+    Behavior:
+      - Validate token; enforce password policy; set new bcrypt hash
+      - Delete ALL refresh tokens for the user (global sign-out)
+      - Send “password changed” email
+    Responses:
+      200 { "ok": true }
+      422 { "field_errors": { "password": [...] } }
+      400/401 on token issues
+    """
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    new_pw = data.get("password") or ""
+
+    if not token:
+        return jsonify({"error": "token_required"}), 400
+
+    try:
+        claims = _jwt_decode(token, current_app.config["JWT_RESET_SECRET"])
+    except Exception:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+
+    if claims.get("typ") != "reset_password":
+        return jsonify({"error": "invalid_token_type"}), 401
+
+    try:
+        user_id = int(claims.get("sub") or 0)
+    except Exception:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+    if not user_id:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+
+    # Password policy
+    pw_errors = validate_password(new_pw)
+    if pw_errors:
+        return jsonify({"field_errors": {"password": pw_errors}}), 422
+
+    with db.engine.begin() as conn:
+        user = conn.execute(
+            text("SELECT user_id, email FROM users WHERE user_id = :uid"),
+            {"uid": user_id}
+        ).mappings().first()
+        if not user:
+            return jsonify({"error": "user_not_found"}), 400
+
+        new_hash = hash_password(new_pw)
+        conn.execute(
+            text("UPDATE users SET password_hash = :h WHERE user_id = :uid"),
+            {"h": new_hash, "uid": user_id}
+        )
+        # Global sign-out
+        conn.execute(text("DELETE FROM refresh_tokens WHERE user_id = :uid"), {"uid": user_id})
+
+    # Notify
+    try:
+        send_email(
+            user["email"],
+            "Your password was changed",
+            "Your password was changed successfully. If this wasn't you, contact support immediately."
+        )
+    except Exception as e:
+        current_app.logger.error("Password-changed email failed for uid=%s: %r", user_id, e)
+
+    return jsonify({"ok": True}), 200
+
+
+@auth_bp.post("/refresh")
+def refresh():
+    """
+    Auth: refresh cookie only (HttpOnly; Secure; Path=/auth; SameSite=Lax)
+    Body: {}
+    Behavior:
+      - Validate refresh JWT (typ=refresh) using JWT_REFRESH_SECRET
+      - Check DB row (jti, user_id, token_hash, expires_at)
+      - Rotate: delete old, create new, set-cookie new refresh
+      - Reuse detection: if token is valid but DB row missing -> delete ALL user refresh tokens and 401
+    Responses:
+      200 { "access_token": "<jwt>" } (with rotated cookie)
+      401 invalid/expired
+    """
+    token = request.cookies.get("refresh_token") or ""
+    if not token:
+        return jsonify({"error": "unauthorized"}), 401
+
+    # Validate cryptographically first
+    try:
+        claims = _jwt_decode(token, current_app.config["JWT_REFRESH_SECRET"])
+    except Exception:
+        return jsonify({"error": "unauthorized"}), 401
+
+    if claims.get("typ") != "refresh":
+        return jsonify({"error": "unauthorized"}), 401
+
+    jti = claims.get("jti")
+    sub = claims.get("sub")
+    try:
+        user_id = int(sub or 0)
+    except Exception:
+        return jsonify({"error": "unauthorized"}), 401
+    if not jti or not user_id:
+        return jsonify({"error": "unauthorized"}), 401
+
+    token_hash = _sha256(token)
+    now = _utcnow()
+
+    with db.engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT jti, user_id, expires_at, token_hash FROM refresh_tokens WHERE jti = :jti"),
+            {"jti": jti}
+        ).mappings().first()
+
+        if not row:
+            # Reuse detection: token is valid but DB row missing => revoke all user tokens
+            conn.execute(text("DELETE FROM refresh_tokens WHERE user_id = :uid"), {"uid": user_id})
+            return jsonify({"error": "unauthorized"}), 401
+
+        if row["user_id"] != user_id or row["token_hash"] != token_hash or row["expires_at"] <= now:
+            # Any mismatch/expired -> treat as invalid
+            conn.execute(text("DELETE FROM refresh_tokens WHERE jti = :jti"), {"jti": jti})
+            return jsonify({"error": "unauthorized"}), 401
+
+        # Rotation: delete old, create new
+        conn.execute(text("DELETE FROM refresh_tokens WHERE jti = :jti"), {"jti": jti})
+
+    # Issue new refresh row & access token
+    new_refresh, new_jti, new_expires = _issue_refresh_jwt_and_persist(user_id)
+
+    # Access token
+    # Fetch email for returned access claims (optional)
+    with db.engine.begin() as conn:
+        user = conn.execute(
+            text("SELECT email FROM users WHERE user_id = :uid"),
+            {"uid": user_id}
+        ).mappings().first()
+    access_jwt = _issue_access_jwt(user_id, user["email"] if user else "")
+
+    resp = make_response(jsonify({"access_token": access_jwt}), 200)
+    _set_refresh_cookie(resp, new_refresh, new_expires)
+    return resp
+
+
+@auth_bp.delete("/logout")
+def logout():
+    """
+    Auth: refresh cookie
+    - Delete the current refresh token row if valid & present
+    - Clear cookie
+    Always 200 { "ok": true } if cookie present (noisy failures are avoided)
+    """
+    token = request.cookies.get("refresh_token") or ""
+
+    if token:
         try:
-            data = jwt.decode(token, os.getenv('JWT_SECRET'), algorithms=['HS256'])
-            # You can access data['student_id'] here if needed
-        except Exception as e:
-            return jsonify({'error': 'Token is invalid!'}), 401
-        return f(*args, **kwargs)
-    return decorated
+            claims = _jwt_decode(token, current_app.config["JWT_REFRESH_SECRET"])
+            if claims.get("typ") == "refresh" and claims.get("jti"):
+                _delete_refresh_by_jti(claims["jti"])
+        except Exception:
+            # Ignore; still clear cookie
+            pass
 
-@auth_bp.route('/protected', methods=['GET'])
-@token_required
-def protected():
-    return jsonify({'message': 'You have access to this protected route!'})
+    resp = make_response(jsonify({"ok": True}), 200)
+    _clear_refresh_cookie(resp)
+    return resp

@@ -6,23 +6,30 @@ def getEvents():
     connection = connect()
     with connection.cursor() as cur:
 
-        date = request.args.get("date")
-        if date and not is_valid_date(date):
+        starts_at = request.args.get("starts_at")
+        ends_at = request.args.get("ends_at")
+
+        if starts_at and not is_valid_date(starts_at):
+            return jsonify({"error": "Invalid date format"}), 400
+        if ends_at and not is_valid_date(ends_at):
             return jsonify({"error": "Invalid date format"}), 400
 
         filter_dict = {
             "event_id": request.args.get("event_id", type=int),
-            "type": request.args.get("type"),
+            "name": request.args.get("name"),
+            "event_type": request.args.get("event_type"),
             "limit": request.args.get("limit", type=int),
             "offset": request.args.get("offset", type=int),
             "description": request.args.get("description"),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
-            "date": date,
+            "starts_at": starts_at,
+            "ends_at": ends_at,
+            "capacity": request.args.get("capacity"),
             "location": request.args.get("location"),
         }
 
-        query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="date")
+        query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="starts_at")
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -52,17 +59,17 @@ def addEvent():
             
             filter_dict = {
                 "name": request.json.get("name"),
-                "date": request.json.get("date"),
-                "type": request.json.get("type"),
+                "event_type": request.json.get("event_type"),
                 "description": request.json.get("description"),
                 "location": request.json.get("location"),
-                "start_time": request.json.get("start_time"),
-                "end_time": request.json.get("end_time")
+                "starts_at": request.json.get("starts_at"),
+                "ends_at": request.json.get("ends_at"),
+                "capacity": request.json.get("capacity")
             }
-            if filter_dict["date"] is None or filter_dict["type"] is None or filter_dict["name"] is None:
-                return jsonify({"error": "name, date and type are required"}), 400
-            
-            query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="date", mode="INSERT")
+            if filter_dict["starts_at"] is None or filter_dict["event_type"] is None or filter_dict["name"] is None:
+                return jsonify({"error": "name, starts_at and event_type are required"}), 400
+
+            query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="starts_at", mode="INSERT")
             query += " RETURNING event_id"
         
             cur.execute(query, tuple(params))
@@ -98,24 +105,24 @@ def getAttendance():
             
             base_query = """
             SELECT points.*, 
-            events.description, events.location, events.name, events.type, events.date,
-            users.first_name, users.last_name
+            events.description, events.location, events.name, events.event_type, events.starts_at, events.ends_at,
+            profile.first_name, profile.last_name
             FROM points 
             JOIN events ON points.event_id = events.event_id 
-            JOIN users ON points.student_id = users.student_id
+            JOIN profile ON points.student_id = profile.student_id
             """
 
-            query, params = build_sql_querys(base_query, filter_dict, date_column="points.date")
+            query, params = build_sql_querys(base_query, filter_dict, date_column="events.starts_at")
             query += """
                 GROUP BY 
                     points.points_id, 
-                    events.description, events.location, events.name, events.type, events.date,
-                    users.first_name, users.last_name
+                    events.description, events.location, events.name, events.event_type, events.starts_at, events.ends_at,
+                    profile.first_name, profile.last_name
             """
 
             cur.execute(query, tuple(params))
             results = cur.fetchall()
-            return (jsonify(results), 200) if results else (jsonify({"error": "No attendence found"}), 404)
+            return (jsonify(results), 200) if results else (jsonify({"error": "No attendance found"}), 404)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
@@ -126,16 +133,20 @@ def updateEvent(event_id):
         with connection.cursor() as cur:
             filter_dict = {
                 "name": request.json.get("name"),
-                "date": request.json.get("date"),
-                "type": request.json.get("type"),
+                "event_type": request.json.get("event_type"),
+                "capacity": request.json.get("capacity"),
+                "starts_at": request.json.get("starts_at"),
+                "ends_at": request.json.get("ends_at"),
                 "description": request.json.get("description"),
                 "location": request.json.get("location"),
             }
 
-            if filter_dict["date"] and not is_valid_date(filter_dict["date"]):
-                return jsonify({"error": "Invalid date format"}), 400
+            if filter_dict["starts_at"] and not is_valid_date(filter_dict["starts_at"]):
+                return jsonify({"error": "Invalid starts_at format"}), 400
+            if filter_dict["ends_at"] and not is_valid_date(filter_dict["ends_at"]):
+                return jsonify({"error": "Invalid ends_at format"}), 400
             
-            query, params = build_sql_querys("UPDATE events", filter_dict, date_column="date", mode="SET")
+            query, params = build_sql_querys("UPDATE events", filter_dict, date_column="starts_at", mode="SET")
             query += " WHERE event_id = %s"
             params.append(event_id)
 

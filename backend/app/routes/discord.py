@@ -3,6 +3,7 @@ discord_bp = Blueprint('discord', __name__)
 
 @discord_bp.route("/config/<string:guild_id>", methods=["GET"])
 def getDiscordConfig(guild_id):
+    guild_id = (guild_id or "").strip()
     connection = connect()
     with connection.cursor() as cur:
         cur.execute(f"SELECT * FROM discord_config WHERE guild_id = %s", (guild_id, )) # we use %s to prevent SQL injection
@@ -12,9 +13,10 @@ def getDiscordConfig(guild_id):
 @discord_bp.route("/config/<string:guild_id>", methods=["POST"])
 def createDiscordConfig(guild_id):
     try:
+        guild_id = (guild_id or "").strip()
         connection = connect()
         with connection.cursor() as cur:
-            if not (guild_id.isdigit() and len(guild_id) == 18):
+            if not (guild_id.isdigit() and 16 <= len(guild_id) <= 22):
                 return jsonify({"error": "Invalid guild ID"}), 400
             announcement_channel = request.json.get("announcement_channel", "") 
             welcome_channel = request.json.get("welcome_channel", "")
@@ -31,12 +33,13 @@ def createDiscordConfig(guild_id):
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@discord_bp.route("config/<string:guild_id>", methods=["PATCH"])
+@discord_bp.route("/config/<string:guild_id>", methods=["PATCH"])
 def updatediscordConfig(guild_id):
     try:
+        guild_id = (guild_id or "").strip()
         connection = connect()
         with connection.cursor() as cur:
-            if not (guild_id.isdigit() and len(guild_id) == 18):
+            if not (guild_id.isdigit() and 16 <= len(guild_id) <= 22):
                 return jsonify({"error": "Invalid guild ID"}), 400
             
             filter_dict = {
@@ -61,9 +64,10 @@ def updatediscordConfig(guild_id):
 @discord_bp.route("/config/<string:guild_id>", methods=["DELETE"])
 def deleteDiscordConfig(guild_id):
     try:
+        guild_id = (guild_id or "").strip()
         connection = connect()
         with connection.cursor() as cur:
-            if not (guild_id.isdigit() and len(guild_id) == 18):
+            if not (guild_id.isdigit() and 16 <= len(guild_id) <= 22):
                 return jsonify({"error": "Invalid guild ID"}), 400
             
             cur.execute("DELETE FROM discord_config WHERE guild_id = %s", (guild_id,))
