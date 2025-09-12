@@ -49,7 +49,7 @@ def process_sheet(spreadsheet_id):
                 student_id = int(student_id)
 
                 cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
-                if cur.fetchone is None:
+                if cur.fetchone() is None:
                     cur.execute(
                         """
                         INSERT INTO profile (student_id, first_name, last_name)
