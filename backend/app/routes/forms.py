@@ -33,35 +33,48 @@ def process_sheet(spreadsheet_id):
 
             headers = values[0]
             student_idx = headers.index("Student ID")
+            email_idx = headers.index("Email Address")
             timestampx = headers.index("Timestamp")
 
             added = 0 
 
             for row in values[1:]:
-                if len(row) <= max(student_idx, timestampx):
+                if len(row) <= max(student_idx, timestampx, email_idx):
                     continue
 
                 student_id = row[student_idx].strip()
+                email = row[email_idx].strip()
                 timestamp_str = row[timestampx].strip()
 
                 if not student_id.isdigit() and not(len(student_id) == 7):
                     continue 
                 student_id = int(student_id)
 
-                cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
-                if cur.fetchone() is None:
-                    cur.execute(
-                        """
-                        INSERT INTO profile (student_id, first_name, last_name)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (student_id) DO NOTHING
-                        """,
-                        (student_id, None, None)
-                    )
+                cur.execute("""
+                    INSERT INTO users (email)
+                    VALUES (%s)
+                    ON CONFLICT (email) DO NOTHING
+                    RETURNING user_id
+                """, (email,))
+                row_user = cur.fetchone()
 
+                if row_user is None:
+                    cur.execute("SELECT user_id FROM users WHERE email = %s", (email,))
+                    row_user = cur.fetchone()
+                user_id = row_user[0]
 
-                cur.execute("INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)", (student_id, event_id, points, datetime.strptime(timestamp_str, "%m/%d/%Y %H:%M:%S")))
-                added+=1
+                cur.execute("""
+                    INSERT INTO profile (user_id, student_id, first_name, last_name)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (student_id) DO NOTHING
+                """, (user_id, student_id, None, None))
+
+                ts = datetime.strptime(timestamp_str, "%m/%d/%Y %H:%M:%S")
+                cur.execute("""
+                    INSERT INTO points (student_id, event_id, points, date)
+                    VALUES (%s, %s, %s, %s)
+                """, (student_id, event_id, points, ts))
+                added += 1
 
             connection.commit()
             return jsonify({"status": "success", "inserted": added})
