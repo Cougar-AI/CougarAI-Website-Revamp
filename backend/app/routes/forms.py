@@ -41,9 +41,12 @@ def process_sheet(spreadsheet_id):
                 return jsonify({"error": "No data found in the spreadsheet"}), 400
 
             headers = values[0]
-            student_idx = headers.index("Student ID")
-            email_idx = headers.index("Email Address")
-            timestampx = headers.index("Timestamp")
+            try:
+                student_idx = headers.index("Student ID")
+                email_idx   = headers.index("Email Address")
+                timestampx  = headers.index("Timestamp")
+            except ValueError as he:
+                return jsonify({"error": "Missing expected header", "details": str(he)}), 400
 
             added = 0 
 
@@ -92,6 +95,17 @@ def process_sheet(spreadsheet_id):
             connection.commit()
             return jsonify({"status": "success", "inserted": added})
     except Exception as e:
+        except Exception as e:
+    try:
         connection.rollback()
-        return jsonify({"error": "Failed to process the spreadsheet", "details": str(e)}), 500
+    except Exception:
+        pass
+        import traceback
+        return jsonify({
+            "error": "Failed to process the spreadsheet",
+            "details": str(e),          # human message (currently shows "0")
+            "repr": repr(e),            # full exception args
+            "type": type(e).__name__,   # exception class
+            "trace": traceback.format_exc(),  # stack trace
+        }), 500
 
