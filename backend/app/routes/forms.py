@@ -77,7 +77,12 @@ def process_sheet(spreadsheet_id):
                 if row_user is None:
                     cur.execute("SELECT user_id FROM users WHERE email = %s", (email,))
                     row_user = cur.fetchone()
-                user_id = row_user[0]
+                    
+                if row_user is None:
+                    return jsonify({"error": f"Could not resolve user_id for {email!r}"}), 400
+
+                # handle tuple rows vs dict rows
+                user_id = row_user["user_id"] if isinstance(row_user, dict) else row_user[0]
 
                 cur.execute("""
                     INSERT INTO profile (user_id, student_id)
