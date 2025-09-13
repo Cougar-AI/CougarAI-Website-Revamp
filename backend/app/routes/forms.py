@@ -8,6 +8,15 @@ forms_bp = Blueprint("forms", __name__)
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_CREDS_PATH')
 
+def parse_forms_ts(s: str) -> datetime:
+    s = s.strip()
+    for fmt in ("%m/%d/%Y %H:%M:%S", "%m/%d/%Y %I:%M:%S %p"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            pass
+    return datetime.fromisoformat(s)
+
 @forms_bp.route("/<string:spreadsheet_id>", methods=["POST"])
 def process_sheet(spreadsheet_id):
     try:
@@ -51,7 +60,7 @@ def process_sheet(spreadsheet_id):
 
                 if not email:
                     continue 
-                
+
                 student_id = int(student_id)
 
                 cur.execute("""
@@ -73,7 +82,7 @@ def process_sheet(spreadsheet_id):
                     ON CONFLICT (student_id) DO NOTHING
                 """, (user_id, student_id, ))
 
-                ts = datetime.strptime(timestamp_str, "%m/%d/%Y %H:%M:%S")
+                ts = parse_forms_ts(timestamp_str)
                 cur.execute("""
                     INSERT INTO points (student_id, event_id, points, date)
                     VALUES (%s, %s, %s, %s)
