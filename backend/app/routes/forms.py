@@ -95,16 +95,25 @@ def process_sheet(spreadsheet_id):
             connection.commit()
             return jsonify({"status": "success", "inserted": added})
     except Exception as e:
+        # ALWAYS return a response here
         try:
-            connection.rollback()
+            if connection:
+                connection.rollback()
         except Exception:
             pass
-            import traceback
-            return jsonify({
-                "error": "Failed to process the spreadsheet",
-                "details": str(e),          # human message (currently shows "0")
-                "repr": repr(e),            # full exception args
-                "type": type(e).__name__,   # exception class
-                "trace": traceback.format_exc(),  # stack trace
-            }), 500
+        import traceback
+        return jsonify({
+            "error": "Failed to process the spreadsheet",
+            "details": str(e),
+            "repr": repr(e),
+            "type": type(e).__name__,
+            "trace": traceback.format_exc(),
+        }), 500
+
+    finally:
+        try:
+            if connection:
+                connection.close()
+        except Exception:
+            pass
 
