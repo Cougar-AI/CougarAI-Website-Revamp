@@ -16,6 +16,31 @@ export type RegistrationProps = {
   oauthSlot?: React.ReactNode;
 };
 
+type RegisterOk = { ok: true };
+type FieldErrors = { field_errors?: { email?: string[]; password?: string[] } };
+
+const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
+
+async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
+    body: JSON.stringify(body),
+    ...opts,
+  });
+  const data = (await res.json().catch(() => ({}))) as any;
+  if (!res.ok) {
+    const err = new Error(data?.error || data?.message || `Request failed (${res.status})`) as Error & {
+      status?: number;
+      data?: any;
+    };
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data as T;
+}
+
 export default function Registration({
   onSubmit,
   loading: loadingProp,
@@ -35,6 +60,13 @@ export default function Registration({
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [triedSubmit, setTriedSubmit] = useState(false);
+
+  // Server-side field errors
+  const [serverEmailErrors, setServerEmailErrors] = useState<string[] | null>(null);
+  const [serverPwErrors, setServerPwErrors] = useState<string[] | null>(null);
+
+  // Success state
+  const [verifySent, setVerifySent] = useState(false);
 
   const loading = loadingProp ?? submitting;
   const error = errorProp ?? localError;
@@ -95,6 +127,9 @@ export default function Registration({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLocalError(null);
+    setServerEmailErrors(null);
+    setServerPwErrors(null);
+    setVerifySent(false);
     setTriedSubmit(true);
 
     const problems = [
@@ -128,18 +163,35 @@ export default function Registration({
       } finally {
         setSubmitting(false);
       }
-    } else {
-      // Demo submit; replace with real API call
-      try {
-        setSubmitting(true);
-        await new Promise((r) => setTimeout(r, 700));
-        // eslint-disable-next-line no-console
-        console.log("Registration submitted", payload);
-      } catch {
-        setLocalError("Registration failed");
-      } finally {
-        setSubmitting(false);
+      return;
+    }
+
+    // Built-in backend integration
+    try {
+      setSubmitting(true);
+      // Backend only needs email & password; extra fields are ignored server-side.
+      await postJSON<RegisterOk>("/auth/register", {
+        email: payload.email,
+        password: payload.password,
+      });
+      setVerifySent(true);
+    } catch (err: any) {
+      const status = err?.status as number | undefined;
+      const data = (err?.data ?? {}) as FieldErrors;
+
+      if (status === 422 && data.field_errors) {
+        if (data.field_errors.email?.length) setServerEmailErrors(data.field_errors.email);
+        if (data.field_errors.password?.length) setServerPwErrors(data.field_errors.password);
+        // Prefer first field error as banner too
+        const first =
+          data.field_errors.email?.[0] ??
+          data.field_errors.password?.[0];
+        setLocalError(first || "Please fix the highlighted fields");
+      } else {
+        setLocalError(err?.message || "Registration failed");
       }
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -160,6 +212,19 @@ export default function Registration({
               Join to access member features and events.
             </p>
           </div>
+
+          {/* Success notice */}
+          {verifySent && (
+            <div className="mt-6 rounded-lg bg-emerald-900/30 px-3 py-2 text-sm text-emerald-200 ring-1 ring-inset ring-emerald-500/20">
+              Verification email sent to <span className="font-medium">{email.trim()}</span>. Please check your inbox.
+              {/** Optional quick link to a verification screen if your app has one */}
+              <div className="mt-1">
+                <Link to="/verify-email" className="underline decoration-emerald-300/60 hover:text-emerald-100">
+                  Enter verification token
+                </Link>
+              </div>
+            </div>
+          )}
 
           {/* OAuth (optional) */}
           {oauthSlot ? (
@@ -204,14 +269,19 @@ export default function Registration({
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-2 block w-full rounded-xl border-0 bg-white/5 px-3 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/70"
                 placeholder="you@uh.edu"
-                aria-invalid={!!emailError}
-                aria-describedby={emailError ? "email-error" : undefined}
+                aria-invalid={!!(emailError || serverEmailErrors?.length)}
+                aria-describedby={emailError || serverEmailErrors?.length ? "email-error" : undefined}
               />
               {emailError && (
                 <p id="email-error" className="mt-1 text-xs text-rose-300">
                   {emailError}
                 </p>
               )}
+              {!emailError && serverEmailErrors?.length ? (
+                <p id="email-error" className="mt-1 text-xs text-rose-300">
+                  {serverEmailErrors[0]}
+                </p>
+              ) : null}
             </div>
 
             <div>
@@ -237,8 +307,8 @@ export default function Registration({
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-2 block w-full rounded-xl border-0 bg-white/5 px-3 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/70"
                 placeholder="Create a strong password"
-                aria-invalid={!!pwError}
-                aria-describedby={pwError ? "password-error password-help" : "password-help"}
+                aria-invalid={!!(pwError || serverPwErrors?.length)}
+                aria-describedby={pwError || serverPwErrors?.length ? "password-error password-help" : "password-help"}
               />
               {/* Strength meter */}
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/10" aria-hidden>
@@ -255,6 +325,11 @@ export default function Registration({
                   {pwError}
                 </p>
               )}
+              {!pwError && serverPwErrors?.length ? (
+                <p id="password-error" className="mt-1 text-xs text-rose-300">
+                  {serverPwErrors[0]}
+                </p>
+              ) : null}
             </div>
 
             <div>

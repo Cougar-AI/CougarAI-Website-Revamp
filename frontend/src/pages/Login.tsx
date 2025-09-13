@@ -9,6 +9,40 @@ export type LoginProps = {
   oauthSlot?: React.ReactNode;
 };
 
+type LoginOk = { access_token: string; user: { user_id: number; email: string } };
+type ResendOk = { ok: boolean };
+
+const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
+
+async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(opts?.headers || {}) },
+    body: JSON.stringify(body),
+    ...opts,
+  });
+  const data = (await res.json().catch(() => ({}))) as any;
+  if (!res.ok) {
+    const err = new Error(data?.error || data?.message || `Request failed (${res.status})`) as Error & {
+      status?: number;
+      data?: any;
+    };
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data as T;
+}
+
+function persistAccessToken(token: string, remember: boolean) {
+  try {
+    const store = remember ? window.localStorage : window.sessionStorage;
+    store.setItem("access_token", token);
+  } catch {
+    // Ignore storage failures (e.g., in private mode)
+  }
+}
+
 export default function Login({ onSubmit, loading: loadingProp, error: errorProp, oauthSlot }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,6 +52,10 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
   // Local submit state only if parent didn't pass loading
   const [submitting, setSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  // Resend verification flow state
+  const [resent, setResent] = useState(false);
+  const [resending, setResending] = useState(false);
 
   const loading = loadingProp ?? submitting;
   const error = errorProp ?? localError;
@@ -37,6 +75,7 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLocalError(null);
+    setResent(false);
 
     // Basic validation
     const problems = [email ? null : "Email is required", password ? null : "Password is required", emailError, pwError].filter(
@@ -57,18 +96,56 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
       } finally {
         setSubmitting(false);
       }
-    } else {
-      // Fallback demo submit: remove or replace with real API call
+      return;
+    }
+
+    // Built-in backend integration
+    try {
+      setSubmitting(true);
+      const data = await postJSON<LoginOk>(
+        "/auth/login",
+        { email: email.trim(), password },
+        { credentials: "include" } // crucial for the HttpOnly refresh cookie
+      );
+      persistAccessToken(data.access_token, remember);
+      // You might also persist the user record if helpful:
       try {
-        setSubmitting(true);
-        await new Promise((r) => setTimeout(r, 700));
-        // eslint-disable-next-line no-console
-        console.log("Login submitted", { email, remember });
-      } catch (err: any) {
-        setLocalError("Sign in failed");
-      } finally {
-        setSubmitting(false);
+        (remember ? localStorage : sessionStorage).setItem("user", JSON.stringify(data.user));
+      } catch {}
+      // Success UX: clear errors; consumer app can redirect based on token presence.
+      setLocalError(null);
+      // eslint-disable-next-line no-console
+      console.log("Login successful", data.user);
+    } catch (err: any) {
+      const status = err?.status as number | undefined;
+      if (status === 401) {
+        // Backend intentionally hides reason (unverified, inactive, or wrong creds)
+        setLocalError(
+          "Invalid email or password. If you just created your account, please verify your email first."
+        );
+      } else {
+        setLocalError(err?.message || "Sign in failed");
       }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleResendVerification() {
+    if (!email || emailError) {
+      setLocalError("Enter your email above, then tap Resend.");
+      return;
+    }
+    setResending(true);
+    setLocalError(null);
+    try {
+      await postJSON<ResendOk>("/auth/resend-verification", { email: email.trim() });
+      setResent(true);
+    } catch (err: any) {
+      // Endpoint always returns 200, but handle just in case.
+      setLocalError(err?.message || "Could not resend verification email");
+    } finally {
+      setResending(false);
     }
   }
 
@@ -200,6 +277,24 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
               </div>
             )}
 
+            {localError && (
+              <div className="rounded-lg bg-rose-900/40 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20">
+                {localError}
+                {/* Offer resend option on generic invalid creds scenario */}
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resending}
+                    className="text-xs underline decoration-rose-300/60 hover:text-rose-100 disabled:opacity-60"
+                  >
+                    {resending ? "Resending…" : "Resend verification email"}
+                  </button>
+                  {resent && <span className="text-xs text-emerald-300">Sent!</span>}
+                </div>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -219,7 +314,7 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
 
           {/* Footer */}
           <p className="mt-6 text-center text-sm text-neutral-300">
-            Don\'t have an account?{" "}
+            Don&apos;t have an account?{" "}
             <Link to="/join" className="font-medium text-rose-300 hover:text-rose-200">
               Join now
             </Link>
