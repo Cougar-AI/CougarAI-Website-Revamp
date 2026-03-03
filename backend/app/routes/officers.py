@@ -7,7 +7,7 @@ def getOfficers():
     connection = connect()
     with connection.cursor() as cur:
         filter_dict = {
-            "student_id": request.args.get("student_id", type=int),
+            "student_id": request.args.get("student_id"),
             "join_date": request.args.get("join_date"),
             "end_date": request.args.get("end_date"),
             "limit": request.args.get("limit", type=int),
@@ -23,7 +23,7 @@ def getOfficers():
         results = cur.fetchall()
         return (jsonify(results), 200) if results else (jsonify({"error": "No officers found"}), 404)
     
-@officers_bp.route("/<int:student_id>", methods=["POST"])
+@officers_bp.route("/<string:student_id>", methods=["POST"])
 def addOfficer(student_id):
     try:
         connection = connect()
@@ -35,19 +35,19 @@ def addOfficer(student_id):
                 "end_date": request.json.get("end_date"),
                 "role": request.json.get("role")
             }
-            
-            if not (1000000 <= student_id <= 9999999):
-                return jsonify({"error": "student_id must be a 7-digit number"}), 400
 
             if filter_dict["join_date"] is None or filter_dict["role"] is None:
                 return jsonify({"error": "student_id, join_date and role are required"}), 400
             
-            if not is_valid_date(filter_dict["join_date"]):
-                return jsonify({"error": "Invalid join_date format"}), 400
+            if not is_valid_date(filter_dict["join_date"], fmt="%Y-%m-%d"):
+                return jsonify({"error": "Invalid join_date format. Use YYYY-MM-DD"}), 400
             
-            if filter_dict["end_date"] and not is_valid_date(filter_dict["end_date"]):
-                return jsonify({"error": "Invalid end_date format"}), 400
+            if filter_dict["end_date"] and not is_valid_date(filter_dict["end_date"], fmt="%Y-%m-%d"):
+                return jsonify({"error": "Invalid end_date format. Use YYYY-MM-DD"}), 400
 
+            # Remove None values from filter_dict before INSERT
+            filter_dict = {k: v for k, v in filter_dict.items() if v is not None}
+            
             query, params = build_sql_querys("INSERT INTO officers", filter_dict, date_column="join_date", mode="INSERT")
             query += " RETURNING student_id"
 
@@ -61,7 +61,7 @@ def addOfficer(student_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-@officers_bp.route("/<int:student_id>", methods=["DELETE"])
+@officers_bp.route("/<string:student_id>", methods=["DELETE"])
 def deleteOfficer(student_id):
     try:
         connection = connect()
@@ -76,7 +76,7 @@ def deleteOfficer(student_id):
         connection.rollback()
         return jsonify({"error": str(e)}), 500
         
-@officers_bp.route("/<int:student_id>", methods=["GET"])
+@officers_bp.route("/<string:student_id>", methods=["GET"])
 def getOfficer(student_id):
     connection = connect()
     with connection.cursor() as cur:
@@ -84,7 +84,7 @@ def getOfficer(student_id):
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Officer not found"}), 404
             
-@officers_bp.route("/<int:student_id>", methods=["PATCH"])
+@officers_bp.route("/<string:student_id>", methods=["PATCH"])
 def updateOfficer(student_id):
     try:
         connection = connect()
@@ -95,9 +95,6 @@ def updateOfficer(student_id):
                 "end_date": request.json.get("end_date"),
                 "role": request.json.get("role")
             }
-
-            if not (1000000 <= student_id <= 9999999):
-                return jsonify({"error": "student_id must be a 7-digit number"}), 400
 
             if filter_dict["join_date"] and not is_valid_date(filter_dict["join_date"]):
                 return jsonify({"error": "Invalid join_date format"}), 400

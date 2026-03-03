@@ -12,7 +12,7 @@ def create_app(config_class='config.DevelopmentConfig'):
     app.config.from_object(config_class)
     CORS(
         app,
-        resources={r"/auth/*": {"origins": app.config.get("FRONTEND_URL")}},
+        origins=[app.config.get("FRONTEND_URL")],
         supports_credentials=True,
         expose_headers=["Content-Type", "Authorization"],
         allow_headers=["Content-Type", "Authorization"],

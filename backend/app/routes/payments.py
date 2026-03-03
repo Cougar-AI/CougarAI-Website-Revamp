@@ -12,7 +12,7 @@ def getPayments():
 
         filter_dict = { 
             "payment_id": request.args.get("payment_id", type=int),
-            "student_id": request.args.get("student_id", type=int),
+            "student_id": request.args.get("student_id"),
             "start_date": request.args.get("start_date"),
             "end_date": request.args.get("end_date"),
         }
@@ -39,7 +39,7 @@ def deletePayment(payment_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@payments_bp.route("/<int:student_id>", methods=["POST"])
+@payments_bp.route("/<string:student_id>", methods=["POST"])
 def createPayment(student_id):
     try:
         connections = connect()
@@ -55,13 +55,20 @@ def createPayment(student_id):
                 except (ValueError, TypeError):
                     return jsonify({"error": "Amount must be a valid number"}), 400
 
-            if date and not is_valid_date(date):
-                return jsonify({"error": "Invalid date format"}), 400
+            if date and not is_valid_date(date, fmt="%Y-%m-%d"):
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
 
             cur.execute("SELECT 1 FROM payments WHERE student_id = %s AND date >= CURRENT_DATE - INTERVAL '3 months'", (student_id,))
             if cur.fetchone():
                 return jsonify({"error": "Payment already exists for this student in the last semester (3 months)"}), 400
-            cur.execute("INSERT INTO payments (student_id, date, amount) VALUES (%s, %s, %s) RETURNING *", (student_id, date, amount))
+            
+            # Build query with only non-None values
+            filter_dict = {"student_id": student_id, "amount": amount}
+            if date:
+                filter_dict["date"] = date
+            
+            query, params = build_sql_querys("INSERT INTO payments", filter_dict, date_column="date", mode="INSERT")
+            cur.execute(query, tuple(params))
             result = cur.fetchone()
             connections.commit()
             return jsonify({"message": "Payment created successfully", "payment": result}), 201

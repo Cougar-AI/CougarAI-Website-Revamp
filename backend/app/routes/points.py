@@ -10,7 +10,7 @@ def getPoints():
 
         filter_dict = {
             "points.points_id": request.args.get("points_id", type=int),
-            "points.student_id": request.args.get("student_id", type=int),
+            "points.student_id": request.args.get("student_id"),
             "points.event_id": request.args.get("event_id", type=int),
             "points.date": request.args.get("date"),
             "points.points": request.args.get("points", type=int),
@@ -62,7 +62,7 @@ def getLeaderboard():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
 
 
-@points_bp.route("/add/<int:student_id>", methods=["POST"])
+@points_bp.route("/add/<string:student_id>", methods=["POST"])
 def addPoints(student_id):
     try:
         connection = connect()
@@ -83,13 +83,16 @@ def addPoints(student_id):
                 except ValueError:
                     return jsonify({"error": "Points must be an integer"}), 400
             
-            if filter_dict["date"] and not is_valid_date(filter_dict["date"]):
-                return jsonify({"error": "Invalid date format. "}), 400
+            if filter_dict["date"] and not is_valid_date(filter_dict["date"], fmt="%Y-%m-%d"):
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
 
             cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
             if cur.fetchone() is None:
                 return jsonify({"error": "Invalid student_id"}), 400
 
+            # Remove None values from filter_dict before INSERT
+            filter_dict = {k: v for k, v in filter_dict.items() if v is not None}
+            
             query, params = build_sql_querys("INSERT INTO points", filter_dict, date_column="date", mode="INSERT")
             cur.execute(query, tuple(params))
 
@@ -126,7 +129,7 @@ def updatePoints(points_id):
     
 
     
-@points_bp.route("/student/<int:student_id>", methods=["GET"])
+@points_bp.route("/student/<string:student_id>", methods=["GET"])
 def getStudentPoints(student_id):
     try:
         connection = connect()
@@ -154,7 +157,7 @@ def getTotalPoints():
         connection = connect()
         with connection.cursor() as cur:
             filter_dict = {
-                "points.student_id": request.args.get("student_id", type=int),
+                "points.student_id": request.args.get("student_id"),
                 "start_date": request.args.get("start_date"),
                 "end_date": request.args.get("end_date"),
             }

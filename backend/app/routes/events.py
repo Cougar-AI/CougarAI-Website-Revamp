@@ -9,10 +9,10 @@ def getEvents():
         starts_at = request.args.get("starts_at")
         ends_at = request.args.get("ends_at")
 
-        if starts_at and not is_valid_date(starts_at):
-            return jsonify({"error": "Invalid date format"}), 400
-        if ends_at and not is_valid_date(ends_at):
-            return jsonify({"error": "Invalid date format"}), 400
+        if starts_at and not is_valid_date(starts_at, fmt="%Y-%m-%d"):
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+        if ends_at and not is_valid_date(ends_at, fmt="%Y-%m-%d"):
+            return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
 
         filter_dict = {
             "event_id": request.args.get("event_id", type=int),
@@ -69,6 +69,9 @@ def addEvent():
             if filter_dict["starts_at"] is None or filter_dict["event_type"] is None or filter_dict["name"] is None:
                 return jsonify({"error": "name, starts_at and event_type are required"}), 400
 
+            # Remove None values from filter_dict before INSERT
+            filter_dict = {k: v for k, v in filter_dict.items() if v is not None}
+            
             query, params = build_sql_querys("INSERT INTO events", filter_dict, date_column="starts_at", mode="INSERT")
             query += " RETURNING event_id"
         

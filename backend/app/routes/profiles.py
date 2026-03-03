@@ -27,17 +27,63 @@ def getProfile():
         return (jsonify(results), 200) if results else (jsonify({"error": "No profile found"}), 404)
 
 
-@profile_bp.route("/<int:student_id>", methods=["DELETE"])
-def deleteProfile(student_id):
-    try:
-        connection = connect()
-        with connection.cursor() as cur:
-            cur.execute(f"DELETE FROM profile WHERE student_id = %s", (student_id,))
-            connection.commit()
-            return jsonify({"message": "Profile deleted successfully"}), 200
-    except Exception as e:
-        connection.rollback()
-        return jsonify({"error": str(e)}), 500
+@profile_bp.route("/<string:student_id>", methods=["GET", "DELETE", "PATCH"])
+def getProfileById(student_id):
+    """GET, PATCH, or DELETE profile by student_id"""
+    if request.method == "GET":
+        try:
+            connection = connect()
+            with connection.cursor() as cur:
+                cur.execute("SELECT * FROM profile WHERE student_id = %s", (student_id,))
+                result = cur.fetchone()
+                return jsonify(result) if result else (jsonify({"error": f"Profile {student_id} not found"}), 404)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+    
+    elif request.method == "DELETE":
+        try:
+            connection = connect()
+            with connection.cursor() as cur:
+                cur.execute("DELETE FROM profile WHERE student_id = %s", (student_id,))
+                if cur.rowcount == 0:
+                    connection.rollback()
+                    return jsonify({"error": f"Profile {student_id} not found"}), 404
+                connection.commit()
+                return jsonify({"message": "Profile deleted successfully"}), 200
+        except Exception as e:
+            connection.rollback()
+            return jsonify({"error": str(e)}), 500
+    
+    elif request.method == "PATCH":
+        try:
+            connection = connect()
+            with connection.cursor() as cur:
+                filter_dict = {
+                    "first_name": request.json.get("first_name"),
+                    "last_name": request.json.get("last_name"),
+                    "discord_id": request.json.get("discord_id"),
+                    "shirt_size": request.json.get("shirt_size"),
+                    "gender": request.json.get("gender"),
+                    "join_source": request.json.get("join_source"),
+                    "phone": request.json.get("phone"),
+                    "grade_level": request.json.get("grade_level"),
+                    "major": request.json.get("major"),
+                }
+
+                query, params = build_sql_querys("UPDATE profile", filter_dict, mode="SET")
+                query += " WHERE student_id = %s"
+                params.append(student_id)
+
+                cur.execute(query, tuple(params))
+                if cur.rowcount == 0:
+                    return jsonify({"error": f"Student ID {student_id} not found"}), 404
+
+                connection.commit()
+                return jsonify({"message": "Profile updated successfully"}), 200
+
+        except Exception as e:
+            connection.rollback()
+            return jsonify({"error": str(e)}), 500
 
 @profile_bp.route("/", methods=["POST"])
 def addProfile():
@@ -71,41 +117,10 @@ def addProfile():
                 return jsonify({"error": "Student ID already exists"}), 400
 
             cur.execute("INSERT INTO profile (student_id, first_name, last_name, discord_id, shirt_size, gender, join_source, phone, grade_level, major) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING student_id", (student_id, first_name, last_name, discord_id, shirt_size, gender, join_source, phone, grade_level, major))
-            profile_id = cur.fetchone()[0]
+            result = cur.fetchone()
+            profile_id = result['student_id'] if isinstance(result, dict) else result[0]
             connection.commit()
             return jsonify({"student_id": profile_id}), 201
-    except Exception as e:
-        connection.rollback()
-        return jsonify({"error": str(e)}), 500
-    
-@profile_bp.route("/<string:student_id>", methods=["PATCH"])
-def updateProfile(student_id):
-    try:
-        connection = connect()
-        with connection.cursor() as cur:
-            filter_dict = {
-                "first_name": request.json.get("first_name"),
-                "last_name": request.json.get("last_name"),
-                "discord_id": request.json.get("discord_id"),
-                "shirt_size": request.json.get("shirt_size"),
-                "gender": request.json.get("gender"),
-                "join_source": request.json.get("join_source"),
-                "phone": request.json.get("phone"),
-                "grade_level": request.json.get("grade_level"),
-                "major": request.json.get("major"),
-            }
-
-            query, params = build_sql_querys("UPDATE profile", filter_dict, mode="SET")
-            query += " WHERE student_id = %s"
-            params.append(student_id)
-
-            cur.execute(query, tuple(params))
-            if cur.rowcount == 0:
-                return jsonify({"error": f"Student ID {student_id} not found"}), 404
-
-            connection.commit()
-            return jsonify({"message": "Profile updated successfully"}), 200
-
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500

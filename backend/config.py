@@ -16,7 +16,7 @@ def _build_uri():
     - DB_PASS or DB_PASSWORD: Database password
     
     Optional environment variables:
-    - DB_HOST: Database host (defaults to 127.0.0.1)
+    - DB_HOST: Database hos (defaults to 127.0.0.1)
     - DB_PORT: Database port (defaults to 5432)
     
     Returns:

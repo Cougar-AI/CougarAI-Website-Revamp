@@ -16,3 +16,4 @@ google-auth
 google-auth-oauthlib
 flask-jwt-extended
 passlib[bcrypt]
+uvicorn
