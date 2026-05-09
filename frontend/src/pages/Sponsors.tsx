@@ -7,9 +7,8 @@ type Sponsor = {
 };
 
 const SPONSORS: Sponsor[] = [
-  { name: "Company One", url: "https://example.com" },
-  { name: "Company Two", url: "https://example.com" },
-  { name: "Company Three", url: "https://example.com" },
+  { name: "Ferguson Control Systems", url: "https://www.fergusoncontrolsystems.com" },
+  { name: "Hewlett Packard Enterprise", url: "https://www.hpe.com" },
 ];
 
 function Monogram({ name }: { name: string }) {

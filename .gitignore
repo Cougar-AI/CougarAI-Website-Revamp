@@ -55,3 +55,4 @@ __pycache__/
 # JetBrains
 *.iml
 
+/.claude

@@ -15,7 +15,12 @@ import Sponsors from './pages/Sponsors.tsx';
 import Login from './pages/Login.tsx';
 import NotFound from './pages/NotFound.tsx';
 import Registration from './pages/Registration.tsx';
-import Join from './pages/Join.tsx'; 
+import Join from './pages/Join.tsx';
+import ForgotPassword from './pages/ForgotPassword.tsx';
+import VerifyEmail from './pages/VerifyEmail.tsx';
+import Terms from './pages/Terms.tsx';
+import Privacy from './pages/Privacy.tsx';
+import Sponsorships from './pages/Sponsorships.tsx';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   try {
@@ -40,6 +45,11 @@ export default function App() {
             <Route path={'/login'} element={<Login />} />
             <Route path={'/register'} element={<Registration />} />
             <Route path={'/join'} element={<Join />} />
+            <Route path={'/forgot-password'} element={<ForgotPassword />} />
+            <Route path={'/verify-email'} element={<VerifyEmail />} />
+            <Route path={'/terms'} element={<Terms />} />
+            <Route path={'/privacy'} element={<Privacy />} />
+            <Route path={'/sponsorships'} element={<Sponsorships />} />
 
             {/* Real 404 */}
             <Route path="*" element={<NotFound />} />

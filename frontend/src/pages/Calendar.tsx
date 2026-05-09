@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 // ----- Types & Data -----
 const TYPE_OPTIONS = [
@@ -35,14 +35,12 @@ interface CalendarEvent {
   dateKey: string;
 }
 
-// Example data (replace with real data / API later)
-const SAMPLE_EVENTS: CalendarEvent[] = [
-  { id: "e1", title: "General Meeting #1", type: "meeting", dateKey: toDateKey(2025, 8, 4) }, // Sep 4, 2025
-  { id: "e2", title: "Intro to LLMs Workshop", type: "workshop", dateKey: toDateKey(2025, 8, 12) },
-  { id: "e3", title: "Hackathon Kickoff", type: "club", dateKey: toDateKey(2025, 8, 19) },
-  { id: "e5", title: "Study Group", type: "meeting", dateKey: toDateKey(2025, 7, 29) }, // Aug 29, 2025
-  { id: "e6", title: "Resume Workshop", type: "workshop", dateKey: toDateKey(2025, 9, 3) }, // Oct 3, 2025
-];
+function inferEventType(summary: string): Exclude<EventType, "all"> {
+  const lower = summary.toLowerCase();
+  if (lower.includes("workshop")) return "workshop";
+  if (lower.includes("meeting")) return "meeting";
+  return "club";
+}
 
 // ----- Utils -----
 function toDateKey(year: number, monthIndex0: number, day: number) {
@@ -235,10 +233,37 @@ export default function Calendar() {
   const [type, setType] = useState<EventType>("all");
   const [year, setYear] = useState<number>(now.getFullYear());
   const [month, setMonth] = useState<number>(now.getMonth()); // 0..11
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("http://localhost:5001/events/google")
+      .then((res) => res.json())
+      .then((items: unknown[]) => {
+        const mapped: CalendarEvent[] = (items as Record<string, unknown>[])
+          .filter((item) => item.start)
+          .map((item) => {
+            const start = item.start as Record<string, string>;
+            const dateKey = (start.dateTime ?? start.date ?? "").slice(0, 10);
+            const summary = (item.summary as string | undefined) ?? "Untitled";
+            return {
+              id: item.id as string,
+              title: summary,
+              type: inferEventType(summary),
+              dateKey,
+            };
+          })
+          .filter((e) => e.dateKey.length === 10);
+        setEvents(mapped);
+      })
+      .catch(() => setFetchError("Could not load events."))
+      .finally(() => setLoading(false));
+  }, []);
 
   // Filter data (simple client-side filter)
   const filtered = useMemo(() => {
-    return SAMPLE_EVENTS.filter((e) => {
+    return events.filter((e) => {
       const [y, m, d] = e.dateKey.split("-").map((n) => parseInt(n, 10));
       const matchesType = type === "all" ? true : e.type === type;
       const matchesYear = y === year;
@@ -270,6 +295,18 @@ export default function Calendar() {
       setYear((y) => y + 1);
     } else setMonth(newMonth);
   };
+
+  if (loading) return (
+    <main className="relative min-h-screen w-full text-white flex items-center justify-center">
+      <p className="font-['Oxanium'] text-white/70">Loading events…</p>
+    </main>
+  );
+
+  if (fetchError) return (
+    <main className="relative min-h-screen w-full text-white flex items-center justify-center">
+      <p className="font-['Oxanium'] text-rose-400">{fetchError}</p>
+    </main>
+  );
 
   return (
     <main className="relative min-h-screen w-full text-white">

@@ -4,9 +4,9 @@ from app.db import connect"""
 
 from app.imports import *
 
-discord_bp = Blueprint('discord', __name__)
+announcements_bp = Blueprint('announcements', __name__)
 
-@discord_bp.route("/announcements/", methods=["GET"])
+@announcements_bp.route("/announcements/", methods=["GET"])
 def getAnnouncements():
     connections = connect()
     with connections.cursor() as cur:
@@ -30,7 +30,7 @@ def getAnnouncements():
         results = cur.fetchall()
         return (jsonify(results),200) if results else (jsonify({"error": "No announcements found"}), 404)
     
-@discord_bp.route("/announcements/<int:announcement_id>", methods=["DELETE"])
+@announcements_bp.route("/announcements/<int:announcement_id>", methods=["DELETE"])
 def deleteAnnouncement(announcement_id):
     try:
         connections = connect()
@@ -44,7 +44,7 @@ def deleteAnnouncement(announcement_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@discord_bp.route("/announcements/<string:guild_id>", methods=["POST"])
+@announcements_bp.route("/announcements/<string:guild_id>", methods=["POST"])
 def createAnnouncement(guild_id):
     try:
         connections = connect()
@@ -79,7 +79,7 @@ def createAnnouncement(guild_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@discord_bp.route("/announcements/<int:announcement_id>", methods=["PATCH"])
+@announcements_bp.route("/announcements/<int:announcement_id>", methods=["PATCH"])
 def updateAnnouncement(announcement_id):
     try:
         connections = connect()

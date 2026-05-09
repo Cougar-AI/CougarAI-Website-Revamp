@@ -1,6 +1,30 @@
 from app.imports import *
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
 events_bp = Blueprint('events', __name__)
+
+_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+_CALENDAR_ID = "cougaraicontact@gmail.com"
+
+@events_bp.route("/google", methods=["GET"])
+def getGoogleCalendarEvents():
+    try:
+        creds = service_account.Credentials.from_service_account_file(
+            os.getenv("GOOGLE_CALENDAR_CREDS_PATH"),
+            scopes=_CALENDAR_SCOPES,
+        )
+        service = build("calendar", "v3", credentials=creds)
+        result = service.events().list(
+            calendarId=_CALENDAR_ID,
+            timeMin="2022-08-08T00:00:00Z",
+            maxResults=500,
+            singleEvents=True,
+            orderBy="startTime",
+        ).execute()
+        return jsonify(result.get("items", [])), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 @events_bp.route("/", methods=["GET"])
 def getEvents():
     connection = connect()
@@ -73,9 +97,9 @@ def addEvent():
             query += " RETURNING event_id"
         
             cur.execute(query, tuple(params))
-            
+            event_id = cur.fetchone()[0]
             connection.commit()
-            return jsonify({"message": "Success"}), 201
+            return jsonify({"message": "Success", "event_id": event_id}), 201
         
     except Exception as e:
         connection.rollback()

@@ -1,5 +1,5 @@
 # app/__init__.py - Flask application factory
-from flask import Flask
+from flask import Flask, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
@@ -12,11 +12,23 @@ def create_app(config_class='config.DevelopmentConfig'):
     app.config.from_object(config_class)
     CORS(
         app,
-        resources={r"/auth/*": {"origins": app.config.get("FRONTEND_URL")}},
+        origins=[app.config.get("FRONTEND_URL", "http://localhost:5173")],
         supports_credentials=True,
         expose_headers=["Content-Type", "Authorization"],
         allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
+
+    @app.after_request
+    def _ensure_cors(response):
+        origin = request.headers.get("Origin", "")
+        allowed = app.config.get("FRONTEND_URL", "http://localhost:5173")
+        if origin == allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        return response
 
     uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     if not uri:
