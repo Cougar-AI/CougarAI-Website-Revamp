@@ -1,131 +1,157 @@
-import React from "react";
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 type Sponsor = {
   name: string;
   url: string;
-  logoSrc?: string;
+  desc?: string;
 };
 
 const SPONSORS: Sponsor[] = [
-  { name: "Ferguson Control Systems", url: "https://www.fergusoncontrolsystems.com" },
-  { name: "Hewlett Packard Enterprise", url: "https://www.hpe.com" },
+  { name: 'Ferguson Control Systems', url: 'https://www.fergusoncontrolsystems.com', desc: 'Industrial automation & control solutions' },
+  { name: 'Hewlett Packard Enterprise', url: 'https://www.hpe.com', desc: 'Global edge-to-cloud technology company' },
 ];
 
-function Monogram({ name }: { name: string }) {
-  const letter = name?.trim()?.charAt(0)?.toUpperCase() ?? "?";
-  return (
-    <div className="flex size-full items-center justify-center rounded-2xl bg-neutral-200/90 text-neutral-800">
-      <span className="text-3xl font-bold">{letter}</span>
-    </div>
-  );
-}
-
-function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
-  const { name, url, logoSrc } = sponsor;
+function SponsorCard({ name, url, desc }: Sponsor) {
+  const [hov, setHov] = useState(false);
+  const letter = name.trim().charAt(0).toUpperCase();
 
   return (
     <a
       href={url}
       target="_blank"
       rel="noopener noreferrer"
-      className="
-        group relative w-full max-w-[360px] focus:outline-none
-        focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black
-      "
-      aria-label={`Visit ${name}`}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        display: 'block',
+        borderRadius: 20,
+        overflow: 'hidden',
+        border: `1px solid rgba(185,28,28,${hov ? .45 : .18})`,
+        background: 'rgba(255,255,255,.05)',
+        backdropFilter: 'blur(8px)',
+        boxShadow: hov ? '0 20px 56px rgba(185,28,28,.22),0 4px 20px rgba(0,0,0,.5)' : '0 4px 24px rgba(0,0,0,.4)',
+        transform: hov ? 'translateY(-7px)' : 'translateY(0)',
+        transition: 'all .25s ease',
+        textDecoration: 'none',
+        color: 'inherit',
+      }}
     >
-      <figure
-        className="
-          rounded-2xl ring-1 ring-white/10 bg-white/5 backdrop-blur
-          shadow-[0_8px_30px_rgb(0,0,0,0.25)]
-          transition-transform duration-200 motion-safe:group-hover:-translate-y-1
-        "
-      >
-        <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl">
-          {logoSrc ? (
-            <img
-              src={logoSrc}
-              alt={`${name} logo`}
-              className="h-full w-full object-contain p-8"
-              loading="lazy"
-              decoding="async"
-            />
-          ) : (
-            <Monogram name={name} />
-          )}
-        </div>
+      {/* Monogram header */}
+      <div style={{
+        width: '100%', aspectRatio: '16/9',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: 'linear-gradient(135deg,rgba(80,5,5,.7) 0%,rgba(185,28,28,.2) 100%)',
+        borderBottom: '1px solid rgba(185,28,28,.15)',
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: 'linear-gradient(rgba(185,28,28,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(185,28,28,.1) 1px,transparent 1px)',
+          backgroundSize: '24px 24px', opacity: .6,
+        }} />
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: `radial-gradient(circle at 50% 60%,rgba(185,28,28,${hov ? .2 : .08}),transparent 65%)`,
+          transition: 'all .3s',
+        }} />
+        <span style={{
+          fontFamily: 'Oxanium,sans-serif', fontWeight: 800, fontSize: 96,
+          color: 'rgba(255,255,255,.8)', letterSpacing: '-.02em', lineHeight: 1,
+          position: 'relative', zIndex: 1, textShadow: '0 0 40px rgba(185,28,28,.6)',
+        }}>
+          {letter}
+        </span>
+      </div>
 
-        <figcaption className="px-4 pb-4 pt-3 text-center">
-          <span
-            className="
-              text-white text-base font-semibold
-              underline-offset-4 group-hover:underline
-            "
-          >
+      {/* Details row */}
+      <div style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <div style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 16, color: 'rgba(255,255,255,.92)', marginBottom: desc ? 4 : 0 }}>
             {name}
-          </span>
-          <span className="sr-only"> (opens in a new tab)</span>
-        </figcaption>
-      </figure>
-
-      {/* subtle glow on hover */}
-      <div
-        className="
-          pointer-events-none absolute inset-0 -z-10 rounded-2xl opacity-0 blur-2xl
-          transition-opacity duration-200 group-hover:opacity-40
-          bg-gradient-to-br from-rose-500/40 via-fuchsia-500/30 to-purple-500/30
-        "
-        aria-hidden="true"
-      />
+          </div>
+          {desc && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', lineHeight: 1.4 }}>{desc}</div>}
+        </div>
+        <div style={{
+          flexShrink: 0, width: 32, height: 32, borderRadius: 8,
+          background: `rgba(185,28,28,${hov ? .25 : .12})`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all .2s',
+          border: `1px solid rgba(185,28,28,${hov ? .4 : .15})`,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: hov ? 'translate(1px,-1px)' : 'none', transition: 'transform .2s' }}>
+            <path d="M2 12L12 2M12 2H5M12 2V9" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </div>
     </a>
   );
 }
 
 export default function SponsorPage() {
   return (
-    <main className="relative min-h-screen font-['Oxanium'] overflow-hidden">
+    <main className="relative font-['Oxanium']" style={{ maxWidth: 860, margin: '0 auto', padding: '64px 24px 90px', textAlign: 'center' }}>
 
-      <section className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 md:pt-24">
-        <header className="mx-auto max-w-4xl text-center">
-          <h1 className="text-white text-4xl font-semibold leading-snug">
-            This page is dedicated to our sponsors who have helped our
-            organization succeed and continue to succeed.
-          </h1>
-          <p className="mt-4 text-white/70 text-lg">
-            Interested in partnering with us? We’d love to chat.
-          </p>
-
-          <div className="mt-6">
-            <a
-              href="/sponsorships"
-              className="
-                inline-flex items-center rounded-xl bg-rose-700 px-5 py-3 text-white
-                font-semibold shadow ring-1 ring-white/10
-                transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]
-                focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2 focus-visible:ring-offset-black
-              "
-            >
-              Become a Sponsor
-            </a>
-          </div>
-        </header>
-
-        <div
-          className="
-            mt-12 md:mt-16 grid place-items-center
-            grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 md:gap-10
-          "
-        >
-          {SPONSORS.map((s) => (
-            <SponsorCard key={s.name} sponsor={s} />
-          ))}
+      {/* Header */}
+      <header style={{ maxWidth: 580, margin: '0 auto 64px' }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 18,
+          padding: '5px 14px', borderRadius: 99,
+          background: 'rgba(185,28,28,.12)', border: '1px solid rgba(185,28,28,.3)',
+          color: 'rgba(220,38,38,.9)', fontSize: 11.5, fontWeight: 700,
+          letterSpacing: '.12em', textTransform: 'uppercase',
+        }}>
+          Partners &amp; Supporters
         </div>
-
-        {/* optional fine print */}
-        <p className="mt-12 text-center text-xs text-white/40">
-          Logos are for identification only and remain the property of their respective owners.
+        <h1 style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 'clamp(28px,4.5vw,48px)', fontWeight: 800, letterSpacing: '-.025em', margin: '0 0 18px', lineHeight: 1.1 }}>
+          Our Sponsors
+        </h1>
+        <p style={{ color: 'rgba(255,255,255,.65)', fontSize: 16.5, lineHeight: 1.72, maxWidth: 500, margin: '0 auto 32px' }}>
+          Dedicated to the organizations who believe in our mission and help CougarAI continue to grow and succeed.
         </p>
-      </section>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link
+            to="/join"
+            style={{ background: '#b91c1c', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, boxShadow: '0 0 24px rgba(185,28,28,.4)', display: 'inline-block', textDecoration: 'none' }}
+          >
+            Become a Sponsor
+          </Link>
+          <Link
+            to="/sponsorships"
+            style={{ background: 'rgba(255,255,255,.08)', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, border: '1px solid rgba(255,255,255,.14)', backdropFilter: 'blur(6px)', display: 'inline-block', textDecoration: 'none' }}
+          >
+            Sponsorship Info
+          </Link>
+        </div>
+      </header>
+
+      {/* Sponsor cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 24, maxWidth: 720, margin: '0 auto 64px' }}>
+        {SPONSORS.map((s) => <SponsorCard key={s.name} {...s} />)}
+      </div>
+
+      {/* CTA strip */}
+      <div style={{
+        maxWidth: 640, margin: '0 auto', padding: '32px 36px', borderRadius: 20,
+        background: 'rgba(185,28,28,.08)', border: '1px solid rgba(185,28,28,.2)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap', textAlign: 'left',
+      }}>
+        <div>
+          <div style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 17, marginBottom: 6 }}>Interested in partnering with us?</div>
+          <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 14, lineHeight: 1.5 }}>We'd love to chat about how we can work together.</div>
+        </div>
+        <Link
+          to="/contact"
+          style={{ background: '#b91c1c', color: '#fff', padding: '11px 22px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 0 18px rgba(185,28,28,.35)', flexShrink: 0, display: 'inline-block', textDecoration: 'none' }}
+        >
+          Get in Touch
+        </Link>
+      </div>
+
+      <p style={{ marginTop: 40, color: 'rgba(255,255,255,.25)', fontSize: 12 }}>
+        Logos are for identification only and remain the property of their respective owners.
+      </p>
     </main>
   );
 }

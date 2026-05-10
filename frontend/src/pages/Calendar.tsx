@@ -1,37 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
 
-// ----- Types & Data -----
 const TYPE_OPTIONS = [
-  { label: "All", value: "all" },
-  { label: "Club events", value: "club" },
+  { label: "All Events", value: "all" },
+  { label: "Club Events", value: "club" },
   { label: "Meetings", value: "meeting" },
   { label: "Workshops", value: "workshop" },
 ] as const;
 
 type EventType = (typeof TYPE_OPTIONS)[number]["value"];
 
-const MONTH_OPTIONS = [
-  { label: "January", value: 0 },
-  { label: "February", value: 1 },
-  { label: "March", value: 2 },
-  { label: "April", value: 3 },
-  { label: "May", value: 4 },
-  { label: "June", value: 5 },
-  { label: "July", value: 6 },
-  { label: "August", value: 7 },
-  { label: "September", value: 8 },
-  { label: "October", value: 9 },
-  { label: "November", value: 10 },
-  { label: "December", value: 11 },
-] as const;
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const YEARS = [2026, 2025, 2024, 2023] as const;
 
-const YEAR_OPTIONS = [2025, 2024, 2023, 2022] as const;
+const TYPE_COLOR: Record<Exclude<EventType, "all">, string> = {
+  club: "#b91c1c",
+  meeting: "#4f46e5",
+  workshop: "#059669",
+};
 
 interface CalendarEvent {
   id: string;
   title: string;
   type: Exclude<EventType, "all">;
-  /** ISO-like local date key: YYYY-MM-DD (local time, not UTC) */
   dateKey: string;
 }
 
@@ -42,119 +32,17 @@ function inferEventType(summary: string): Exclude<EventType, "all"> {
   return "club";
 }
 
-// ----- Utils -----
-function toDateKey(year: number, monthIndex0: number, day: number) {
-  const y = String(year);
-  const m = String(monthIndex0 + 1).padStart(2, "0");
-  const d = String(day).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+function toDateKey(year: number, month0: number, day: number) {
+  return `${year}-${String(month0 + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-function daysInMonth(year: number, monthIndex0: number) {
-  return new Date(year, monthIndex0 + 1, 0).getDate();
+function isToday(date: Date) {
+  const t = new Date();
+  return date.getFullYear() === t.getFullYear() && date.getMonth() === t.getMonth() && date.getDate() === t.getDate();
 }
 
-function firstWeekdayOfMonth(year: number, monthIndex0: number) {
-  // 0 = Sunday ... 6 = Saturday
-  return new Date(year, monthIndex0, 1).getDay();
-}
-
-function isSameLocalDay(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-// Map event types to chip styles (kept brand-forward with rose accents)
-const TYPE_BADGE: Record<Exclude<EventType, "all">, string> = {
-  club: "bg-rose-700 text-white",
-  meeting: "bg-indigo-600 text-white",
-  workshop: "bg-emerald-600 text-white",
-};
-
-// ----- Filter List Component (generic) -----
-interface Option<T> { label: string; value: T }
-
-function FilterList<T extends string | number>({
-  title,
-  items,
-  value,
-  onChange,
-}: {
-  title: string;
-  items: readonly Option<T>[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="text-black text-sm font-semibold font-['Oxanium']">{title}</p>
-      <ul role="listbox" aria-label={title} className="space-y-1">
-        {items.map((opt) => {
-          const active = value === opt.value;
-          return (
-            <li key={String(opt.value)}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={active}
-                data-active={active}
-                onClick={() => onChange(opt.value)}
-                className="w-full text-left text-sm px-2 py-1 rounded-md transition font-['Oxanium'] data-[active=true]:bg-rose-700 data-[active=true]:text-white text-black hover:text-rose-700 hover:bg-gray-100"
-              >
-                {opt.label}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
-// ----- Calendar Grid -----
-function CalendarGrid({
-  year,
-  monthIndex0,
-  events,
-}: {
-  year: number;
-  monthIndex0: number; // 0..11
-  events: CalendarEvent[];
-}) {
-  const today = new Date();
-  const days = daysInMonth(year, monthIndex0);
-  const startWeekday = firstWeekdayOfMonth(year, monthIndex0); // 0..6
-  const prevMonthDays = daysInMonth(year, (monthIndex0 + 11) % 12 + (monthIndex0 === 0 ? -12 : 0));
-
-  // Build 6x7 grid (42 cells) with leading & trailing days
-  const cells: { date: Date; inCurrent: boolean }[] = [];
-
-  // Leading days from previous month
-  for (let i = startWeekday - 1; i >= 0; i--) {
-    const day = prevMonthDays - i;
-    const date = new Date(year, monthIndex0 - 1, day);
-    cells.push({ date, inCurrent: false });
-  }
-
-  // Current month days
-  for (let d = 1; d <= days; d++) {
-    cells.push({ date: new Date(year, monthIndex0, d), inCurrent: true });
-  }
-
-  // Trailing days for next month to fill 42
-  while (cells.length % 7 !== 0 || cells.length < 42) {
-    const last = cells[cells.length - 1].date;
-    const next = new Date(last);
-    next.setDate(last.getDate() + 1);
-    const inCurrent = next.getMonth() === monthIndex0;
-    cells.push({ date: next, inCurrent });
-  }
-
-  // Group events by dateKey for quick lookup
-  const map = useMemo(() => {
+function CalendarGrid({ year, month, events }: { year: number; month: number; events: CalendarEvent[] }) {
+  const evMap = useMemo(() => {
     const m = new Map<string, CalendarEvent[]>();
     for (const e of events) {
       const arr = m.get(e.dateKey) ?? [];
@@ -164,61 +52,56 @@ function CalendarGrid({
     return m;
   }, [events]);
 
+  const cells = useMemo(() => {
+    const arr: { date: Date; cur: boolean }[] = [];
+    const first = new Date(year, month, 1);
+    const startWd = first.getDay();
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const prevTotal = new Date(year, month, 0).getDate();
+    for (let i = startWd - 1; i >= 0; i--) arr.push({ date: new Date(year, month - 1, prevTotal - i), cur: false });
+    for (let d = 1; d <= totalDays; d++) arr.push({ date: new Date(year, month, d), cur: true });
+    let nd = 1;
+    while (arr.length % 7 !== 0 || arr.length < 35) arr.push({ date: new Date(year, month + 1, nd++), cur: false });
+    return arr;
+  }, [year, month]);
+
   const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   return (
-    <div className="w-full">
-      {/* Weekday headings */}
-      <div className="grid grid-cols-7 gap-2 px-1">
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
         {weekdays.map((w) => (
-          <div key={w} className="text-center text-xs md:text-sm font-semibold text-black/80 font-['Oxanium']">
-            {w}
-          </div>
+          <div key={w} style={{ textAlign: "center", fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.45)", fontFamily: "Oxanium,sans-serif", padding: "5px 0", letterSpacing: ".05em" }}>{w}</div>
         ))}
       </div>
-
-      {/* Day cells */}
-      <div className="mt-2 grid grid-cols-7 gap-2">
-        {cells.map(({ date, inCurrent }, idx) => {
-          const dateKey = toDateKey(date.getFullYear(), date.getMonth(), date.getDate());
-          const dayEvents = map.get(dateKey) ?? [];
-          const isToday = isSameLocalDay(date, today);
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
+        {cells.map(({ date, cur }, i) => {
+          const dk = toDateKey(date.getFullYear(), date.getMonth(), date.getDate());
+          const dayEvs = evMap.get(dk) ?? [];
+          const today = cur && isToday(date);
           return (
-            <div
-              key={`${dateKey}-${idx}`}
-              className={[
-                "min-h-24 rounded-xl border border-black/10 bg-white/90 p-2 shadow-sm",
-                inCurrent ? "" : "opacity-50",
-                isToday ? "ring-2 ring-rose-700" : "",
-              ].join(" ")}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs md:text-sm font-semibold text-black font-['Oxanium']">
-                  {date.getDate()}
-                </span>
-                {isToday && (
-                  <span className="text-[10px] md:text-xs rounded px-1 font-semibold bg-rose-700 text-white font-['Oxanium']">
-                    Today
-                  </span>
-                )}
+            <div key={i} style={{
+              minHeight: 90, borderRadius: 10,
+              background: today ? "rgba(255,248,248,.97)" : "rgba(255,255,255,.93)",
+              border: today ? "2px solid #b91c1c" : "1px solid rgba(0,0,0,.08)",
+              padding: "7px 6px", opacity: cur ? 1 : .3,
+              boxShadow: today ? "0 0 16px rgba(185,28,28,.2)" : "0 1px 4px rgba(0,0,0,.1)",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 5 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: today ? "#b91c1c" : "#222", fontFamily: "Oxanium,sans-serif" }}>{date.getDate()}</span>
+                {today && <span style={{ fontSize: 8, fontWeight: 800, background: "#b91c1c", color: "#fff", borderRadius: 4, padding: "1px 5px", fontFamily: "Oxanium,sans-serif", letterSpacing: ".04em", textTransform: "uppercase" }}>Today</span>}
               </div>
-
-              {/* Events */}
-              <ul className="mt-1 space-y-1">
-                {dayEvents.slice(0, 3).map((ev) => (
-                  <li key={ev.id} className="truncate">
-                    <span
-                      title={`${ev.title}`}
-                      className={`inline-block max-w-full truncate rounded px-2 py-0.5 text-[10px] md:text-xs font-semibold ${TYPE_BADGE[ev.type]}`}
-                    >
-                      {ev.title}
-                    </span>
-                  </li>
+              <div style={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
+                {dayEvs.slice(0, 3).map((ev) => (
+                  <span key={ev.id} title={ev.title} style={{
+                    fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 4,
+                    background: TYPE_COLOR[ev.type], color: "#fff",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    fontFamily: "Oxanium,sans-serif", display: "block",
+                  }}>{ev.title}</span>
                 ))}
-                {dayEvents.length > 3 && (
-                  <li className="text-[10px] md:text-xs text-black/70 font-['Oxanium']">+{dayEvents.length - 3} more</li>
-                )}
-              </ul>
+                {dayEvs.length > 3 && <span style={{ fontSize: 9, color: "rgba(0,0,0,.4)", fontFamily: "Oxanium,sans-serif" }}>+{dayEvs.length - 3} more</span>}
+              </div>
             </div>
           );
         })}
@@ -227,32 +110,28 @@ function CalendarGrid({
   );
 }
 
-// ----- Page -----
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+
 export default function Calendar() {
   const now = new Date();
   const [type, setType] = useState<EventType>("all");
-  const [year, setYear] = useState<number>(now.getFullYear());
-  const [month, setMonth] = useState<number>(now.getMonth()); // 0..11
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("http://localhost:5001/events/google")
-      .then((res) => res.json())
+    fetch(`${BACKEND}/events/google`)
+      .then((r) => r.json())
       .then((items: unknown[]) => {
-        const mapped: CalendarEvent[] = (items as Record<string, unknown>[])
-          .filter((item) => item.start)
-          .map((item) => {
-            const start = item.start as Record<string, string>;
+        const mapped = (items as Record<string, unknown>[])
+          .filter((i) => i.start)
+          .map((i) => {
+            const start = i.start as Record<string, string>;
             const dateKey = (start.dateTime ?? start.date ?? "").slice(0, 10);
-            const summary = (item.summary as string | undefined) ?? "Untitled";
-            return {
-              id: item.id as string,
-              title: summary,
-              type: inferEventType(summary),
-              dateKey,
-            };
+            const summary = (i.summary as string | undefined) ?? "Untitled";
+            return { id: i.id as string, title: summary, type: inferEventType(summary), dateKey };
           })
           .filter((e) => e.dateKey.length === 10);
         setEvents(mapped);
@@ -261,39 +140,39 @@ export default function Calendar() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Filter data (simple client-side filter)
-  const filtered = useMemo(() => {
-    return events.filter((e) => {
-      const [y, m, d] = e.dateKey.split("-").map((n) => parseInt(n, 10));
-      const matchesType = type === "all" ? true : e.type === type;
-      const matchesYear = y === year;
-      const matchesMonth = m - 1 === month;
-      return matchesType && matchesYear && matchesMonth;
-    });
-  }, [type, year, month]);
+  const filtered = useMemo(() =>
+    events.filter((e) => {
+      const [y, m] = e.dateKey.split("-").map(Number);
+      return (type === "all" || e.type === type) && y === year && m - 1 === month;
+    }),
+  [events, type, year, month]);
 
-  const monthLabel = MONTH_OPTIONS.find((m) => m.value === month)?.label ?? "";
+  const goPrev = () => { if (month === 0) { setMonth(11); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
+  const goNext = () => { if (month === 11) { setMonth(0); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
+  const reset = () => { setType("all"); setYear(now.getFullYear()); setMonth(now.getMonth()); };
 
-  const resetFilters = () => {
-    setType("all");
-    setYear(now.getFullYear());
-    setMonth(now.getMonth());
+  const panel: React.CSSProperties = {
+    borderRadius: 18,
+    background: "rgba(255,255,255,.04)",
+    border: "1px solid rgba(185,28,28,.2)",
+    backdropFilter: "blur(10px)",
+    padding: "20px",
   };
-
-  const goPrevMonth = () => {
-    const newMonth = month - 1;
-    if (newMonth < 0) {
-      setMonth(11);
-      setYear((y) => y - 1);
-    } else setMonth(newMonth);
+  const sLabel: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase",
+    color: "rgba(255,255,255,.35)", fontFamily: "Oxanium,sans-serif", marginBottom: 10, display: "block",
   };
-
-  const goNextMonth = () => {
-    const newMonth = month + 1;
-    if (newMonth > 11) {
-      setMonth(0);
-      setYear((y) => y + 1);
-    } else setMonth(newMonth);
+  const filterBtn = (active: boolean): React.CSSProperties => ({
+    display: "block", width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none",
+    background: active ? "rgba(185,28,28,.85)" : "transparent",
+    color: active ? "#fff" : "rgba(255,255,255,.65)",
+    fontFamily: "Oxanium,sans-serif", fontWeight: active ? 700 : 500, fontSize: 13, marginBottom: 3, cursor: "pointer",
+    transition: "all .15s",
+  });
+  const navBtn: React.CSSProperties = {
+    background: "rgba(255,255,255,.08)", border: "1px solid rgba(255,255,255,.12)", color: "#fff",
+    padding: "8px 16px", borderRadius: 9, fontWeight: 600, fontSize: 13,
+    fontFamily: "Oxanium,sans-serif", cursor: "pointer", transition: "background .15s",
   };
 
   if (loading) return (
@@ -309,111 +188,90 @@ export default function Calendar() {
   );
 
   return (
-    <main className="relative min-h-screen w-full text-white">
-      {/* Title */}
-      <header className="px-4 pt-10">
-        <h1 className="text-center text-4xl md:text-5xl font-semibold tracking-wide font-['Oxanium']">
-          CougarAI Calendar
-        </h1>
-        <p className="mt-2 text-center text-sm text-white/70 font-['Oxanium']">
-          Browse upcoming meetings, workshops, and club events.
-        </p>
+    <main style={{ position: "relative", maxWidth: 1260, margin: "0 auto", padding: "36px 20px 80px" }}>
+
+      <header style={{ textAlign: "center", marginBottom: 32 }}>
+        <h1 style={{ fontFamily: "Oxanium,sans-serif", fontSize: "clamp(26px,3.5vw,44px)", fontWeight: 800, letterSpacing: "-.02em", margin: "0 0 8px", color: "#fff" }}>CougarAI Calendar</h1>
+        <p style={{ color: "rgba(255,255,255,.55)", fontSize: 14.5, fontFamily: "Oxanium,sans-serif" }}>Browse upcoming meetings, workshops, and club events.</p>
       </header>
 
-      {/* Content */}
-      <div className="mx-auto max-w-7xl px-4 pb-16 pt-8">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]">
-          {/* Filters */}
-          <aside className="border-[12px] border-rose-700 rounded-3xl p-3">
-            <div className="rounded-2xl bg-zinc-300 p-5">
-              <div className="space-y-6">
-                <FilterList
-                  title="Sort by:"
-                  items={TYPE_OPTIONS}
-                  value={type}
-                  onChange={setType}
-                />
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, alignItems: "start" }}>
 
-                <FilterList
-                  title="Year:"
-                  items={YEAR_OPTIONS.map((y) => ({ label: String(y), value: y }))}
-                  value={year}
-                  onChange={setYear}
-                />
+        {/* Sidebar */}
+        <aside style={panel}>
 
-                <FilterList
-                  title="Month:"
-                  items={MONTH_OPTIONS}
-                  value={month}
-                  onChange={setMonth}
-                />
+          <div style={{ marginBottom: 22 }}>
+            <span style={sLabel}>Event Type</span>
+            {TYPE_OPTIONS.map(({ label, value }) => (
+              <button key={value} style={filterBtn(type === value)} onClick={() => setType(value)}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {value !== "all" && <span style={{ width: 8, height: 8, borderRadius: 2, background: TYPE_COLOR[value as Exclude<EventType, "all">], display: "inline-block", flexShrink: 0 }} />}
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
 
-                <div className="pt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="rounded-xl bg-rose-700 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:brightness-110 transition font-['Oxanium']"
-                  >
-                    Reset to Today
-                  </button>
-                </div>
+          <div style={{ marginBottom: 22 }}>
+            <span style={sLabel}>Year</span>
+            {YEARS.map((y) => (
+              <button key={y} style={filterBtn(year === y)} onClick={() => setYear(y)}>{y}</button>
+            ))}
+          </div>
 
-                <div className="border-t border-black/10 pt-4">
-                  <p className="text-xs font-semibold text-black/80 font-['Oxanium']">Legend</p>
-                  <ul className="mt-2 space-y-1 text-xs font-['Oxanium']">
-                    <li className="flex items-center gap-2"><span className="inline-block h-3 w-3 rounded-sm bg-rose-700" />Club events</li>
-                    <li className="flex items-center gap-2"><span className="inline-block h-3 w-3 rounded-sm bg-indigo-600" />Meetings</li>
-                    <li className="flex items-center gap-2"><span className="inline-block h-3 w-3 rounded-sm bg-emerald-600" />Workshops</li>
-                  </ul>
-                </div>
-              </div>
+          <div style={{ marginBottom: 22 }}>
+            <span style={sLabel}>Month</span>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
+              {MONTHS.map((name, i) => (
+                <button key={i} onClick={() => setMonth(i)} style={{
+                  padding: "7px 2px", borderRadius: 7, border: "none",
+                  background: month === i ? "rgba(185,28,28,.85)" : "rgba(255,255,255,.06)",
+                  color: month === i ? "#fff" : "rgba(255,255,255,.6)",
+                  fontFamily: "Oxanium,sans-serif", fontWeight: month === i ? 700 : 400,
+                  fontSize: 11, cursor: "pointer", transition: "all .15s", textAlign: "center",
+                }}>{name.slice(0, 3)}</button>
+              ))}
             </div>
-          </aside>
+          </div>
 
-          {/* Calendar */}
-          <section className="border-[12px] border-rose-700 rounded-3xl p-4">
-            <div className="rounded-2xl bg-zinc-300 min-h-[560px] md:min-h-[640px]">
-              {/* Header controls */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={goPrevMonth}
-                    aria-label="Previous month"
-                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-black border border-black/10 hover:bg-gray-50"
-                  >
-                    ← Prev
-                  </button>
-                  <button
-                    type="button"
-                    onClick={goNextMonth}
-                    aria-label="Next month"
-                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-black border border-black/10 hover:bg-gray-50"
-                  >
-                    Next →
-                  </button>
-                </div>
-                <h2 className="text-xl md:text-2xl font-semibold text-black font-['Oxanium']" aria-live="polite">
-                  {monthLabel} {year}
-                </h2>
-                <div className="text-sm text-black/70 font-['Oxanium']">
-                  Showing {filtered.length} event{filtered.length === 1 ? "" : "s"}
-                </div>
+          <button onClick={reset} style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid rgba(185,28,28,.3)", background: "rgba(185,28,28,.1)", color: "rgba(220,38,38,.85)", fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer", transition: "all .15s" }}>
+            Reset to Today
+          </button>
+
+          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.08)" }}>
+            <span style={sLabel}>Legend</span>
+            {(Object.entries(TYPE_COLOR) as [Exclude<EventType, "all">, string][]).map(([k, c]) => (
+              <div key={k} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, fontSize: 12.5, color: "rgba(255,255,255,.65)", fontFamily: "Oxanium,sans-serif" }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0, display: "inline-block" }} />
+                {TYPE_OPTIONS.find((o) => o.value === k)?.label ?? k}
               </div>
+            ))}
+          </div>
+        </aside>
 
-              <div className="px-3 pb-4">
-                <CalendarGrid year={year} monthIndex0={month} events={filtered} />
-
-                {/* Empty state if no events */}
-                {filtered.length === 0 && (
-                  <div className="mt-6 rounded-xl bg-white/70 p-4 text-center text-sm text-black/70 font-['Oxanium']">
-                    No events match these filters. Try a different type or month.
-                  </div>
-                )}
-              </div>
+        {/* Calendar panel */}
+        <section style={panel}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={navBtn} onClick={goPrev}>← Prev</button>
+              <button style={navBtn} onClick={goNext}>Next →</button>
             </div>
-          </section>
-        </div>
+            <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 22, margin: 0, color: "#fff" }}>
+              {MONTHS[month]} {year}
+            </h2>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,.4)", fontFamily: "Oxanium,sans-serif" }}>
+              {filtered.length} event{filtered.length !== 1 ? "s" : ""}
+            </div>
+          </div>
+
+          <CalendarGrid year={year} month={month} events={filtered} />
+
+          {filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: "28px 20px", marginTop: 12, borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)", color: "rgba(255,255,255,.4)", fontSize: 14, fontFamily: "Oxanium,sans-serif" }}>
+              No events this month. Try a different filter or month.
+            </div>
+          )}
+        </section>
       </div>
     </main>
   );

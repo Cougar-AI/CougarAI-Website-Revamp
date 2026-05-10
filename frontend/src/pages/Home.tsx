@@ -94,7 +94,7 @@ export default function Home() {
         <h2 className="mb-4 text-center font-['Oxanium'] text-2xl font-bold md:text-3xl">
           What we’ve been up to
         </h2>
-        <div className="overflow-hidden rounded-2xl bg-white/5 p-2 ring-1 ring-white/10">
+        <div className="overflow-hidden rounded-2xl" style={{ border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 8px 40px rgba(0,0,0,.5)' }}>
           <Slideshow />
         </div>
       </section>
