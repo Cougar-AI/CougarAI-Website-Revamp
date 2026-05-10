@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import logo from "../assets/logo.png";
 
 export type LoginProps = {
   onSubmit?: (payload: { email: string; password: string; remember: boolean }) => Promise<void> | void;
@@ -152,17 +153,26 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
   return (
     <div className="relative mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-center justify-center px-6 py-16 sm:py-20">
       {/* Card */}
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-neutral-900/70 shadow-xl ring-1 ring-white/10 backdrop-blur">
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-2xl backdrop-blur"
+        style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}
+      >
         {/* Accent bar */}
-        <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-rose-600 via-fuchsia-600 to-rose-600" />
+        <div className="h-[3px] bg-gradient-to-r from-red-700 via-red-600 to-red-700" />
 
         <div className="p-6 sm:p-8">
           {/* Header */}
           <div className="text-center">
-            <h1 className="font-['Oxanium'] text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+            <img
+              src={logo}
+              alt="CougarAI"
+              className="mx-auto mb-3 h-12 w-12 rounded-[10px] object-contain"
+              style={{ border: '2px solid rgba(185,28,28,.4)', boxShadow: '0 0 20px rgba(185,28,28,.3)' }}
+            />
+            <h1 className="font-['Oxanium'] text-3xl font-bold tracking-tight text-white">
               Welcome back
             </h1>
-            <p className="mt-2 text-sm text-neutral-300">Sign in to access member features and events.</p>
+            <p className="mt-1.5 text-sm text-white/50">Sign in to access member features and events.</p>
           </div>
 
           {/* OAuth (optional) */}
@@ -265,7 +275,7 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
               </label>
               <Link
                 to="/forgot-password"
-                className="text-sm font-medium text-rose-300 hover:text-rose-200"
+                className="text-sm font-medium text-red-400 hover:text-red-300"
               >
                 Forgot password?
               </Link>
@@ -299,7 +309,8 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
               type="submit"
               disabled={loading}
               aria-busy={loading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-inset ring-rose-400/30 transition hover:bg-rose-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-red-700 px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-red-600/30 transition hover:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ boxShadow: '0 0 20px rgba(185,28,28,.35)' }}
             >
               {loading ? (
                 <>
@@ -315,7 +326,7 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
           {/* Footer */}
           <p className="mt-6 text-center text-sm text-neutral-300">
             Don&apos;t have an account?{" "}
-            <Link to="/join" className="font-medium text-rose-300 hover:text-rose-200">
+            <Link to="/join" className="font-medium text-red-400 hover:text-red-300">
               Join now
             </Link>
           </p>

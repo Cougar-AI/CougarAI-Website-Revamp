@@ -40,7 +40,8 @@ export default function Home() {
         <img
           src={logo}
           alt="CougarAI logo"
-          className="mx-auto mb-6 h-24 w-24 rounded-xl border-8 border-red-700 md:h-40 md:w-40 lg:h-48 lg:w-48"
+          className="mx-auto mb-6 h-24 w-24 rounded-xl border-[6px] border-red-700 md:h-40 md:w-40 lg:h-48 lg:w-48"
+          style={{ boxShadow: '0 0 44px rgba(185,28,28,.58), 0 0 100px rgba(185,28,28,.18)', background: 'rgba(255,255,255,.03)' }}
           loading="lazy"
         />
         <h1 className="font-['Oxanium'] text-3xl font-extrabold tracking-tight md:text-5xl">
@@ -69,7 +70,10 @@ export default function Home() {
       </section>
 
       {/* Value props */}
-      <section className="mx-auto mt-10 max-w-5xl rounded-2xl bg-gradient-to-b from-red-700/90 to-red-700/70 p-6">
+      <section
+        className="mx-auto mt-10 max-w-5xl rounded-2xl p-6"
+        style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(185,28,28,.22)', boxShadow: '0 10px 48px rgba(0,0,0,.45)' }}
+      >
         <div className="grid grid-cols-1 gap-4 text-left text-black md:grid-cols-3">
           {features.map((f) => (
             <article
