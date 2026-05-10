@@ -5,7 +5,7 @@ import SiteBackground from '@/components/SiteBackground';
 
 export default function RootLayout() {
   return (
-    <div className="relative flex min-h-screen flex-col bg-black text-white">
+    <div className="relative flex min-h-screen flex-col bg-[#050101] text-white">
       <SiteBackground />
 
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50">
