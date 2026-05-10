@@ -1,8 +1,9 @@
 import smtplib
 from email.message import EmailMessage
+from typing import Optional
 from flask import current_app
 
-def send_email(to_email: str, subject: str, text_body: str, html_body: str | None = None):
+def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[str] = None):
     backend = (current_app.config.get("MAILER_BACKEND") or "smtp").lower()
     if backend == "console":
         current_app.logger.info("=== CONSOLE MAIL ===\nTo: %s\nSubject: %s\n\n%s", to_email, subject, text_body)

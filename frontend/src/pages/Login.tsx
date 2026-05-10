@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import logo from "../assets/logo.png";
 
@@ -12,8 +12,29 @@ export type LoginProps = {
 
 type LoginOk = { access_token: string; user: { user_id: number; email: string } };
 type ResendOk = { ok: boolean };
+type GoogleLoginPayload = LoginOk;
 
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
+const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: {
+          initialize: (options: {
+            client_id: string;
+            callback: (response: { credential?: string }) => void;
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: Record<string, string | number | boolean>
+          ) => void;
+        };
+      };
+    };
+  }
+}
 
 async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -57,6 +78,7 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
   // Resend verification flow state
   const [resent, setResent] = useState(false);
   const [resending, setResending] = useState(false);
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
   const loading = loadingProp ?? submitting;
   const error = errorProp ?? localError;
@@ -72,6 +94,95 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
     if (!password) return null;
     return password.length >= 6 ? null : "Password must be at least 6 characters";
   }, [password]);
+
+  useEffect(() => {
+    if (oauthSlot || !GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
+
+    let cancelled = false;
+    let appendedScript: HTMLScriptElement | null = null;
+
+    const handleGoogleCredential = async (response: { credential?: string }) => {
+      const credential = response.credential?.trim();
+      if (!credential) {
+        setLocalError("Google sign-in did not return a credential.");
+        return;
+      }
+
+      try {
+        setSubmitting(true);
+        setLocalError(null);
+        setResent(false);
+
+        const data = await postJSON<GoogleLoginPayload>(
+          "/auth/google",
+          { credential },
+          { credentials: "include" }
+        );
+
+        persistAccessToken(data.access_token, remember);
+        try {
+          (remember ? localStorage : sessionStorage).setItem("user", JSON.stringify(data.user));
+        } catch {}
+      } catch (err: any) {
+        const status = err?.status as number | undefined;
+        if (status === 401) {
+          setLocalError("Google sign-in was rejected. Please try again or use your password.");
+        } else if (status === 503) {
+          setLocalError("Google sign-in is not configured on the backend yet.");
+        } else {
+          setLocalError(err?.message || "Google sign-in failed");
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    const renderGoogleButton = () => {
+      if (cancelled || !googleButtonRef.current || !window.google?.accounts?.id) return;
+
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleCredential,
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "continue_with",
+        shape: "pill",
+        width: "320",
+      });
+    };
+
+    if (window.google?.accounts?.id) {
+      renderGoogleButton();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const existingScript = document.querySelector('script[data-google-identity="true"]') as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener("load", renderGoogleButton, { once: true });
+      return () => {
+        cancelled = true;
+        existingScript.removeEventListener("load", renderGoogleButton);
+      };
+    }
+
+    appendedScript = document.createElement("script");
+    appendedScript.src = "https://accounts.google.com/gsi/client";
+    appendedScript.async = true;
+    appendedScript.defer = true;
+    appendedScript.dataset.googleIdentity = "true";
+    appendedScript.addEventListener("load", renderGoogleButton, { once: true });
+    document.head.appendChild(appendedScript);
+
+    return () => {
+      cancelled = true;
+      appendedScript?.removeEventListener("load", renderGoogleButton);
+    };
+  }, [oauthSlot, remember]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -178,6 +289,10 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
           {/* OAuth (optional) */}
           {oauthSlot ? (
             <div className="mt-6">{oauthSlot}</div>
+          ) : GOOGLE_CLIENT_ID ? (
+            <div className="mt-6">
+              <div ref={googleButtonRef} className="flex min-h-11 items-center justify-center" />
+            </div>
           ) : (
             <div className="mt-6">
               {/* Example Google button (disabled by default). Replace href with your provider route. */}

@@ -110,7 +110,7 @@ function CalendarGrid({ year, month, events }: { year: number; month: number; ev
   );
 }
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+const API_BASE = import.meta.env.VITE_BACKEND_API_URL ?? "";
 
 export default function Calendar() {
   const now = new Date();
@@ -122,8 +122,18 @@ export default function Calendar() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${BACKEND}/events/google`)
-      .then((r) => r.json())
+    fetch(`${API_BASE}/events/google`)
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          const message =
+            typeof data?.error === "string" && data.error.trim()
+              ? data.error
+              : `Request failed (${r.status})`;
+          throw new Error(message);
+        }
+        return data as unknown[];
+      })
       .then((items: unknown[]) => {
         const mapped = (items as Record<string, unknown>[])
           .filter((i) => i.start)
@@ -136,7 +146,9 @@ export default function Calendar() {
           .filter((e) => e.dateKey.length === 10);
         setEvents(mapped);
       })
-      .catch(() => setFetchError("Could not load events."))
+      .catch((err: unknown) =>
+        setFetchError(err instanceof Error ? err.message : "Could not load events.")
+      )
       .finally(() => setLoading(false));
   }, []);
 

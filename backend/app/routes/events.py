@@ -1,22 +1,35 @@
 from app.imports import *
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from typing import Optional
 
 events_bp = Blueprint('events', __name__)
 
 _CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-_CALENDAR_ID = "cougaraicontact@gmail.com"
+
+def _resolve_creds_path(env_var: str) -> Optional[str]:
+    path = os.getenv(env_var)
+    if not path:
+        return None
+    if os.path.isabs(path):
+        return path
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", path))
 
 @events_bp.route("/google", methods=["GET"])
 def getGoogleCalendarEvents():
     try:
+        creds_path = _resolve_creds_path("GOOGLE_CALENDAR_CREDS_PATH")
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+        if not creds_path:
+            return jsonify({"error": "GOOGLE_CALENDAR_CREDS_PATH is not configured"}), 500
+
         creds = service_account.Credentials.from_service_account_file(
-            os.getenv("GOOGLE_CALENDAR_CREDS_PATH"),
+            creds_path,
             scopes=_CALENDAR_SCOPES,
         )
         service = build("calendar", "v3", credentials=creds)
         result = service.events().list(
-            calendarId=_CALENDAR_ID,
+            calendarId=calendar_id,
             timeMin="2022-08-08T00:00:00Z",
             maxResults=500,
             singleEvents=True,
@@ -185,5 +198,3 @@ def updateEvent(event_id):
         return jsonify({"error": str(e)}), 500
 
         
-
-

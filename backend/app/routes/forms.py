@@ -2,11 +2,19 @@ from app.imports import *
 from datetime import datetime
 from google.oauth2 import service_account 
 from googleapiclient.discovery import build 
+from typing import Optional
 
 forms_bp = Blueprint("forms", __name__)
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-SERVICE_ACCOUNT_FILE = os.getenv('GOOGLE_CREDS_PATH')
+
+def _resolve_creds_path(env_var: str) -> Optional[str]:
+    path = os.getenv(env_var)
+    if not path:
+        return None
+    if os.path.isabs(path):
+        return path
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", path))
 
 def parse_forms_ts(s: str) -> datetime:
     s = s.strip()
@@ -27,9 +35,13 @@ def process_sheet(spreadsheet_id):
 
             if not event_id:
                 return jsonify({"error": "Event ID is required"}), 400
-            
+
+            service_account_file = _resolve_creds_path("GOOGLE_CREDS_PATH")
+            if not service_account_file:
+                return jsonify({"error": "GOOGLE_CREDS_PATH is not configured"}), 500
+
             creds = service_account.Credentials.from_service_account_file(
-                SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+                service_account_file, scopes=SCOPES)
             service = build('sheets', 'v4', credentials=creds)
 
             sheet = service.spreadsheets()
@@ -121,4 +133,3 @@ def process_sheet(spreadsheet_id):
                 connection.close()
         except Exception:
             pass
-

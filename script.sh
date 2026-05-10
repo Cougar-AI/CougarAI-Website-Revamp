@@ -32,6 +32,9 @@ export JWT_SECRET_KEY="${JWT_SECRET_KEY:-${JWT_SECRET:-}}"
 if [[ -n "${GOOGLE_CREDS_PATH:-}" && ! "${GOOGLE_CREDS_PATH}" = /* ]]; then
   export GOOGLE_CREDS_PATH="$(pwd)/${GOOGLE_CREDS_PATH}"
 fi
+if [[ -n "${GOOGLE_CALENDAR_CREDS_PATH:-}" && ! "${GOOGLE_CALENDAR_CREDS_PATH}" = /* ]]; then
+  export GOOGLE_CALENDAR_CREDS_PATH="$(pwd)/${GOOGLE_CALENDAR_CREDS_PATH}"
+fi
 
 # Compose URIs many libs use
 if [[ -z "${SQLALCHEMY_DATABASE_URI:-}" ]]; then
@@ -56,6 +59,7 @@ echo "STRIPE_PUBLISHABLE_KEY_SET=$([[ -n "${STRIPE_PUBLISHABLE_KEY:-}" ]] && ech
 echo "STRIPE_SECRET_KEY_SET=$([[ -n "${STRIPE_SECRET_KEY:-}" ]] && echo yes || echo no)"
 echo "STRIPE_WEBHOOK_SECRET_SET=$([[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]] && echo yes || echo no)"
   echo "GOOGLE_CREDS_PATH=${GOOGLE_CREDS_PATH}"
+  echo "GOOGLE_CALENDAR_CREDS_PATH=${GOOGLE_CALENDAR_CREDS_PATH:-}"
 } > /tmp/cougarai-env.txt
 
 # Run

@@ -1,11 +1,14 @@
 from __future__ import annotations
 import uuid, hashlib, jwt
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
 
 from flask import Blueprint, request, jsonify, current_app, make_response
 from sqlalchemy import text
 from flask_jwt_extended import create_access_token
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
 from app import db
 from app.utils.passwords import validate_password, hash_password, verify_password
 from app.services.mailer import send_email
@@ -41,6 +44,10 @@ def _build_link(path: str, token: str) -> str:
     fe = current_app.config["FRONTEND_URL"].rstrip("/")
     return f"{fe}{path}?token={token}"
 
+def _cookie_secure() -> bool:
+    frontend_url = (current_app.config.get("FRONTEND_URL") or "").lower()
+    return frontend_url.startswith("https://")
+
 def _set_refresh_cookie(resp, refresh_token: str, expires_at: datetime):
     resp.set_cookie(
         "refresh_token",
@@ -48,7 +55,7 @@ def _set_refresh_cookie(resp, refresh_token: str, expires_at: datetime):
         max_age=int((expires_at - _utcnow()).total_seconds()),
         expires=expires_at,
         httponly=True,
-        secure=True,
+        secure=_cookie_secure(),
         samesite="Lax",
         path="/auth",
     )
@@ -61,7 +68,7 @@ def _clear_refresh_cookie(resp):
         expires=0,
         max_age=0,
         httponly=True,
-        secure=True,
+        secure=_cookie_secure(),
         samesite="Lax",
         path="/auth",
     )
@@ -149,6 +156,20 @@ def _send_reset_email(user_id: int, email: str):
     <pre style="white-space:pre-wrap;word-break:break-all">{token}</pre>
     """
     send_email(email, subject, text_body, html_body)
+
+def _build_auth_response(user_id: int, email: str):
+    access_jwt = _issue_access_jwt(user_id, email)
+    refresh_token, _, expires_at = _issue_refresh_jwt_and_persist(user_id)
+
+    with db.engine.begin() as conn:
+        conn.execute(text("UPDATE users SET last_login = NOW() WHERE user_id = :uid"), {"uid": user_id})
+
+    resp = make_response(jsonify({
+        "access_token": access_jwt,
+        "user": {"user_id": user_id, "email": email},
+    }), 201)
+    _set_refresh_cookie(resp, refresh_token, expires_at)
+    return resp
 
 # --------------------- Existing: Register & Verify ---------------------
 
@@ -281,19 +302,69 @@ def login():
     if user["email_verified_at"] is None or not user["is_active"]:
         return jsonify({"error": "invalid_credentials"}), 401
 
-    # Success: access + refresh + update last_login
-    access_jwt = _issue_access_jwt(user["user_id"], user["email"])
-    refresh_token, jti, expires_at = _issue_refresh_jwt_and_persist(user["user_id"])
+    return _build_auth_response(user["user_id"], user["email"])
+
+
+@auth_bp.post("/google")
+def google_login():
+    """
+    Body: { "credential": "<google_id_token>" }
+    Responses:
+      201 Created; same payload/cookie behavior as password login
+      401 invalid credentials/token
+      503 Google OAuth not configured
+    """
+    data = request.get_json(silent=True) or {}
+    credential = (data.get("credential") or "").strip()
+    if not credential:
+        return jsonify({"error": "credential_required"}), 400
+
+    client_id = (os.getenv("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+    if not client_id:
+        return jsonify({"error": "google_oauth_not_configured"}), 503
+
+    try:
+        claims = google_id_token.verify_oauth2_token(
+            credential,
+            google_requests.Request(),
+            client_id,
+        )
+    except Exception:
+        return jsonify({"error": "invalid_credentials"}), 401
+
+    email = (claims.get("email") or "").strip()
+    if not email or not claims.get("email_verified"):
+        return jsonify({"error": "invalid_credentials"}), 401
 
     with db.engine.begin() as conn:
-        conn.execute(text("UPDATE users SET last_login = NOW() WHERE user_id = :uid"), {"uid": user["user_id"]})
+        user = conn.execute(
+            text("""
+                SELECT user_id, email, email_verified_at, is_active
+                FROM users
+                WHERE email = :email
+            """),
+            {"email": email}
+        ).mappings().first()
 
-    resp = make_response(jsonify({
-        "access_token": access_jwt,
-        "user": {"user_id": user["user_id"], "email": user["email"]},
-    }), 201)
-    _set_refresh_cookie(resp, refresh_token, expires_at)
-    return resp
+        if user and not user["is_active"]:
+            return jsonify({"error": "invalid_credentials"}), 401
+
+        if not user:
+            user = conn.execute(
+                text("""
+                    INSERT INTO users (email, email_verified_at)
+                    VALUES (:email, NOW())
+                    RETURNING user_id, email, email_verified_at, is_active
+                """),
+                {"email": email}
+            ).mappings().first()
+        elif user["email_verified_at"] is None:
+            conn.execute(
+                text("UPDATE users SET email_verified_at = NOW() WHERE user_id = :uid"),
+                {"uid": user["user_id"]}
+            )
+
+    return _build_auth_response(user["user_id"], user["email"])
 
 
 @auth_bp.post("/resend-verification")
