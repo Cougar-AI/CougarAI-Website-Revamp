@@ -149,6 +149,18 @@ Four roles are defined on the `users` table: `member` (default), `officer`, `web
 - Admin → full access; Webmaster → most things; Officer → some things; Member → public access
 - Login/Register navbar links are hidden by default (`VITE_SHOW_AUTH_LINKS=false`) — flip to `true` in frontend `.env` when the post-login flow is ready
 
+## Visual Design System
+
+All pages share a warm dark-red aesthetic. Follow these conventions when building or editing page components:
+
+- **Base background:** `#050101` — set in `RootLayout.tsx` (`bg-[#050101]`) and rendered by `SiteBackground.tsx`
+- **SiteBackground layers:** base gradient → animated neural-net canvas (red nodes/connections) → red hero glow → edge vignette → red grid (masked) → bottom fade. Defined once in `frontend/src/components/SiteBackground.tsx`, mounted in `RootLayout`.
+- **Glass panel style:** `borderRadius:20, background:'rgba(255,255,255,.04)', border:'1px solid rgba(185,28,28,.2)', backdropFilter:'blur(10px)'` — used as the primary card/section container on all redesigned pages.
+- **CTA buttons:** primary = `background:'#b91c1c'` with red glow shadow; secondary = `background:'rgba(255,255,255,.08)'` with subtle border.
+- **Typography:** `fontFamily:'Oxanium,sans-serif'` for headings and labels. Font loaded via Google Fonts (already in index.html).
+- **Inline styles preferred** over Tailwind for page-level layout — Tailwind still used for utility classes in components and layouts.
+- **Officer role text color:** `rgba(248,113,113,.9)` (rose-400) to contrast against the dark card background.
+
 ## Key Conventions
 
 - **Frontend path alias:** `@/` resolves to `frontend/src/` — use it for all internal imports
