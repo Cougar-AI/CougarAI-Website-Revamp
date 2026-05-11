@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
 
 from flask import Blueprint, request, jsonify, current_app, make_response
-from app import limiter
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from flask_jwt_extended import create_access_token
@@ -176,7 +175,6 @@ def _build_auth_response(user_id: int, email: str, role: str = "member", onboard
 # --------------------- Existing: Register & Verify ---------------------
 
 @auth_bp.post("/register")
-@limiter.limit("5/minute")
 def register():
     """
     Body: { "email": "...", "password": "..." }
@@ -272,7 +270,6 @@ def verify_email():
 # --------------------- New: Login / Resend / Forgot / Reset / Refresh / Logout ---------------------
 
 @auth_bp.post("/login")
-@limiter.limit("10/minute")
 def login():
     """
     Body: { "email": "user@example.com", "password": "Secret@123" }
@@ -293,7 +290,7 @@ def login():
     with db.engine.begin() as conn:
         user = conn.execute(
             text("""
-                SELECT user_id, email, password_hash, email_verified_at, is_active, role, onboarding_completed_at
+                SELECT user_id, email, password_hash, email_verified_at, is_active
                 FROM users WHERE email = :email
             """),
             {"email": email}
@@ -306,11 +303,7 @@ def login():
     if user["email_verified_at"] is None or not user["is_active"]:
         return jsonify({"error": "invalid_credentials"}), 401
 
-    return _build_auth_response(
-        user["user_id"], user["email"],
-        role=user["role"] or "member",
-        onboarding_completed=user["onboarding_completed_at"] is not None,
-    )
+    return _build_auth_response(user["user_id"], user["email"])
 
 
 @auth_bp.post("/google")
@@ -374,7 +367,8 @@ def google_login():
                 )
 
         return _build_auth_response(
-            user["user_id"], user["email"],
+            user["user_id"],
+            user["email"],
             role=user["role"] or "member",
             onboarding_completed=user["onboarding_completed_at"] is not None,
         )
@@ -384,7 +378,6 @@ def google_login():
 
 
 @auth_bp.post("/resend-verification")
-@limiter.limit("3/minute")
 def resend_verification():
     """
     Body: { "email": "user@example.com" }
@@ -413,7 +406,6 @@ def resend_verification():
 
 
 @auth_bp.post("/forgot-password")
-@limiter.limit("5/minute")
 def forgot_password():
     """
     Body: { "email": "user@example.com" }
@@ -441,7 +433,6 @@ def forgot_password():
 
 
 @auth_bp.post("/reset-password")
-@limiter.limit("5/minute")
 def reset_password():
     """
     Body: { "token": "<reset_jwt>", "password": "<new-password>" }
