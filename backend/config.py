@@ -32,6 +32,9 @@ def _build_uri():
         return f"postgresql://{user}:{pw}@{host}:{port}/{name}"
     return None
 
+def _split_origins(value: str):
+    return [origin.strip() for origin in value.split(",") if origin.strip()]
+
 class BaseConfig:
     """Base configuration with common settings."""
     DEBUG = False

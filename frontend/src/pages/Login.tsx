@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { persistAuthSession } from "@/lib/auth";
 import logo from "../assets/logo.png";
 
 export type LoginProps = {
@@ -56,16 +57,8 @@ async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise
   return data as T;
 }
 
-function persistAccessToken(token: string, remember: boolean) {
-  try {
-    const store = remember ? window.localStorage : window.sessionStorage;
-    store.setItem("access_token", token);
-  } catch {
-    // Ignore storage failures (e.g., in private mode)
-  }
-}
-
 export default function Login({ onSubmit, loading: loadingProp, error: errorProp, oauthSlot }: LoginProps) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -119,10 +112,8 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
           { credentials: "include" }
         );
 
-        persistAccessToken(data.access_token, remember);
-        try {
-          (remember ? localStorage : sessionStorage).setItem("user", JSON.stringify(data.user));
-        } catch {}
+        persistAuthSession(data.access_token, data.user, remember);
+        navigate("/auth/success", { replace: true });
       } catch (err: any) {
         const status = err?.status as number | undefined;
         if (status === 401) {
@@ -219,15 +210,9 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
         { email: email.trim(), password },
         { credentials: "include" } // crucial for the HttpOnly refresh cookie
       );
-      persistAccessToken(data.access_token, remember);
-      // You might also persist the user record if helpful:
-      try {
-        (remember ? localStorage : sessionStorage).setItem("user", JSON.stringify(data.user));
-      } catch {}
-      // Success UX: clear errors; consumer app can redirect based on token presence.
+      persistAuthSession(data.access_token, data.user, remember);
       setLocalError(null);
-      // eslint-disable-next-line no-console
-      console.log("Login successful", data.user);
+      navigate("/auth/success", { replace: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
       if (status === 401) {
@@ -396,12 +381,6 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
               </Link>
             </div>
 
-            {error && (
-              <div className="rounded-lg bg-rose-900/40 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20">
-                {error}
-              </div>
-            )}
-
             {localError && (
               <div className="rounded-lg bg-rose-900/40 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20">
                 {localError}
@@ -417,6 +396,12 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
                   </button>
                   {resent && <span className="text-xs text-emerald-300">Sent!</span>}
                 </div>
+              </div>
+            )}
+
+            {!localError && error && (
+              <div className="rounded-lg bg-rose-900/40 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20">
+                {error}
               </div>
             )}
 

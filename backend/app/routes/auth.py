@@ -6,6 +6,7 @@ from typing import Tuple, Optional
 
 from flask import Blueprint, request, jsonify, current_app, make_response
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from flask_jwt_extended import create_access_token
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -336,35 +337,39 @@ def google_login():
     if not email or not claims.get("email_verified"):
         return jsonify({"error": "invalid_credentials"}), 401
 
-    with db.engine.begin() as conn:
-        user = conn.execute(
-            text("""
-                SELECT user_id, email, email_verified_at, is_active
-                FROM users
-                WHERE email = :email
-            """),
-            {"email": email}
-        ).mappings().first()
-
-        if user and not user["is_active"]:
-            return jsonify({"error": "invalid_credentials"}), 401
-
-        if not user:
+    try:
+        with db.engine.begin() as conn:
             user = conn.execute(
                 text("""
-                    INSERT INTO users (email, email_verified_at)
-                    VALUES (:email, NOW())
-                    RETURNING user_id, email, email_verified_at, is_active
+                    SELECT user_id, email, email_verified_at, is_active
+                    FROM users
+                    WHERE email = :email
                 """),
                 {"email": email}
             ).mappings().first()
-        elif user["email_verified_at"] is None:
-            conn.execute(
-                text("UPDATE users SET email_verified_at = NOW() WHERE user_id = :uid"),
-                {"uid": user["user_id"]}
-            )
 
-    return _build_auth_response(user["user_id"], user["email"])
+            if user and not user["is_active"]:
+                return jsonify({"error": "invalid_credentials"}), 401
+
+            if not user:
+                user = conn.execute(
+                    text("""
+                        INSERT INTO users (email, email_verified_at)
+                        VALUES (:email, NOW())
+                        RETURNING user_id, email, email_verified_at, is_active
+                    """),
+                    {"email": email}
+                ).mappings().first()
+            elif user["email_verified_at"] is None:
+                conn.execute(
+                    text("UPDATE users SET email_verified_at = NOW() WHERE user_id = :uid"),
+                    {"uid": user["user_id"]}
+                )
+
+        return _build_auth_response(user["user_id"], user["email"])
+    except SQLAlchemyError:
+        current_app.logger.exception("Google OAuth database failure for %s", email)
+        return jsonify({"error": "database_unavailable"}), 503
 
 
 @auth_bp.post("/resend-verification")

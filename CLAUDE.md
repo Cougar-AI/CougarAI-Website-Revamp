@@ -84,6 +84,8 @@ GOOGLE_PRIVATE_KEY=
 # Other
 STRIPE_SECRET_KEY=
 FRONTEND_URL=http://localhost:5173
+FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173,https://cougarai.org,https://www.cougarai.org
+GOOGLE_OAUTH_CLIENT_ID=
 ```
 
 SMTP variables are also supported — see `backend/config.py` for the full list.

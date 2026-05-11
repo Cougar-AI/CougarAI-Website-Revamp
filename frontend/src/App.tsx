@@ -15,6 +15,7 @@ import Sponsors from './pages/Sponsors.tsx';
 import Login from './pages/Login.tsx';
 import NotFound from './pages/NotFound.tsx';
 import Registration from './pages/Registration.tsx';
+import AuthSuccess from './pages/AuthSuccess.tsx';
 import Join from './pages/Join.tsx';
 import ForgotPassword from './pages/ForgotPassword.tsx';
 import VerifyEmail from './pages/VerifyEmail.tsx';
@@ -44,6 +45,7 @@ export default function App() {
             <Route path={'/sponsors'} element={<Sponsors />} />
             <Route path={'/login'} element={<Login />} />
             <Route path={'/register'} element={<Registration />} />
+            <Route path={'/auth/success'} element={<AuthSuccess />} />
             <Route path={'/join'} element={<Join />} />
             <Route path={'/forgot-password'} element={<ForgotPassword />} />
             <Route path={'/verify-email'} element={<VerifyEmail />} />
