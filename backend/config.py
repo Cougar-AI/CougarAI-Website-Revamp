@@ -49,7 +49,14 @@ class BaseConfig:
     VERIFY_EXPIRES  = timedelta(hours=24)
     RESET_EXPIRES   = timedelta(minutes=30)
     
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")    
+    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    _stripe_mode = os.getenv("STRIPE_MODE", "test").strip().lower()
+    STRIPE_SECRET_KEY = (
+        os.getenv("STRIPE_TEST_SECRET_KEY")
+        if _stripe_mode == "test"
+        else os.getenv("STRIPE_SECRET_KEY")
+    )
+    STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
     MAILER_BACKEND = os.getenv("MAILER_BACKEND", "smtp")
     SMTP_HOST = os.getenv("SMTP_HOST", "localhost")

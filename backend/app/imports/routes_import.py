@@ -8,6 +8,7 @@ from app.routes.points import points_bp
 from app.routes.auth import auth_bp
 from app.routes.forms import forms_bp
 from app.routes.profiles import profile_bp
+from app.routes.billing import members_bp, billing_bp
 
 blueprints_with_prefixes = {
     discord_bp: '/discord',
@@ -18,5 +19,7 @@ blueprints_with_prefixes = {
     officers_bp:'/officers',
     points_bp:'/points',
     auth_bp:'/auth',
-    forms_bp:'/forms'
+    forms_bp:'/forms',
+    members_bp: '/members',
+    billing_bp: '/billing',
 }
