@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 
 /**
@@ -26,19 +27,27 @@ import { loadStripe } from "@stripe/stripe-js";
  * - VITE_STRIPE_PUBLISHABLE_KEY (public)
  */
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
+const _stripeMode = (import.meta.env.VITE_STRIPE_MODE ?? "test") as "test" | "live";
+const PUBLISHABLE_KEY = (
+  _stripeMode === "test"
+    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY
+    : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+) as string | undefined;
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
 
-// Match the Memberships page offerings
-// Replace price_XXX with real Stripe Price IDs
-// Replace dbPlanId with your membership_plans.plan_id values
+const PRICE_IDS = {
+  semester: { live: "price_1S4sVLH2XIQuLIalBvif5rrs", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
+  yearly:   { live: "price_1S0ylVH2XIQuLIalbpMXxrV9", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
+};
+
 const PLANS = [
   {
     id: "semester",
     name: "Semester",
     tagline: "Full member access for one semester.",
     priceLabel: "$15 / sem",
-    priceId: "price_SEMESTER_XXXXXXXX", // TODO: your Stripe Price ID
-    dbPlanId: 1, 
+    priceId: PRICE_IDS.semester[_stripeMode],
+    dbPlanId: 1,
     features: [
       "All workshops & events",
       "Member rewards eligibility",
@@ -50,8 +59,8 @@ const PLANS = [
     name: "Yearly",
     tagline: "Best value for active members.",
     priceLabel: "$25 / year",
-    priceId: "price_YEARLY_XXXXXXXX", // TODO: your Stripe Price ID
-    dbPlanId: 2, 
+    priceId: PRICE_IDS.yearly[_stripeMode],
+    dbPlanId: 2,
     features: [
       "Everything in Semester",
       "Priority for project teams",
@@ -62,7 +71,121 @@ const PLANS = [
 
 type PlanId = typeof PLANS[number]["id"];
 
+const Check = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 14, height: 14 }}>
+    <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const NEXT_STEPS = [
+  { step: "1", title: "Check your email", text: "Your payment receipt from Stripe is on its way." },
+  { step: "2", title: "Join our Discord", text: "Head to our Discord and grab your member role to unlock all channels.", link: { label: "Open Discord →", href: "https://discord.com/invite/5Jhw67yQDH" } },
+  { step: "3", title: "Attend an event", text: "Check the calendar for upcoming workshops, build nights, and speaker events.", link: { label: "View calendar →", href: "/calendar" } },
+];
+
+function SuccessView() {
+  return (
+    <div className="mx-auto max-w-3xl text-white">
+      <div className="text-center mb-10">
+        <div
+          className="inline-flex h-20 w-20 items-center justify-center rounded-full mb-6 text-red-400"
+          style={{ background: "rgba(185,28,28,.15)", border: "1px solid rgba(185,28,28,.4)", boxShadow: "0 0 40px rgba(185,28,28,.25)" }}
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 36, height: 36 }}>
+            <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <h1 className="font-['Oxanium'] text-4xl font-extrabold tracking-tight mb-3">You're in!</h1>
+        <p className="text-lg text-white/70 max-w-md mx-auto">
+          Your membership is confirmed. Welcome to CougarAI — let's build something great.
+        </p>
+      </div>
+
+      <div
+        className="rounded-2xl p-8 mb-6"
+        style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(185,28,28,.2)", backdropFilter: "blur(10px)" }}
+      >
+        <h2 className="font-['Oxanium'] text-xl font-bold mb-6">What's next?</h2>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {NEXT_STEPS.map(({ step, title, text, link }) => (
+            <div
+              key={step}
+              className="rounded-xl p-5"
+              style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span
+                  className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full font-['Oxanium'] text-sm font-bold text-red-400"
+                  style={{ background: "rgba(185,28,28,.15)", border: "1px solid rgba(185,28,28,.35)" }}
+                >
+                  {step}
+                </span>
+                <h3 className="font-['Oxanium'] text-sm font-bold text-white">{title}</h3>
+              </div>
+              <p className="text-sm leading-relaxed text-white/60 mb-2">{text}</p>
+              {link && (
+                <a
+                  href={link.href}
+                  className="text-sm text-red-400 hover:text-red-300 transition-colors"
+                >
+                  {link.label}
+                </a>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <a
+          href="https://discord.com/invite/5Jhw67yQDH"
+          className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+          style={{ background: "#b91c1c", boxShadow: "0 0 24px rgba(185,28,28,.4)" }}
+        >
+          Join Discord
+        </a>
+        <Link
+          to="/"
+          className="flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/10"
+          style={{ background: "rgba(255,255,255,.06)" }}
+        >
+          Back to home
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function CanceledView() {
+  return (
+    <div className="mx-auto max-w-lg text-center text-white">
+      <div
+        className="inline-flex h-16 w-16 items-center justify-center rounded-full mb-6 text-white/40"
+        style={{ background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.12)" }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 28, height: 28 }}>
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </div>
+      <h1 className="font-['Oxanium'] text-3xl font-extrabold mb-3">Checkout canceled</h1>
+      <p className="text-white/60 mb-8">No worries — your spot is still here whenever you're ready.</p>
+      <Link
+        to="/join"
+        className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+        style={{ background: "#b91c1c", boxShadow: "0 0 24px rgba(185,28,28,.4)" }}
+      >
+        Try again
+      </Link>
+    </div>
+  );
+}
+
 export default function JoinUs() {
+  const urlStatus = new URLSearchParams(window.location.search).get("status");
+
+  if (urlStatus === "success") return <SuccessView />;
+  if (urlStatus === "canceled") return <CanceledView />;
+
   // Read ?plan= from URL, fallback to "semester"
   const initialPlan = ((): PlanId => {
     const p = new URLSearchParams(window.location.search).get("plan")?.toLowerCase();
@@ -78,14 +201,6 @@ export default function JoinUs() {
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const status = params.get("status");
-    if (status === "success") setBanner("You're in! Thanks for joining CougarAI.");
-    if (status === "canceled") setBanner("Checkout canceled. You can try again anytime.");
-  }, []);
 
   const selectedPlan = useMemo(() => PLANS.find((p) => p.id === plan)!, [plan]);
 
@@ -120,7 +235,7 @@ export default function JoinUs() {
     setSubmitting(true);
     try {
       // 1) Create/attach member on backend
-      const res = await fetch("/api/members/join", {
+      const res = await fetch(`${BACKEND}/members/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -145,7 +260,7 @@ export default function JoinUs() {
       const cancel = new URL(window.location.href);
       cancel.searchParams.set("status", "canceled");
 
-      const r2 = await fetch("/api/billing/create-checkout-session", {
+      const r2 = await fetch(`${BACKEND}/billing/create-checkout-session`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -178,207 +293,197 @@ export default function JoinUs() {
     }
   }
 
+  const inputStyle = { background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.1)' };
+  const inputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (e.target.style.borderColor = 'rgba(185,28,28,.6)');
+  const inputBlur = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) =>
+    (e.target.style.borderColor = 'rgba(255,255,255,.1)');
+  const inputCls = "w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none transition";
+  const labelCls = "block text-xs font-medium uppercase tracking-wide text-white/55 mb-1.5";
+
   return (
-    <div className="mx-auto max-w-4xl">
-      {/* Heading */}
-      <header className="mb-8 text-center">
-        <h1 className="text-4xl font-bold tracking-tight">
-          <span className="bg-gradient-to-r from-[--accent] via-[--accent2] to-[--accent3] bg-clip-text text-transparent">
-            Join CougarAI
-          </span>
-        </h1>
-        <p className="mt-4 text-white/80">
-          Choose your plan, fill in your details, and complete checkout. Welcome aboard!
-        </p>
-      </header>
+    <div className="relative min-h-[calc(100vh-96px)] text-white">
+      <main className="mx-auto max-w-3xl px-6 py-12 lg:py-20">
 
-      {/* Banner */}
-      {banner && (
-        <div className="mb-6 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-200">
-          {banner}
-        </div>
-      )}
-      {error && (
-        <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-200">
-          {error}
-        </div>
-      )}
-
-      {/* Plan picker */}
-      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {PLANS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setPlan(p.id)}
-            className={`group relative rounded-2xl border p-5 text-left shadow-sm transition ${
-              plan === p.id
-                ? "border-[--accent] bg-white/10"
-                : "border-white/10 bg-white/5 hover:bg-white/[0.08]"
-            }`}
+        {/* Hero */}
+        <section className="text-center mb-10">
+          <h1
+            className="font-['Oxanium'] font-extrabold tracking-tight mb-3"
+            style={{ fontSize: 'clamp(28px,4vw,48px)' }}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-wide text-white/60">{p.name}</p>
-                <p className="mt-1 text-2xl font-semibold">{p.priceLabel}</p>
-                <p className="mt-1 text-sm text-white/70">{p.tagline}</p>
-              </div>
-              <div
-                className={`size-5 rounded-full border ${
-                  plan === p.id ? "border-[--accent] bg-[--accent]" : "border-white/30"
-                }`}
-                aria-hidden
-              />
+            Join CougarAI
+          </h1>
+          <p className="text-lg text-white/65 max-w-md mx-auto">
+            Choose your plan, fill in your details, and complete checkout.
+          </p>
+        </section>
+
+        {/* Error */}
+        {error && (
+          <div
+            className="mb-6 rounded-xl p-4 text-sm text-red-300"
+            style={{ background: 'rgba(185,28,28,.12)', border: '1px solid rgba(185,28,28,.4)' }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Plan picker */}
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {PLANS.map((p) => {
+            const selected = plan === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPlan(p.id)}
+                className="relative flex flex-col rounded-2xl p-6 text-left transition"
+                style={
+                  selected
+                    ? { background: 'rgba(185,28,28,.1)', border: '1px solid rgba(185,28,28,.5)', boxShadow: '0 8px 40px rgba(185,28,28,.2), inset 0 1px 0 rgba(255,255,255,.06)' }
+                    : { background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 4px 20px rgba(0,0,0,.3)' }
+                }
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <p className="font-['Oxanium'] text-xs uppercase tracking-widest text-white/45 mb-1">{p.name}</p>
+                    <p className="font-['Oxanium'] text-4xl font-extrabold leading-none text-white">
+                      {p.priceLabel.split(' /')[0]}
+                    </p>
+                    <p className="text-sm text-white/40 mt-1">/{p.priceLabel.split('/ ')[1]}</p>
+                  </div>
+                  <div
+                    className="flex-shrink-0 flex items-center justify-center rounded-full mt-1"
+                    style={
+                      selected
+                        ? { width: 22, height: 22, background: '#b91c1c', border: '1px solid rgba(185,28,28,.8)' }
+                        : { width: 22, height: 22, background: 'transparent', border: '1px solid rgba(255,255,255,.25)' }
+                    }
+                    aria-hidden
+                  >
+                    {selected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+                  </div>
+                </div>
+                <ul className="space-y-2">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5">
+                      <span
+                        className="mt-0.5 flex-shrink-0 inline-flex items-center justify-center rounded-full text-red-400"
+                        style={{ width: 20, height: 20, background: 'rgba(185,28,28,.18)', border: '1px solid rgba(185,28,28,.3)' }}
+                      >
+                        <Check />
+                      </span>
+                      <span className="text-sm text-white/70">{f}</span>
+                    </li>
+                  ))}
+                </ul>
+              </button>
+            );
+          })}
+        </section>
+
+        {/* Form */}
+        <section
+          className="rounded-2xl p-8 mb-6"
+          style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(185,28,28,.2)', backdropFilter: 'blur(10px)' }}
+        >
+          <h2 className="font-['Oxanium'] text-xl font-bold mb-1">Member details</h2>
+          <p className="text-sm text-white/50 mb-6">Used for club administration only — no spam.</p>
+
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2" noValidate>
+            <div>
+              <label htmlFor="first" className={labelCls}>First name</label>
+              <input id="first" value={first} onChange={(e) => setFirst(e.target.value)}
+                placeholder="Ada" autoComplete="given-name" required
+                className={inputCls} style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
             </div>
-            <ul className="mt-3 space-y-1 text-sm text-white/70">
-              {p.features.map((f) => (
-                <li key={f}>• {f}</li>
-              ))}
-            </ul>
 
-            {/* ambient accent glow */}
-            {plan === p.id && (
-              <div aria-hidden className="pointer-events-none absolute -inset-24 -z-10 opacity-30 blur-3xl">
-                <div className="size-full bg-[conic-gradient(at_30%_40%,theme(colors.rose.700/.35),theme(colors.blue.600/.35),theme(colors.green.500/.35),transparent_60%)]" />
-              </div>
-            )}
-          </button>
-        ))}
-      </section>
+            <div>
+              <label htmlFor="last" className={labelCls}>Last name</label>
+              <input id="last" value={last} onChange={(e) => setLast(e.target.value)}
+                placeholder="Lovelace" autoComplete="family-name" required
+                className={inputCls} style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+            </div>
 
-      {/* Join form */}
-      <section className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/5">
-        <h2 className="text-xl font-semibold">Member details</h2>
-        <p className="mt-2 text-sm text-white/70">We use this only for club administration—no spam.</p>
+            <div className="sm:col-span-2">
+              <label htmlFor="email" className={labelCls}>Email</label>
+              <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="ada@cougarai.com" autoComplete="email" required
+                className={inputCls} style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+            </div>
 
-        <form id="join-form" onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2" noValidate>
-          <div>
-            <label htmlFor="first" className="mb-1 block text-sm text-white/80">First name</label>
-            <input
-              id="first"
-              value={first}
-              onChange={(e) => setFirst(e.target.value)}
-              placeholder="Ada"
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-white/40 outline-none focus:border-[--accent]"
-              autoComplete="given-name"
-              required
-            />
-          </div>
+            <div>
+              <label htmlFor="student_id" className={labelCls}>
+                UH Student ID <span className="normal-case text-white/35 font-normal">(optional)</span>
+              </label>
+              <input id="student_id" inputMode="numeric" maxLength={7}
+                value={student_id} onChange={(e) => setStudent_id(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder="1234567" autoComplete="off"
+                className={inputCls} style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
+            </div>
 
-          <div>
-            <label htmlFor="last" className="mb-1 block text-sm text-white/80">Last name</label>
-            <input
-              id="last"
-              value={last}
-              onChange={(e) => setLast(e.target.value)}
-              placeholder="Lovelace"
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-white/40 outline-none focus:border-[--accent]"
-              autoComplete="family-name"
-              required
-            />
-          </div>
+            <div>
+              <label htmlFor="gradLevel" className={labelCls}>Academic level</label>
+              <select id="gradLevel" value={gradLevel} onChange={(e) => setGradLevel(e.target.value)}
+                className={inputCls} style={{ ...inputStyle, background: 'rgba(0,0,0,.5)' }}
+                onFocus={inputFocus} onBlur={inputBlur}>
+                <option value="">Select level…</option>
+                <option value="Freshman">Freshman</option>
+                <option value="Sophomore">Sophomore</option>
+                <option value="Junior">Junior</option>
+                <option value="Senior">Senior</option>
+                <option value="Graduate">Graduate</option>
+                <option value="Alumni">Alumni</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
 
-          <div className="sm:col-span-2">
-            <label htmlFor="email" className="mb-1 block text-sm text-white/80">Email</label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="ada@example.com"
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-white/40 outline-none focus:border-[--accent]"
-              autoComplete="email"
-              required
-            />
-          </div>
+            <div className="sm:col-span-2">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)}
+                  className="mt-0.5 size-4 flex-shrink-0 rounded accent-red-700" />
+                <span className="text-sm text-white/60 leading-relaxed">
+                  I agree to the club Code of Conduct and understand refunds follow event policies.
+                </span>
+              </label>
+            </div>
 
-          <div>
-            <label htmlFor="student_id" className="mb-1 block text-sm text-white/80">UH Student ID <span className="text-white/50">(optional)</span></label>
-            <input
-              id="student_id"
-              inputMode="numeric"
-              maxLength={7}
-              value={student_id}
-              onChange={(e) => setStudent_id(e.target.value.replace(/[^0-9]/g, ""))}
-              placeholder="e.g., 1234567"
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white placeholder-white/40 outline-none focus:border-[--accent]"
-              autoComplete="off"
-            />
-          </div>
+            <div className="sm:col-span-2 pt-2">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[.98] disabled:opacity-60"
+                style={{ background: '#b91c1c', boxShadow: '0 0 24px rgba(185,28,28,.4)' }}
+              >
+                {submitting ? "Processing…" : `Continue to Checkout — ${selectedPlan.name} (${selectedPlan.priceLabel})`}
+              </button>
+            </div>
+          </form>
+        </section>
 
-          <div>
-            <label htmlFor="gradLevel" className="mb-1 block text-sm text-white/80">Academic Level </label>
-            <select
-              id="gradLevel"
-              value={gradLevel}
-              onChange={(e) => setGradLevel(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white focus:border-[--accent]">
-              <option value="">Select your Academic Level</option>
-              <option value="Freshman">Freshman</option>
-              <option value="Sophomore">Sophomore</option>
-              <option value="Junior">Junior</option>
-              <option value="Senior">Senior</option>
-              <option value="Graduate">Graduate</option>
-              <option value="Alumni">Alumni</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <div className="sm:col-span-2">
-            <label className="flex items-center gap-3 text-sm text-white/80">
-              <input
-                type="checkbox"
-                className="size-4 rounded border-white/20 bg-black/30 text-[--accent] focus:ring-[--accent]"
-                checked={agree}
-                onChange={(e) => setAgree(e.target.checked)}
-              />
-              <span>
-                I agree to the club Code of Conduct and understand refunds follow event policies.
-              </span>
-            </label>
-          </div>
-
-          <div className="sm:col-span-2 mt-2 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-[--accent] to-[--accent2] px-5 py-2.5 text-sm font-semibold text-white ring-1 ring-white/10 transition hover:brightness-110 active:scale-[.98] disabled:opacity-60"
+        {/* Bottom links */}
+        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {[
+            { href: '/sponsorships', eyebrow: 'Want to support us?', title: 'Sponsorships', body: 'Partner on events and projects.', cta: 'Learn more →' },
+            { href: '/contact',      eyebrow: 'Questions?',          title: 'Contact us',    body: 'We usually reply within a day.', cta: 'Reach out →' },
+          ].map(({ href, eyebrow, title, body, cta }) => (
+            <a
+              key={href}
+              href={href}
+              className="rounded-2xl p-5 no-underline transition"
+              style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'rgba(185,28,28,.35)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,.08)')}
             >
-              {submitting ? "Processing…" : `Continue to Checkout (${selectedPlan.name})`}
-            </button>
-            <p className="text-xs text-white/60">
-              Selected plan: <span className="font-medium text-white/80">{selectedPlan.name}</span>
-            </p>
-          </div>
-        </form>
+              <p className="text-xs uppercase tracking-wide text-white/40 mb-1">{eyebrow}</p>
+              <p className="font-['Oxanium'] text-base font-bold text-white mb-1">{title}</p>
+              <p className="text-sm text-white/55 mb-3">{body}</p>
+              <span className="text-sm text-red-400">{cta}</span>
+            </a>
+          ))}
+        </section>
 
-        {/* ambient accent glow */}
-        <div aria-hidden className="pointer-events-none absolute -inset-24 -z-10 opacity-30 blur-3xl">
-          <div className="size-full bg-[conic-gradient(at_70%_40%,theme(colors.rose.700/.35),theme(colors.blue.600/.35),theme(colors.green.500/.35),transparent_60%)]" />
-        </div>
-      </section>
-
-      {/* Helpful links */}
-      <section className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <a
-          href="/sponsorships"
-          className="group rounded-2xl border border-white/10 bg-white/5 p-5 text-white/90 no-underline shadow-sm transition hover:bg-white/[0.08]"
-        >
-          <p className="text-sm uppercase tracking-wide text-white/60">Want to support us?</p>
-          <p className="mt-1 text-lg font-semibold">Sponsorships</p>
-          <p className="mt-2 text-sm text-white/70">Partner on events and projects.</p>
-          <span className="mt-3 inline-block text-sm text-[--accent2] group-hover:translate-x-0.5">Learn more →</span>
-        </a>
-        <a
-          href="/contact"
-          className="group rounded-2xl border border-white/10 bg-white/5 p-5 text-white/90 no-underline shadow-sm transition hover:bg-white/[0.08]"
-        >
-          <p className="text-sm uppercase tracking-wide text-white/60">Questions?</p>
-          <p className="mt-1 text-lg font-semibold">Contact us</p>
-          <p className="mt-2 text-sm text-white/70">We usually reply within a day.</p>
-          <span className="mt-3 inline-block text-sm text-[--accent2] group-hover:translate-x-0.5">Reach out →</span>
-        </a>
-      </section>
+      </main>
     </div>
   );
 }
