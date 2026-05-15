@@ -53,6 +53,7 @@ class BaseConfig:
     RESET_EXPIRES   = timedelta(minutes=30)
     
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    FRONTEND_URLS = _split_origins(os.getenv("FRONTEND_URLS", FRONTEND_URL))
     _stripe_mode = os.getenv("STRIPE_MODE", "test").strip().lower()
     STRIPE_SECRET_KEY = (
         os.getenv("STRIPE_TEST_SECRET_KEY")

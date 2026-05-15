@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import { Suspense } from 'react';
 import RootLayout from './layouts/RootLayout.tsx';
 import AppLoading from './components/AppLoading.tsx';
@@ -11,9 +11,8 @@ import Memberships from './pages/Memberships.tsx';
 import Contact from './pages/contact.tsx';
 import Calendar from './pages/Calendar.tsx';
 import Sponsors from './pages/Sponsors.tsx';
-import Login from './pages/Login.tsx';
+import Auth from './pages/Auth.tsx';
 import NotFound from './pages/NotFound.tsx';
-import Registration from './pages/Registration.tsx';
 import AuthSuccess from './pages/AuthSuccess.tsx';
 import Join from './pages/Join.tsx';
 import ForgotPassword from './pages/ForgotPassword.tsx';
@@ -45,8 +44,9 @@ export default function App() {
             <Route path={'/contact'} element={<Contact />} />
             <Route path={'/calendar'} element={<Calendar />} />
             <Route path={'/sponsors'} element={<Sponsors />} />
-            <Route path={'/login'} element={<Login />} />
-            <Route path={'/register'} element={<Registration />} />
+            <Route path={'/auth'} element={<Auth />} />
+            <Route path={'/login'} element={<Navigate to="/auth?mode=login" replace />} />
+            <Route path={'/register'} element={<Navigate to="/auth?mode=register" replace />} />
             <Route path={'/auth/success'} element={<AuthSuccess />} />
             <Route path={'/join'} element={<Join />} />
             <Route path={'/forgot-password'} element={<ForgotPassword />} />

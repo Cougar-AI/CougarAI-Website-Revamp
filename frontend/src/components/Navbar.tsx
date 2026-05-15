@@ -115,10 +115,7 @@ const Navbar: React.FC = () => {
                         </button>
                     </>
                 ) : (
-                    <>
-                        <NavLink to="/login" className={({isActive}) => cn(link, isActive && active)}>Login</NavLink>
-                        <NavLink to="/register" className={({isActive}) => cn(link, isActive && active)}>Register</NavLink>
-                    </>
+                    <NavLink to="/auth" className={({isActive}) => cn(link, isActive && active)}>Login / Register</NavLink>
                 )}
             </ul>
             </nav>

@@ -36,7 +36,7 @@ export function ProtectedRoute({ children, skipOnboardingCheck, requiredRole }: 
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+    return <Navigate to="/auth?mode=login" state={{ from: location.pathname }} replace />;
   }
 
   if (!skipOnboardingCheck && !user?.onboarding_completed) {

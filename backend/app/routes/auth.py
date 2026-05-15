@@ -1,10 +1,14 @@
 from __future__ import annotations
+import json
+import secrets
 import uuid, hashlib, jwt
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
-from flask import Blueprint, request, jsonify, current_app, make_response
+from flask import Blueprint, request, jsonify, current_app, make_response, redirect
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from flask_jwt_extended import create_access_token
@@ -172,6 +176,112 @@ def _build_auth_response(user_id: int, email: str, role: str = "member", onboard
     _set_refresh_cookie(resp, refresh_token, expires_at)
     return resp
 
+def _build_oauth_redirect_response(user_id: int, email: str, provider: str, role: str = "member", onboarding_completed: bool = False):
+    access_jwt = _issue_access_jwt(user_id, email)
+    refresh_token, _, expires_at = _issue_refresh_jwt_and_persist(user_id)
+
+    with db.engine.begin() as conn:
+        conn.execute(text("UPDATE users SET last_login = NOW() WHERE user_id = :uid"), {"uid": user_id})
+
+    frontend_url = current_app.config["FRONTEND_URL"].rstrip("/")
+    query = urlencode(
+        {
+            "provider": provider,
+            "user_id": user_id,
+            "email": email,
+            "role": role,
+            "onboarding_completed": "true" if onboarding_completed else "false",
+            "access_token": access_jwt,
+        }
+    )
+    resp = redirect(f"{frontend_url}/auth/success?{query}")
+    _set_refresh_cookie(resp, refresh_token, expires_at)
+    return resp
+
+def _provision_oauth_user(email: str):
+    with db.engine.begin() as conn:
+        user = conn.execute(
+            text("""
+                SELECT user_id, email, email_verified_at, is_active, role, onboarding_completed_at
+                FROM users
+                WHERE email = :email
+            """),
+            {"email": email}
+        ).mappings().first()
+
+        if user and not user["is_active"]:
+            raise PermissionError("inactive_user")
+
+        if not user:
+            user = conn.execute(
+                text("""
+                    INSERT INTO users (email, email_verified_at)
+                    VALUES (:email, NOW())
+                    RETURNING user_id, email, email_verified_at, is_active, role, onboarding_completed_at
+                """),
+                {"email": email}
+            ).mappings().first()
+        elif user["email_verified_at"] is None:
+            conn.execute(
+                text("UPDATE users SET email_verified_at = NOW() WHERE user_id = :uid"),
+                {"uid": user["user_id"]}
+            )
+
+    return user
+
+def _microsoft_tenant():
+    return (os.getenv("MICROSOFT_TENANT_ID") or "common").strip() or "common"
+
+def _microsoft_client_id():
+    return (os.getenv("MICROSOFT_CLIENT_ID") or "").strip()
+
+def _microsoft_client_secret():
+    return (os.getenv("MICROSOFT_CLIENT_SECRET") or "").strip()
+
+def _microsoft_redirect_uri():
+    override = (os.getenv("MICROSOFT_REDIRECT_URI") or "").strip()
+    if override:
+        return override
+    return f"{request.url_root.rstrip('/')}/auth/microsoft/callback"
+
+def _microsoft_authority_base():
+    return f"https://login.microsoftonline.com/{_microsoft_tenant()}/oauth2/v2.0"
+
+def _microsoft_fetch_json(url: str, *, method: str = "GET", headers: Optional[dict] = None, body: Optional[str] = None):
+    request_obj = Request(
+        url,
+        data=body.encode("utf-8") if body is not None else None,
+        headers=headers or {},
+        method=method,
+    )
+    with urlopen(request_obj) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+def _microsoft_exchange_code(code: str):
+    body = urlencode({
+        "client_id": _microsoft_client_id(),
+        "client_secret": _microsoft_client_secret(),
+        "code": code,
+        "grant_type": "authorization_code",
+        "redirect_uri": _microsoft_redirect_uri(),
+        "scope": "openid profile email offline_access User.Read",
+    })
+    return _microsoft_fetch_json(
+        f"{_microsoft_authority_base()}/token",
+        method="POST",
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        body=body,
+    )
+
+def _microsoft_get_profile(access_token: str):
+    return _microsoft_fetch_json(
+        "https://graph.microsoft.com/v1.0/me",
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Accept": "application/json",
+        },
+    )
+
 # --------------------- Existing: Register & Verify ---------------------
 
 @auth_bp.post("/register")
@@ -338,43 +448,104 @@ def google_login():
         return jsonify({"error": "invalid_credentials"}), 401
 
     try:
-        with db.engine.begin() as conn:
-            user = conn.execute(
-                text("""
-                    SELECT user_id, email, email_verified_at, is_active, role, onboarding_completed_at
-                    FROM users
-                    WHERE email = :email
-                """),
-                {"email": email}
-            ).mappings().first()
-
-            if user and not user["is_active"]:
-                return jsonify({"error": "invalid_credentials"}), 401
-
-            if not user:
-                user = conn.execute(
-                    text("""
-                        INSERT INTO users (email, email_verified_at)
-                        VALUES (:email, NOW())
-                        RETURNING user_id, email, email_verified_at, is_active, role, onboarding_completed_at
-                    """),
-                    {"email": email}
-                ).mappings().first()
-            elif user["email_verified_at"] is None:
-                conn.execute(
-                    text("UPDATE users SET email_verified_at = NOW() WHERE user_id = :uid"),
-                    {"uid": user["user_id"]}
-                )
-
+        user = _provision_oauth_user(email)
         return _build_auth_response(
             user["user_id"],
             user["email"],
             role=user["role"] or "member",
             onboarding_completed=user["onboarding_completed_at"] is not None,
         )
+    except PermissionError:
+        return jsonify({"error": "invalid_credentials"}), 401
     except SQLAlchemyError:
         current_app.logger.exception("Google OAuth database failure for %s", email)
         return jsonify({"error": "database_unavailable"}), 503
+
+
+@auth_bp.get("/microsoft/start")
+def microsoft_start():
+    client_id = _microsoft_client_id()
+    client_secret = _microsoft_client_secret()
+    if not client_id or not client_secret:
+        return jsonify({"error": "microsoft_oauth_not_configured"}), 503
+
+    intent = (request.args.get("intent") or "login").strip().lower()
+    if intent not in {"login", "register"}:
+        intent = "login"
+
+    state = _jwt_encode(
+        {
+            "typ": "microsoft_oauth_state",
+            "nonce": secrets.token_urlsafe(16),
+            "intent": intent,
+        },
+        current_app.config["SECRET_KEY"],
+        delta=timedelta(minutes=10),
+    )
+
+    query = urlencode({
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": _microsoft_redirect_uri(),
+        "response_mode": "query",
+        "scope": "openid profile email offline_access User.Read",
+        "state": state,
+        "prompt": "select_account",
+    })
+    return redirect(f"{_microsoft_authority_base()}/authorize?{query}")
+
+
+@auth_bp.get("/microsoft/callback")
+def microsoft_callback():
+    error = (request.args.get("error") or "").strip()
+    if error:
+        frontend_url = current_app.config["FRONTEND_URL"].rstrip("/")
+        query = urlencode({
+            "error": "microsoft_oauth_failed",
+            "message": request.args.get("error_description") or error,
+        })
+        return redirect(f"{frontend_url}/auth?mode=login&{query}")
+
+    code = (request.args.get("code") or "").strip()
+    state = (request.args.get("state") or "").strip()
+    if not code or not state:
+        return jsonify({"error": "invalid_oauth_callback"}), 400
+
+    try:
+        claims = _jwt_decode(state, current_app.config["SECRET_KEY"])
+    except Exception:
+        return jsonify({"error": "invalid_oauth_state"}), 401
+
+    if claims.get("typ") != "microsoft_oauth_state":
+        return jsonify({"error": "invalid_oauth_state"}), 401
+
+    try:
+        token_payload = _microsoft_exchange_code(code)
+        access_token = (token_payload.get("access_token") or "").strip()
+        if not access_token:
+            return jsonify({"error": "invalid_credentials"}), 401
+
+        profile = _microsoft_get_profile(access_token)
+        email = (profile.get("mail") or profile.get("userPrincipalName") or "").strip()
+        if not email:
+            return jsonify({"error": "invalid_credentials"}), 401
+
+        user = _provision_oauth_user(email)
+        return _build_oauth_redirect_response(
+            user["user_id"],
+            user["email"],
+            "microsoft",
+            role=user["role"] or "member",
+            onboarding_completed=user["onboarding_completed_at"] is not None,
+        )
+    except PermissionError:
+        return jsonify({"error": "invalid_credentials"}), 401
+    except SQLAlchemyError:
+        current_app.logger.exception("Microsoft OAuth database failure")
+        return jsonify({"error": "database_unavailable"}), 503
+    except Exception:
+        current_app.logger.exception("Microsoft OAuth callback failed")
+        return jsonify({"error": "microsoft_oauth_failed"}), 500
 
 
 @auth_bp.post("/resend-verification")
