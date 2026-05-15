@@ -2,6 +2,9 @@ from app.imports import *
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from typing import Optional
+from datetime import date as date_type
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app import limiter
 
 events_bp = Blueprint('events', __name__)
 
@@ -182,7 +185,7 @@ def updateEvent(event_id):
                 return jsonify({"error": "Invalid starts_at format"}), 400
             if filter_dict["ends_at"] and not is_valid_date(filter_dict["ends_at"]):
                 return jsonify({"error": "Invalid ends_at format"}), 400
-            
+
             query, params = build_sql_querys("UPDATE events", filter_dict, date_column="starts_at", mode="SET")
             query += " WHERE event_id = %s"
             params.append(event_id)
@@ -190,11 +193,192 @@ def updateEvent(event_id):
             cur.execute(query, tuple(params))
             if cur.rowcount == 0:
                 return jsonify({"error": f"Event ID {event_id} not found"}), 404
-            
+
             connection.commit()
             return jsonify({"message": "Event updated successfully"}), 200
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
 
-        
+
+# ---------------------------------------------------------------------------
+# Streak helper
+# ---------------------------------------------------------------------------
+
+def _update_streak(cur, student_id: str, event_date: date_type):
+    """Increment monthly attendance streak for a student after a check-in."""
+    event_month = event_date.strftime("%Y-%m")
+
+    cur.execute(
+        "SELECT current_streak, max_streak, last_event_month FROM profile WHERE student_id = %s",
+        (student_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        return
+
+    last_month = row["last_event_month"]
+    if last_month == event_month:
+        return  # already counted this month
+
+    if last_month:
+        ly, lm = int(last_month[:4]), int(last_month[5:])
+        ey, em = int(event_month[:4]), int(event_month[5:])
+        consecutive = (ey * 12 + em) == (ly * 12 + lm + 1)
+        new_streak = row["current_streak"] + 1 if consecutive else 1
+    else:
+        new_streak = 1
+
+    new_max = max(new_streak, row["max_streak"])
+    cur.execute(
+        "UPDATE profile SET current_streak = %s, max_streak = %s, last_event_month = %s WHERE student_id = %s",
+        (new_streak, new_max, event_month, student_id),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /events/checkin  — member self-check-in via event code
+# ---------------------------------------------------------------------------
+
+@events_bp.route("/checkin", methods=["POST", "OPTIONS"])
+@jwt_required()
+@limiter.limit("20/minute")
+def member_checkin():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    user_id = int(get_jwt_identity())
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip().upper()
+
+    if not code:
+        return jsonify({"error": "code is required"}), 400
+
+    conn = connect()
+    with conn.cursor() as cur:
+        # Validate event code
+        cur.execute(
+            """
+            SELECT event_id, name, check_in_expires_at,
+                   COALESCE(points_value, 10) as points_value
+            FROM events
+            WHERE check_in_code = %s AND check_in_enabled = TRUE
+            """,
+            (code,),
+        )
+        event = cur.fetchone()
+        if not event:
+            return jsonify({"error": "Invalid or inactive check-in code"}), 404
+
+        now = datetime.utcnow()
+        if event["check_in_expires_at"] and event["check_in_expires_at"] < now:
+            return jsonify({"error": "This check-in code has expired"}), 410
+
+        # Require linked profile
+        cur.execute("SELECT student_id FROM profile WHERE user_id = %s", (user_id,))
+        profile = cur.fetchone()
+        if not profile:
+            return jsonify({"error": "No profile linked — link your student ID first"}), 403
+
+        student_id = profile["student_id"]
+        event_id = event["event_id"]
+
+        # Duplicate check
+        cur.execute(
+            "SELECT checkin_id FROM event_checkins WHERE event_id = %s AND user_id = %s",
+            (event_id, user_id),
+        )
+        if cur.fetchone():
+            return jsonify({"error": "You have already checked in to this event"}), 409
+
+        today = date_type.today()
+        cur.execute(
+            "INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)",
+            (student_id, event_id, event["points_value"], today),
+        )
+        cur.execute(
+            "INSERT INTO event_checkins (event_id, student_id, user_id) VALUES (%s, %s, %s)",
+            (event_id, student_id, user_id),
+        )
+        _update_streak(cur, student_id, today)
+        conn.commit()
+
+        cur.execute("SELECT SUM(points) FROM points WHERE student_id = %s", (student_id,))
+        total = int(cur.fetchone()["sum"] or 0)
+
+    return jsonify({
+        "event_name": event["name"],
+        "points_awarded": event["points_value"],
+        "total_points": total,
+    }), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /events/officer-checkin  — officer manual check-in by student_id
+# ---------------------------------------------------------------------------
+
+OFFICER_ROLES = {"officer", "webmaster", "admin"}
+
+@events_bp.route("/officer-checkin", methods=["POST", "OPTIONS"])
+@jwt_required()
+@limiter.limit("60/minute")
+def officer_checkin():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    user_id = int(get_jwt_identity())
+    conn = connect()
+
+    # Role check
+    with conn.cursor() as cur:
+        cur.execute("SELECT role FROM users WHERE user_id = %s", (user_id,))
+        user_row = cur.fetchone()
+    if not user_row or user_row.get("role") not in OFFICER_ROLES:
+        return jsonify({"error": "Officer access required"}), 403
+
+    data = request.get_json(silent=True) or {}
+    student_id = str(data.get("student_id") or "").strip()
+    event_id = data.get("event_id")
+
+    if not student_id or not event_id:
+        return jsonify({"error": "student_id and event_id are required"}), 400
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT event_id, name, COALESCE(points_value, 10) as points_value FROM events WHERE event_id = %s",
+            (event_id,),
+        )
+        event = cur.fetchone()
+        if not event:
+            return jsonify({"error": "Event not found"}), 404
+
+        # Ensure profile row exists (create stub if walk-in)
+        cur.execute("SELECT student_id FROM profile WHERE student_id = %s", (student_id,))
+        if not cur.fetchone():
+            cur.execute(
+                "INSERT INTO profile (student_id) VALUES (%s)",
+                (student_id,),
+            )
+
+        # Duplicate check
+        cur.execute(
+            "SELECT points_id FROM points WHERE student_id = %s AND event_id = %s",
+            (student_id, event_id),
+        )
+        if cur.fetchone():
+            return jsonify({"message": "Already checked in", "event_name": event["name"]}), 200
+
+        today = date_type.today()
+        cur.execute(
+            "INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)",
+            (student_id, event_id, event["points_value"], today),
+        )
+        _update_streak(cur, student_id, today)
+        conn.commit()
+
+    return jsonify({
+        "student_id": student_id,
+        "event_name": event["name"],
+        "points_awarded": event["points_value"],
+    }), 200
+

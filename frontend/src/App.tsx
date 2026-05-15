@@ -1,15 +1,14 @@
 import { Routes, Route } from 'react-router-dom';
-import { Suspense, lazy } from 'react';
+import { Suspense } from 'react';
 import RootLayout from './layouts/RootLayout.tsx';
 import AppLoading from './components/AppLoading.tsx';
 import ErrorFallback from './components/ErrorFallback.tsx';
+import { ProtectedRoute } from './components/ProtectedRoute.tsx';
 
-// const Home = lazy(() => import('./pages/Home.tsx'));
-// Maybe implement the above for performance (like if bgphoto.jpg is too big)
 import Home from './pages/Home.tsx';
-import About from './pages/About.tsx';
+import About from './pages/about.tsx';
 import Memberships from './pages/Memberships.tsx';
-import Contact from './pages/Contact.tsx';
+import Contact from './pages/contact.tsx';
 import Calendar from './pages/Calendar.tsx';
 import Sponsors from './pages/Sponsors.tsx';
 import Login from './pages/Login.tsx';
@@ -22,6 +21,9 @@ import VerifyEmail from './pages/VerifyEmail.tsx';
 import Terms from './pages/Terms.tsx';
 import Privacy from './pages/Privacy.tsx';
 import Sponsorships from './pages/Sponsorships.tsx';
+import Dashboard from './pages/Dashboard.tsx';
+import Onboarding from './pages/Onboarding.tsx';
+import OfficerPortal from './pages/OfficerPortal.tsx';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   try {
@@ -52,6 +54,32 @@ export default function App() {
             <Route path={'/terms'} element={<Terms />} />
             <Route path={'/privacy'} element={<Privacy />} />
             <Route path={'/sponsorships'} element={<Sponsorships />} />
+
+            {/* Protected routes */}
+            <Route
+              path={'/dashboard'}
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path={'/onboarding'}
+              element={
+                <ProtectedRoute skipOnboardingCheck>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path={'/officer'}
+              element={
+                <ProtectedRoute requiredRole={["officer", "webmaster", "admin"]}>
+                  <OfficerPortal />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Real 404 */}
             <Route path="*" element={<NotFound />} />

@@ -1,6 +1,8 @@
 export type StoredUser = {
   user_id: number;
   email: string;
+  role?: string;
+  onboarding_completed?: boolean;
 };
 
 const AUTH_EVENT = "cougarai-auth-changed";
@@ -48,6 +50,10 @@ export function getStoredUser(): StoredUser | null {
 
 export function hasAccessToken() {
   return Boolean(window.localStorage.getItem("access_token") ?? window.sessionStorage.getItem("access_token"));
+}
+
+export function getAccessToken(): string | null {
+  return window.localStorage.getItem("access_token") ?? window.sessionStorage.getItem("access_token");
 }
 
 export function subscribeToAuthChanges(onChange: () => void) {

@@ -196,12 +196,18 @@ All pages share a warm dark-red aesthetic. Follow these conventions when buildin
 | `/memberships` | `Memberships` | |
 | `/join` | `Join` | Stripe checkout. Styled to match Memberships page. `?status=success` shows full success page; `?status=canceled` shows canceled page. Price IDs and keys controlled via `VITE_STRIPE_MODE` |
 | `/contact` | `Contact` | |
-| `/login` | `Login` | Google OAuth button present but disabled |
-| `/register` | `Registration` | Google OAuth button present but disabled |
-| `/forgot-password` | `ForgotPassword` | Stub — needs `POST /auth/forgot-password` backend |
-| `/verify-email` | `VerifyEmail` | Stub — needs `POST /auth/verify-email` backend |
+| `/login` | `Login` | Google OAuth button wired; set `VITE_SHOW_AUTH_LINKS=true` in frontend `.env` to show in navbar |
+| `/register` | `Registration` | Google OAuth button wired; set `VITE_SHOW_AUTH_LINKS=true` in frontend `.env` to show in navbar |
+| `/dashboard` | `Dashboard` | Protected (JWT required + onboarding). Tabs: Profile, Membership, Check In, Points, Leaderboard |
+| `/onboarding` | `Onboarding` | Protected (JWT, skips onboarding check). 3-step first-login wizard |
+| `/officer` | `OfficerPortal` | Protected (role: officer/webmaster/admin). Manual student check-in portal |
+| `/forgot-password` | `ForgotPassword` | Stub — backend `POST /auth/forgot-password` fully implemented |
+| `/verify-email` | `VerifyEmail` | Stub — backend `POST /auth/verify-email` fully implemented |
+| `/reset-password` | *(missing)* | Needs React component — backend `POST /auth/reset-password` sends links to `/reset-password?token=<jwt>` |
+| `/auth/success` | `AuthSuccess` | OAuth success landing; auto-redirects to home after 1.8s |
 | `/terms` | `Terms` | Static content |
 | `/privacy` | `Privacy` | Static content |
+| `*` | `NotFound` | 404 catch-all |
 
 ## Stripe Integration
 
@@ -253,20 +259,78 @@ Both must match. Restart the backend after changing. Frontend picks it up via Vi
 ### `payments` table schema
 
 ```
-payment_id  SERIAL PRIMARY KEY
-student_id  INTEGER  (nullable — null when member checked out with email only)
-email       VARCHAR(255) (nullable — set when no student_id)
-date        DATE
-amount      NUMERIC
+payment_id        SERIAL PRIMARY KEY
+student_id        INTEGER      (nullable — null when member checked out with email only)
+email             VARCHAR(255) (nullable — set when no student_id)
+date              DATE
+amount            NUMERIC
+stripe_session_id VARCHAR(255)
+plan_id           VARCHAR(50)  ('semester' or 'yearly')
+expires_at        DATE         (academic-calendar-aligned — see get_membership_expiry())
 ```
 
-Migration that added `email` and made `student_id` nullable: `backend/migrations/add_payments_email.sql`.
+Migrations: `add_payments_email.sql` (email + nullable student_id), `add_payments_membership_fields.sql` (stripe_session_id + plan_id + expires_at).
+
+## Auth Routes
+
+All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). Auth utility helpers for the frontend are in `frontend/src/lib/auth.ts` (`persistAuthSession`, `clearAuthSession`, `getStoredUser`, `hasAccessToken`, `subscribeToAuthChanges`, `setAuthNotice`, `consumeAuthNotice`).
+
+| Route | Status | Notes |
+|---|---|---|
+| `POST /auth/register` | ✅ Full | Creates user, sends verification email |
+| `POST /auth/verify-email` | ✅ Full | Verifies email with JWT token |
+| `POST /auth/resend-verification` | ✅ Full | Resends verification email |
+| `POST /auth/login` | ✅ Full | Returns access JWT + sets HttpOnly refresh cookie; includes `role` in response |
+| `POST /auth/google` | ✅ Full | Verifies Google ID token; auto-creates user on first login; requires `GOOGLE_OAUTH_CLIENT_ID` in backend `.env` |
+| `POST /auth/forgot-password` | ✅ Full | Sends reset email linking to `/reset-password?token=<jwt>` |
+| `POST /auth/reset-password` | ✅ Full | Resets password; invalidates all refresh tokens (global sign-out) |
+| `POST /auth/refresh` | ✅ Full | Rotating refresh token; reuse detection; returns new access JWT with updated role |
+| `DELETE /auth/logout` | ✅ Full | Clears refresh token and cookie |
 
 ## Known TODOs
 
-- **Google OAuth** — Login and Registration pages have a disabled OAuth button; needs a `/auth/google` backend route
-- **Forgot password / verify email frontend pages** — backend routes are fully implemented (`POST /auth/forgot-password`, `POST /auth/verify-email`); frontend page components are stubs only
-- **Officer photos & LinkedIn URLs** — all currently using blank placeholder in `frontend/src/data/officers.ts`
-- **Post-login flow** — after login there is no dashboard or redirect target yet; Login/Register are hidden in the navbar (`VITE_SHOW_AUTH_LINKS=false`) until this is built
-- **Role-based UI gating** — role is now stored in DB and returned in JWT, but no frontend guards exist yet (protected routes, admin panel, etc.)
-- **LinkedIn URL** — confirm final LinkedIn URL; currently `https://www.linkedin.com/company/cougar-ai`
+### In Progress / Short-term
+
+- **`/reset-password` frontend page** — no React component yet; backend `POST /auth/reset-password` fully implemented, sends links to `/reset-password?token=<jwt>`.
+- **Forgot password / verify email frontend pages** — backend routes fully implemented; frontend components are stubs only.
+- **Google OAuth frontend** — backend `POST /auth/google` fully implemented. Login/Register pages have the button wired; set `VITE_SHOW_AUTH_LINKS=true` and flip the button enabled once tested end-to-end. Requires `GOOGLE_OAUTH_CLIENT_ID` in backend `.env`.
+- **Run DB migrations** — `add_users_dashboard_fields.sql`, `add_profile_dashboard_fields.sql`, `add_payments_membership_fields.sql`, `add_events_checkin_fields.sql` must be applied to prod DB before dashboard goes live.
+- **Enable Login/Register in navbar** — flip `VITE_SHOW_AUTH_LINKS=true` in frontend `.env` once dashboard is production-ready.
+
+### Completed (Dashboard System — May 2026)
+
+The full dashboard system has been implemented. See `.claude/plans/read-the-claude-md-here-warm-sunset.md` for the original spec.
+
+- ✅ **User Dashboard** (`/dashboard`) — Profile editor, membership status, points history, leaderboard (points + streaks), event check-in tab
+- ✅ **Onboarding wizard** (`/onboarding`) — 3-step first-login flow; `onboarding_completed_at` tracked in DB
+- ✅ **Event self-check-in** — Members check in via `check_in_code` from the dashboard; `POST /events/checkin`. Google Sheets no longer needed as primary flow
+- ✅ **Officer check-in portal** (`/officer`) — Role-gated; manual walk-in check-in by student ID; `POST /events/officer-checkin`
+- ✅ **Attendance streak** — Monthly streak tracking (`current_streak`, `max_streak`, `last_event_month` on profile). Updated on every check-in
+- ✅ **Stripe webhook overhaul** — `stripe_customer_id` stored on users; `expires_at`/`plan_id`/`stripe_session_id` on payments; academic-calendar-aligned expiry
+- ✅ **Rate limiting** — `flask-limiter` on auth, check-in, billing, and avatar endpoints
+- ✅ **React Query** — All dashboard data fetches use `@tanstack/react-query`
+- ✅ **Role-based UI gating** — `ProtectedRoute` checks `role`; officer portal restricted to officer/webmaster/admin
+- ✅ **Leaderboard privacy** — `is_public` toggle on profile; non-public users hidden from leaderboard table (own rank always shown)
+
+### Future / Deferred
+
+- **Event RSVP** — Members mark "I'm going" on calendar events; officers see headcount; email reminder 24h before. Needs `event_rsvp` table `(user_id, event_id, created_at)`.
+- **Geolocation check-in (TopHat-style)** — Per-event optional setting. Add `latitude`, `longitude`, `checkin_radius_m` (default 400m), `require_location BOOLEAN` to events table. `POST /events/checkin` accepts optional `{ lat, lon }` and validates proximity via Haversine formula. Requires HTTPS. 400m radius appropriate for UH campus buildings. Make it a toggle officers can enable/disable per event.
+- **Partner Role & Portal** — 5th user role (`partner`) for external orgs collaborating on events. Event-scoped access via `event_partners` junction table `(event_id, user_id)`. Partner portal: assigned events list, live attendee list, check-in tool, post-event attendance stats. Partners see no member billing or internal data.
+- **Admin Dashboard** — User search, manual point adjustment, membership management. Build after role-gated UI foundation is in place.
+- **Microsoft / Outlook OAuth (CougarNet)** — UH students use `@cougarnet.uh.edu` (Microsoft). Add `POST /auth/microsoft` using `msal` Python library (Azure AD / Microsoft Entra ID). Bonus: auto-verify `email_verified_at` for `@cougarnet.uh.edu` / `@uh.edu` domains.
+- **Discord OAuth** — Model after `POST /auth/google`. Add Discord OAuth button to Login/Register/Profile tab.
+- **Event Archive** — Searchable public archive of past events (filterable by type/semester/date). Each entry: name, description, date, attendance count, attached resources.
+- **Projects Archive** — Officer/member project showcase. Fields: title, description, contributors, semester, tech stack tags, GitHub/demo link, cover image. Officers submit; webmaster/admin approves. Public-facing page. Needs `projects` table + `project_contributors` junction.
+- **Club Resource Library** — Members-only library of workshop slides, code repos, and notes linked to past events. Add `resource_url` to events; integrate with Projects Archive.
+- **Weekly Email Digest** — Cron job (Sunday) sends each member: points earned this week, rank change, upcoming events. Uses existing SMTP mailer.
+- **PWA Support** — `manifest.json` + service worker in Vite build. Enables "Add to Home Screen" on mobile, especially useful for event check-in.
+- **Achievement Badges** — Milestone badges derived from points/attendance queries (no new DB table). `GET /dashboard/badges` endpoint. Examples: First Check-in, Workshop Regular (5 workshops), Top 10 Leaderboard, Semester Veteran.
+- **Points Redemption / Merch Shop** — Spend points on club merchandise. Needs inventory table and officer fulfillment flow.
+- **Event Attendance Certificate** — Auto-generate PDF/image for attending milestone number of workshops. Good for member resumes.
+- **CougarAI Analytics Platform** — Separate side project: nightly export from Postgres → DuckDB/BigQuery, dbt models, Metabase/Grafana dashboard for officers. Good club project showcase item.
+
+### Housekeeping
+
+- **Officer photos** — Most officers in `officers.ts` reference real photos in `frontend/public/officerHeadshots/`. A few still fall back to `/officer_photo_blank.png`. LinkedIn URLs partially filled in; remaining ones use placeholder `https://linkedin.com`.
+- **LinkedIn URL** — Confirm final LinkedIn URL; currently `https://www.linkedin.com/company/cougar-ai`.

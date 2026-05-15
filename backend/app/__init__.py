@@ -3,9 +3,12 @@ from flask import Flask, request
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 db = SQLAlchemy()
 jwt = JWTManager()
+limiter = Limiter(key_func=get_remote_address, default_limits=["300/day", "60/hour"])
 
 def create_app(config_class='config.DevelopmentConfig'):
     app = Flask(__name__)
@@ -42,6 +45,7 @@ def create_app(config_class='config.DevelopmentConfig'):
     app.config["JWT_SECRET_KEY"] = app.config["JWT_ACCESS_SECRET"]  # access token secret
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = app.config["ACCESS_EXPIRES"]
     jwt.init_app(app)
+    limiter.init_app(app)
 
     # Register blueprints with more specific error handling
     try:

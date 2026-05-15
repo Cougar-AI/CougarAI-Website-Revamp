@@ -1,6 +1,9 @@
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Navigation, Autoplay } from 'swiper/modules'
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore — swiper v11 CSS exports lack TS declarations
 import 'swiper/css'
+// @ts-ignore
 import 'swiper/css/navigation'
 import './Slideshow.css'
 

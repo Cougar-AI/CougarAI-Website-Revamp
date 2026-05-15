@@ -1,4 +1,5 @@
 from app.imports import *
+from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 import traceback  # at the top
 
 
@@ -38,28 +39,93 @@ def deletePoints(points_id):
         return jsonify({"error": "Failed to delete point", "error": str(e)}), 500
     
 
-@points_bp.route("/leaderboard", methods=["GET"])
+@points_bp.route("/leaderboard", methods=["GET", "OPTIONS"])
 def getLeaderboard():
+    if request.method == "OPTIONS":
+        return "", 200
+    # Resolve optional caller identity
+    caller_user_id = None
+    try:
+        verify_jwt_in_request(optional=True)
+        identity = get_jwt_identity()
+        caller_user_id = int(identity) if identity else None
+    except Exception:
+        pass
+
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+    limit = request.args.get("limit", 100, type=int)
+    offset = request.args.get("offset", 0, type=int)
+
+    date_filter = ""
+    date_params = []
+    if start_date:
+        date_filter += " AND points.date >= %s"
+        date_params.append(start_date)
+    if end_date:
+        date_filter += " AND points.date <= %s"
+        date_params.append(end_date)
+
     connection = connect()
     with connection.cursor() as cur:
-
-        filter_dict = {
-            "date": request.args.get("date"),
-            "event_id": request.args.get("event_id", type=int),
-            "start_date": request.args.get("start_date"),
-            "end_date": request.args.get("end_date"),
-            "limit": request.args.get("limit", type=int),
-            "offset": request.args.get("offset", type=int)
-        }
-
-        query, params = build_sql_querys("SELECT profile.student_id, SUM(points.points) as total_points, profile.first_name, profile.last_name FROM points JOIN profile on profile.student_id = points.student_id", filter_dict, 
-                                         date_column="points.date", 
-                                         order_by="total_points",
-                                         group_by=["profile.student_id", "profile.first_name", "profile.last_name"])
-
-        cur.execute(query, tuple(params))
+        # Public leaderboard — only is_public profiles
+        cur.execute(
+            f"""
+            SELECT profile.student_id,
+                   profile.first_name,
+                   profile.last_name,
+                   profile.avatar_url,
+                   SUM(points.points) AS total_points
+            FROM points
+            JOIN profile ON profile.student_id = points.student_id
+            WHERE profile.is_public = TRUE {date_filter}
+            GROUP BY profile.student_id, profile.first_name, profile.last_name, profile.avatar_url
+            ORDER BY total_points DESC
+            LIMIT %s OFFSET %s
+            """,
+            tuple(date_params + [limit, offset]),
+        )
         results = cur.fetchall()
-        return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
+
+        # Caller's own rank (always returned, even if private)
+        my_rank = None
+        my_total = None
+        if caller_user_id:
+            cur.execute(
+                "SELECT student_id FROM profile WHERE user_id = %s", (caller_user_id,)
+            )
+            profile_row = cur.fetchone()
+            if profile_row:
+                sid = profile_row["student_id"]
+                cur.execute(
+                    f"""
+                    SELECT SUM(points) AS total FROM points
+                    WHERE student_id = %s {date_filter}
+                    """,
+                    tuple([sid] + date_params),
+                )
+                total_row = cur.fetchone()
+                my_total = int(total_row["total"] or 0) if total_row else 0
+
+                cur.execute(
+                    f"""
+                    SELECT COUNT(*) + 1 AS rank FROM (
+                        SELECT student_id, SUM(points) AS pts
+                        FROM points {("WHERE date >= %s" if start_date else "")}
+                        {("AND date <= %s" if end_date else "")}
+                        GROUP BY student_id
+                    ) sub WHERE sub.pts > %s
+                    """,
+                    tuple(date_params + [my_total]),
+                )
+                rank_row = cur.fetchone()
+                my_rank = rank_row["rank"] if rank_row else None
+
+    return jsonify({
+        "leaderboard": results,
+        "my_rank": my_rank,
+        "my_total": my_total,
+    }), 200
 
 
 @points_bp.route("/add/<int:student_id>", methods=["POST"])
@@ -244,9 +310,32 @@ def getEventType():
         }
 
         base_query = "SELECT * FROM event_type_points"
-        
 
         query, params = build_sql_querys(base_query, filter_dict)
         cur.execute(query, tuple(params))
         results = cur.fetchall()
         return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)
+
+
+# ---------------------------------------------------------------------------
+# GET /points/streak-leaderboard
+# ---------------------------------------------------------------------------
+
+@points_bp.route("/streak-leaderboard", methods=["GET", "OPTIONS"])
+def getStreakLeaderboard():
+    if request.method == "OPTIONS":
+        return "", 200
+    connection = connect()
+    with connection.cursor() as cur:
+        cur.execute(
+            """
+            SELECT first_name, last_name, current_streak, max_streak,
+                   student_id
+            FROM profile
+            WHERE is_public = TRUE
+            ORDER BY current_streak DESC, max_streak DESC
+            LIMIT 100
+            """
+        )
+        results = cur.fetchall()
+    return (jsonify(results), 200) if results else (jsonify({"error": "No streak data found"}), 404)

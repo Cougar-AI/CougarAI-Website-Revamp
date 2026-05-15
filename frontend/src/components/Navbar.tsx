@@ -5,8 +5,14 @@ const link = 'hover:text-gray-300'
 const active = 'underline underline-offset-8'
 import { cn } from '../lib/utils.ts'
 import { clearAuthSession, consumeAuthNotice, getStoredUser, setAuthNotice, subscribeToAuthChanges } from '@/lib/auth';
+import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api';
+import type { MeResponse } from '@/pages/Dashboard';
 
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? '';
+const BACKEND = import.meta.env?.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+
+const OFFICER_ROLES = new Set(['officer', 'webmaster', 'admin']);
 
 const Navbar: React.FC = () => {
     const navigate = useNavigate();
@@ -34,6 +40,13 @@ const Navbar: React.FC = () => {
         return () => window.clearTimeout(timeout);
     }, [notice]);
 
+    const { data: navMe } = useQuery<MeResponse>({
+        queryKey: ['dashboard-me'],
+        queryFn: () => apiGet<MeResponse>('/dashboard/me'),
+        enabled: isAuthenticated,
+        staleTime: 60_000,
+    });
+
     async function handleLogout() {
         try {
             await fetch(`${API_BASE}/auth/logout`, {
@@ -49,6 +62,9 @@ const Navbar: React.FC = () => {
             navigate('/', { replace: true });
         }
     }
+
+    const avatarUrl = navMe?.profile?.avatar_url ? `${BACKEND}${navMe.profile.avatar_url}` : null;
+    const isOfficer = user?.role && OFFICER_ROLES.has(user.role);
 
     return (
         <>
@@ -71,9 +87,25 @@ const Navbar: React.FC = () => {
                 <NavLink to="/sponsors" className={({isActive}) => cn(link, isActive && active)}>Sponsors</NavLink>
                 {isAuthenticated ? (
                     <>
-                        <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm text-white/95">
-                            {user?.email}
-                        </span>
+                        <NavLink to="/dashboard" className={({isActive}) => cn(link, isActive && active)}>Dashboard</NavLink>
+                        {isOfficer && (
+                            <NavLink to="/officer" className={({isActive}) => cn(link, isActive && active)}>Officer</NavLink>
+                        )}
+                        <div className="flex items-center gap-2">
+                            {avatarUrl ? (
+                                <NavLink to="/dashboard">
+                                    <img
+                                        src={avatarUrl}
+                                        alt="Avatar"
+                                        className="h-8 w-8 rounded-full object-cover ring-2 ring-white/20"
+                                    />
+                                </NavLink>
+                            ) : (
+                                <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-sm text-white/95">
+                                    {user?.email}
+                                </span>
+                            )}
+                        </div>
                         <button
                             type="button"
                             onClick={handleLogout}

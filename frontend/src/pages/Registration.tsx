@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { persistAuthSession } from "@/lib/auth";
 import logo from "../assets/logo.png";
 
@@ -20,7 +20,7 @@ export type RegistrationProps = {
 
 type RegisterOk = { ok: true };
 type FieldErrors = { field_errors?: { email?: string[]; password?: string[] } };
-type GoogleAuthOk = { access_token: string; user: { user_id: number; email: string } };
+type GoogleAuthOk = { access_token: string; user: { user_id: number; email: string; role?: string; onboarding_completed?: boolean } };
 
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
@@ -71,6 +71,7 @@ export default function Registration({
   oauthSlot,
 }: RegistrationProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -176,7 +177,8 @@ export default function Registration({
         );
 
         persistAuthSession(data.access_token, data.user, true);
-        navigate("/auth/success", { replace: true });
+        const from = (location.state as any)?.from as string | undefined;
+        navigate(from && from !== "/register" ? from : "/", { replace: true });
       } catch (err: any) {
         const status = err?.status as number | undefined;
         if (status === 401) {

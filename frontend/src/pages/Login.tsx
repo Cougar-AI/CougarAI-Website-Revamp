@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { persistAuthSession } from "@/lib/auth";
 import logo from "../assets/logo.png";
 
@@ -11,7 +11,7 @@ export type LoginProps = {
   oauthSlot?: React.ReactNode;
 };
 
-type LoginOk = { access_token: string; user: { user_id: number; email: string } };
+type LoginOk = { access_token: string; user: { user_id: number; email: string; role?: string; onboarding_completed?: boolean } };
 type ResendOk = { ok: boolean };
 type GoogleLoginPayload = LoginOk;
 
@@ -59,6 +59,7 @@ async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise
 
 export default function Login({ onSubmit, loading: loadingProp, error: errorProp, oauthSlot }: LoginProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
@@ -113,7 +114,8 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
         );
 
         persistAuthSession(data.access_token, data.user, remember);
-        navigate("/auth/success", { replace: true });
+        const from = (location.state as any)?.from as string | undefined;
+        navigate(from && from !== "/login" ? from : "/", { replace: true });
       } catch (err: any) {
         const status = err?.status as number | undefined;
         if (status === 401) {
@@ -212,7 +214,8 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
       );
       persistAuthSession(data.access_token, data.user, remember);
       setLocalError(null);
-      navigate("/auth/success", { replace: true });
+      const from = (location.state as any)?.from as string | undefined;
+      navigate(from && from !== "/login" ? from : "/", { replace: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
       if (status === 401) {

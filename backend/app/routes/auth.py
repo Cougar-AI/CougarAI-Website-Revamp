@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
 
 from flask import Blueprint, request, jsonify, current_app, make_response
+from app import limiter
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from flask_jwt_extended import create_access_token
@@ -158,7 +159,7 @@ def _send_reset_email(user_id: int, email: str):
     """
     send_email(email, subject, text_body, html_body)
 
-def _build_auth_response(user_id: int, email: str):
+def _build_auth_response(user_id: int, email: str, role: str = "member", onboarding_completed: bool = False):
     access_jwt = _issue_access_jwt(user_id, email)
     refresh_token, _, expires_at = _issue_refresh_jwt_and_persist(user_id)
 
@@ -167,7 +168,7 @@ def _build_auth_response(user_id: int, email: str):
 
     resp = make_response(jsonify({
         "access_token": access_jwt,
-        "user": {"user_id": user_id, "email": email},
+        "user": {"user_id": user_id, "email": email, "role": role, "onboarding_completed": onboarding_completed},
     }), 201)
     _set_refresh_cookie(resp, refresh_token, expires_at)
     return resp
@@ -175,6 +176,7 @@ def _build_auth_response(user_id: int, email: str):
 # --------------------- Existing: Register & Verify ---------------------
 
 @auth_bp.post("/register")
+@limiter.limit("5/minute")
 def register():
     """
     Body: { "email": "...", "password": "..." }
@@ -270,6 +272,7 @@ def verify_email():
 # --------------------- New: Login / Resend / Forgot / Reset / Refresh / Logout ---------------------
 
 @auth_bp.post("/login")
+@limiter.limit("10/minute")
 def login():
     """
     Body: { "email": "user@example.com", "password": "Secret@123" }
@@ -290,7 +293,7 @@ def login():
     with db.engine.begin() as conn:
         user = conn.execute(
             text("""
-                SELECT user_id, email, password_hash, email_verified_at, is_active
+                SELECT user_id, email, password_hash, email_verified_at, is_active, role, onboarding_completed_at
                 FROM users WHERE email = :email
             """),
             {"email": email}
@@ -303,7 +306,11 @@ def login():
     if user["email_verified_at"] is None or not user["is_active"]:
         return jsonify({"error": "invalid_credentials"}), 401
 
-    return _build_auth_response(user["user_id"], user["email"])
+    return _build_auth_response(
+        user["user_id"], user["email"],
+        role=user["role"] or "member",
+        onboarding_completed=user["onboarding_completed_at"] is not None,
+    )
 
 
 @auth_bp.post("/google")
@@ -341,7 +348,7 @@ def google_login():
         with db.engine.begin() as conn:
             user = conn.execute(
                 text("""
-                    SELECT user_id, email, email_verified_at, is_active
+                    SELECT user_id, email, email_verified_at, is_active, role, onboarding_completed_at
                     FROM users
                     WHERE email = :email
                 """),
@@ -356,7 +363,7 @@ def google_login():
                     text("""
                         INSERT INTO users (email, email_verified_at)
                         VALUES (:email, NOW())
-                        RETURNING user_id, email, email_verified_at, is_active
+                        RETURNING user_id, email, email_verified_at, is_active, role, onboarding_completed_at
                     """),
                     {"email": email}
                 ).mappings().first()
@@ -366,13 +373,18 @@ def google_login():
                     {"uid": user["user_id"]}
                 )
 
-        return _build_auth_response(user["user_id"], user["email"])
+        return _build_auth_response(
+            user["user_id"], user["email"],
+            role=user["role"] or "member",
+            onboarding_completed=user["onboarding_completed_at"] is not None,
+        )
     except SQLAlchemyError:
         current_app.logger.exception("Google OAuth database failure for %s", email)
         return jsonify({"error": "database_unavailable"}), 503
 
 
 @auth_bp.post("/resend-verification")
+@limiter.limit("3/minute")
 def resend_verification():
     """
     Body: { "email": "user@example.com" }
@@ -401,6 +413,7 @@ def resend_verification():
 
 
 @auth_bp.post("/forgot-password")
+@limiter.limit("5/minute")
 def forgot_password():
     """
     Body: { "email": "user@example.com" }
@@ -428,6 +441,7 @@ def forgot_password():
 
 
 @auth_bp.post("/reset-password")
+@limiter.limit("5/minute")
 def reset_password():
     """
     Body: { "token": "<reset_jwt>", "password": "<new-password>" }
