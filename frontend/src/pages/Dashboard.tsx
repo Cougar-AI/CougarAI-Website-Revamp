@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
+import { Megaphone, X } from "lucide-react";
 import { DashboardShell, type DashboardTab } from "@/components/dashboard/DashboardShell";
 import ProfileTab from "@/components/dashboard/ProfileTab";
 import MembershipTab from "@/components/dashboard/MembershipTab";
@@ -55,6 +57,51 @@ function Skeleton() {
   );
 }
 
+interface PinnedAnnouncement {
+  id: number;
+  message: string;
+  created_at: string;
+  expires_at: string | null;
+}
+
+function AnnouncementBanner() {
+  const { data } = useQuery<{ announcement: PinnedAnnouncement | null }>({
+    queryKey: ["pinned-announcement"],
+    queryFn: () => apiGet("/announcements/pinned"),
+    staleTime: 120_000,
+  });
+
+  const ann = data?.announcement;
+  const dismissKey = ann ? `ann-dismissed-${ann.id}` : null;
+  const [dismissed, setDismissed] = useState(() =>
+    dismissKey ? sessionStorage.getItem(dismissKey) === "1" : false
+  );
+
+  if (!ann || dismissed) return null;
+
+  function dismiss() {
+    if (dismissKey) sessionStorage.setItem(dismissKey, "1");
+    setDismissed(true);
+  }
+
+  return (
+    <div
+      className="flex items-start gap-3 rounded-xl px-4 py-3 mb-4"
+      style={{
+        background: 'linear-gradient(135deg, rgba(180,83,9,.18) 0%, rgba(217,119,6,.12) 100%)',
+        border: '1px solid rgba(251,191,36,.25)',
+        backdropFilter: 'blur(10px)',
+      }}
+    >
+      <Megaphone size={16} className="shrink-0 mt-0.5" style={{ color: 'rgba(251,191,36,.9)' }} />
+      <p className="flex-1 text-sm" style={{ color: 'rgba(251,191,36,.85)' }}>{ann.message}</p>
+      <button onClick={dismiss} className="shrink-0 transition-opacity hover:opacity-70" style={{ color: 'rgba(251,191,36,.6)' }}>
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tab = (searchParams.get("tab") as DashboardTab) ?? "profile";
@@ -77,6 +124,7 @@ export default function Dashboard() {
 
   return (
     <DashboardShell activeTab={tab} onTabChange={setTab} meData={meData}>
+      <AnnouncementBanner />
       {isLoading ? (
         <Skeleton />
       ) : (

@@ -3,12 +3,23 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from typing import Optional
 from datetime import date as date_type
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app import limiter
+
+_MUTATE_ROLES = {"officer", "admin"}
+_ADMIN_ROLES = {"admin"}
+
+
+def _check_role(allowed: set) -> tuple | None:
+    """Return 403 tuple if caller's role is not in allowed, else None."""
+    claims = get_jwt()
+    if claims.get("role") not in allowed:
+        return jsonify({"error": "Insufficient role"}), 403
+    return None
 
 events_bp = Blueprint('events', __name__)
 
-_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+_CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 def _resolve_creds_path(env_var: str) -> Optional[str]:
     path = os.getenv(env_var)
@@ -17,6 +28,21 @@ def _resolve_creds_path(env_var: str) -> Optional[str]:
     if os.path.isabs(path):
         return path
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", path))
+
+def _get_calendar_service():
+    creds_path = _resolve_creds_path("GOOGLE_CALENDAR_CREDS_PATH")
+    if not creds_path:
+        raise RuntimeError("GOOGLE_CALENDAR_CREDS_PATH is not configured")
+    creds = service_account.Credentials.from_service_account_file(creds_path, scopes=_CALENDAR_SCOPES)
+    return build("calendar", "v3", credentials=creds)
+
+def _to_rfc3339(dt_str: str) -> str:
+    """Convert a naive ISO datetime string to RFC3339 with UTC timezone."""
+    from datetime import timezone
+    dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 @events_bp.route("/google", methods=["GET"])
 def getGoogleCalendarEvents():
@@ -69,7 +95,11 @@ def getEvents():
             "location": request.args.get("location"),
         }
 
-        query, params = build_sql_querys("SELECT * FROM events", filter_dict, date_column="starts_at")
+        query, params = build_sql_querys(
+            "SELECT event_id, name, event_type, description, location, location_url, starts_at, ends_at, "
+            "capacity, check_in_code, check_in_enabled, check_in_expires_at, points_value, google_event_id FROM events",
+            filter_dict, date_column="starts_at"
+        )
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
@@ -77,8 +107,14 @@ def getEvents():
 
        
 
-@events_bp.route("/<int:event_id>", methods=["DELETE"]) 
+@events_bp.route("/<int:event_id>", methods=["DELETE", "OPTIONS"])
+@jwt_required()
 def deleteEvent(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_ADMIN_ROLES)
+    if err:
+        return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -91,8 +127,14 @@ def deleteEvent(event_id):
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@events_bp.route("/", methods=["POST"])
+@events_bp.route("/", methods=["POST", "OPTIONS"])
+@jwt_required()
 def addEvent():
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -102,9 +144,13 @@ def addEvent():
                 "event_type": request.json.get("event_type"),
                 "description": request.json.get("description"),
                 "location": request.json.get("location"),
+                "location_url": request.json.get("location_url"),
                 "starts_at": request.json.get("starts_at"),
                 "ends_at": request.json.get("ends_at"),
-                "capacity": request.json.get("capacity")
+                "capacity": request.json.get("capacity"),
+                "check_in_enabled": request.json.get("check_in_enabled"),
+                "check_in_expires_at": request.json.get("check_in_expires_at"),
+                "points_value": request.json.get("points_value"),
             }
             if filter_dict["starts_at"] is None or filter_dict["event_type"] is None or filter_dict["name"] is None:
                 return jsonify({"error": "name, starts_at and event_type are required"}), 400
@@ -121,8 +167,14 @@ def addEvent():
         connection.rollback()
         return jsonify({"error": str(e)}), 500
     
-@events_bp.route("/attendance", methods=["GET"]) 
+@events_bp.route("/attendance", methods=["GET", "OPTIONS"])
+@jwt_required()
 def getAttendance():
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -166,8 +218,14 @@ def getAttendance():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     
-@events_bp.route("/<int:event_id>", methods=["PATCH"])
+@events_bp.route("/<int:event_id>", methods=["PATCH", "OPTIONS"])
+@jwt_required()
 def updateEvent(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -179,6 +237,10 @@ def updateEvent(event_id):
                 "ends_at": request.json.get("ends_at"),
                 "description": request.json.get("description"),
                 "location": request.json.get("location"),
+                "location_url": request.json.get("location_url"),
+                "check_in_enabled": request.json.get("check_in_enabled"),
+                "check_in_expires_at": request.json.get("check_in_expires_at"),
+                "points_value": request.json.get("points_value"),
             }
 
             if filter_dict["starts_at"] and not is_valid_date(filter_dict["starts_at"]):
@@ -317,7 +379,7 @@ def member_checkin():
 # POST /events/officer-checkin  — officer manual check-in by student_id
 # ---------------------------------------------------------------------------
 
-OFFICER_ROLES = {"officer", "webmaster", "admin"}
+OFFICER_ROLES = {"officer", "admin"}
 
 @events_bp.route("/officer-checkin", methods=["POST", "OPTIONS"])
 @jwt_required()
@@ -360,7 +422,7 @@ def officer_checkin():
                 (student_id,),
             )
 
-        # Duplicate check
+        # Duplicate check (check both tables)
         cur.execute(
             "SELECT points_id FROM points WHERE student_id = %s AND event_id = %s",
             (student_id, event_id),
@@ -373,6 +435,15 @@ def officer_checkin():
             "INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)",
             (student_id, event_id, event["points_value"], today),
         )
+        # Also record in event_checkins so attendance counts are accurate
+        cur.execute(
+            """
+            INSERT INTO event_checkins (event_id, student_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
+            """,
+            (event_id, student_id),
+        )
         _update_streak(cur, student_id, today)
         conn.commit()
 
@@ -381,4 +452,183 @@ def officer_checkin():
         "event_name": event["name"],
         "points_awarded": event["points_value"],
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /events/<id>/sync-to-google  — create or update event in Google Calendar
+# ---------------------------------------------------------------------------
+
+@events_bp.route("/<int:event_id>/sync-to-google", methods=["POST", "OPTIONS"])
+@jwt_required()
+def sync_to_google(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT name, description, location, starts_at, ends_at, google_event_id FROM events WHERE event_id = %s",
+            (event_id,),
+        )
+        ev = cur.fetchone()
+        if not ev:
+            return jsonify({"error": "Event not found"}), 404
+
+    try:
+        service = _get_calendar_service()
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+
+        starts_at = _to_rfc3339(str(ev["starts_at"]))
+        ends_at = _to_rfc3339(str(ev["ends_at"])) if ev["ends_at"] else None
+        if not ends_at:
+            # Default to 1 hour after start
+            from datetime import timedelta
+            start_dt = datetime.fromisoformat(str(ev["starts_at"]))
+            ends_at = (start_dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        body = {
+            "summary": ev["name"],
+            "description": ev["description"] or "",
+            "location": ev["location"] or "",
+            "start": {"dateTime": starts_at, "timeZone": "America/Chicago"},
+            "end": {"dateTime": ends_at, "timeZone": "America/Chicago"},
+        }
+
+        existing_google_id = ev["google_event_id"]
+        if existing_google_id:
+            result = service.events().patch(
+                calendarId=calendar_id, eventId=existing_google_id, body=body
+            ).execute()
+        else:
+            result = service.events().insert(calendarId=calendar_id, body=body).execute()
+
+        google_event_id = result["id"]
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE events SET google_event_id = %s WHERE event_id = %s",
+                (google_event_id, event_id),
+            )
+            conn.commit()
+
+        return jsonify({"google_event_id": google_event_id}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# DELETE /events/<id>/sync-to-google  — remove event from Google Calendar
+# ---------------------------------------------------------------------------
+
+@events_bp.route("/<int:event_id>/sync-to-google", methods=["DELETE"])
+@jwt_required()
+def remove_from_google(event_id):
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute("SELECT google_event_id FROM events WHERE event_id = %s", (event_id,))
+        ev = cur.fetchone()
+        if not ev:
+            return jsonify({"error": "Event not found"}), 404
+
+        google_event_id = ev["google_event_id"]
+        if not google_event_id:
+            return jsonify({"error": "Event is not synced to Google Calendar"}), 400
+
+    try:
+        service = _get_calendar_service()
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+        service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
+    except Exception:
+        pass  # If Google delete fails, still clear locally
+
+    with conn.cursor() as cur:
+        cur.execute("UPDATE events SET google_event_id = NULL WHERE event_id = %s", (event_id,))
+        conn.commit()
+
+    return jsonify({"ok": True}), 200
+
+
+# ---------------------------------------------------------------------------
+# Event partner tagging  — GET/POST/DELETE /events/<id>/partners
+# ---------------------------------------------------------------------------
+
+@events_bp.route("/<int:event_id>/partners", methods=["GET", "OPTIONS"])
+@jwt_required()
+def get_event_partners(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT p.partner_id, p.name, p.type, p.logo_url, ep.role
+            FROM event_partners ep
+            JOIN partners p ON ep.partner_id = p.partner_id
+            WHERE ep.event_id = %s
+            ORDER BY p.name
+            """,
+            (event_id,),
+        )
+        rows = cur.fetchall()
+
+    return jsonify({"partners": [dict(r) for r in rows]}), 200
+
+
+@events_bp.route("/<int:event_id>/partners", methods=["POST"])
+@jwt_required()
+def add_event_partner(event_id):
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    partner_id = data.get("partner_id")
+    role = data.get("role", "collaborator")
+
+    if not partner_id:
+        return jsonify({"error": "partner_id is required"}), 400
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO event_partners (event_id, partner_id, role)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (event_id, partner_id) DO UPDATE SET role = EXCLUDED.role
+            """,
+            (event_id, partner_id, role),
+        )
+        conn.commit()
+
+    return jsonify({"ok": True}), 201
+
+
+@events_bp.route("/<int:event_id>/partners/<int:partner_id>", methods=["DELETE", "OPTIONS"])
+@jwt_required()
+def remove_event_partner(event_id, partner_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM event_partners WHERE event_id = %s AND partner_id = %s",
+            (event_id, partner_id),
+        )
+        conn.commit()
+
+    return jsonify({"ok": True}), 200
 

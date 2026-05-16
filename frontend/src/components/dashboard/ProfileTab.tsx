@@ -195,12 +195,39 @@ function ProfileEditor({ meData, onRefresh }: { meData: MeResponse; onRefresh: (
       </div>
 
       <form onSubmit={handleSave} className="space-y-4">
+        {/* Read-only account email + student ID */}
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: "Account email", value: meData.email },
+            { label: "Student ID", value: profile.student_id || "—" },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <label className="mb-1 block text-sm font-medium text-white/80">{label}</label>
+              <div
+                className="flex items-center gap-2 rounded-xl px-3 py-2"
+                style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}
+              >
+                <span className="flex-1 truncate text-sm text-white/40">{value}</span>
+                <span className="text-xs text-white/20">🔒</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="-mt-2 text-xs text-white/25">Contact an admin to change these.</p>
+
+        {/* Preferred email (editable — used for notifications) */}
+        <Field
+          label="Preferred email"
+          value={form.preferred_email}
+          onChange={(v) => setForm({ ...form, preferred_email: v })}
+          placeholder="jane@example.com"
+          type="email"
+        />
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="First name" value={form.first_name} onChange={(v) => setForm({ ...form, first_name: v })} placeholder="Jane" />
           <Field label="Last name" value={form.last_name} onChange={(v) => setForm({ ...form, last_name: v })} placeholder="Smith" />
         </div>
-
-        <Field label="Preferred email" value={form.preferred_email} onChange={(v) => setForm({ ...form, preferred_email: v })} placeholder="jane@example.com" type="email" />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -338,13 +365,13 @@ function ToggleRow({
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className="relative mt-0.5 h-6 w-11 flex-shrink-0 rounded-full transition-colors"
+        className="relative mt-0.5 h-6 w-11 flex-shrink-0 overflow-hidden rounded-full transition-colors"
         style={{ background: checked ? "#b91c1c" : "rgba(255,255,255,.15)" }}
         role="switch"
         aria-checked={checked}
       >
         <span
-          className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
+          className="absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
           style={{ transform: checked ? "translateX(22px)" : "translateX(2px)" }}
         />
       </button>

@@ -1,10 +1,10 @@
 # config.py
 from datetime import timedelta
 import os
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 
 # Load .env if present, but don't overwrite process env
-load_dotenv(find_dotenv(), override=False)
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"), override=False)
 
 def _build_uri():
     """
@@ -53,7 +53,7 @@ class BaseConfig:
     RESET_EXPIRES   = timedelta(minutes=30)
     
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    FRONTEND_URLS = _split_origins(os.getenv("FRONTEND_URLS", FRONTEND_URL))
+    FRONTEND_URLS = _split_origins(os.getenv("FRONTEND_URLS", "")) or None
     _stripe_mode = os.getenv("STRIPE_MODE", "test").strip().lower()
     STRIPE_SECRET_KEY = (
         os.getenv("STRIPE_TEST_SECRET_KEY")

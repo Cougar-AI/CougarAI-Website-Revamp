@@ -79,10 +79,8 @@ def _clear_refresh_cookie(resp):
     )
     return resp
 
-def _issue_access_jwt(user_id: int, email: str) -> str:
-    # Flask-JWT-Extended access token with correct claims
-    claims = {"typ": "access", "sub": str(user_id)}
-    # create_access_token will add jti, iat, exp automatically
+def _issue_access_jwt(user_id: int, email: str, role: str = "non-member") -> str:
+    claims = {"typ": "access", "sub": str(user_id), "role": role}
     token = create_access_token(identity=str(user_id), additional_claims=claims)
     return token
 
@@ -163,7 +161,7 @@ def _send_reset_email(user_id: int, email: str):
     send_email(email, subject, text_body, html_body)
 
 def _build_auth_response(user_id: int, email: str, role: str = "member", onboarding_completed: bool = False):
-    access_jwt = _issue_access_jwt(user_id, email)
+    access_jwt = _issue_access_jwt(user_id, email, role)
     refresh_token, _, expires_at = _issue_refresh_jwt_and_persist(user_id)
 
     with db.engine.begin() as conn:
@@ -416,7 +414,7 @@ def login():
     return _build_auth_response(user["user_id"], user["email"])
 
 
-@auth_bp.post("/google")
+@auth_bp.route("/google", methods=["POST", "OPTIONS"])
 def google_login():
     """
     Body: { "credential": "<google_id_token>" }
@@ -425,6 +423,8 @@ def google_login():
       401 invalid credentials/token
       503 Google OAuth not configured
     """
+    if request.method == "OPTIONS":
+        return "", 200
     data = request.get_json(silent=True) or {}
     credential = (data.get("credential") or "").strip()
     if not credential:
@@ -733,14 +733,16 @@ def refresh():
     # Issue new refresh row & access token
     new_refresh, new_jti, new_expires = _issue_refresh_jwt_and_persist(user_id)
 
-    # Access token
-    # Fetch email for returned access claims (optional)
     with db.engine.begin() as conn:
         user = conn.execute(
-            text("SELECT email FROM users WHERE user_id = :uid"),
+            text("SELECT email, role FROM users WHERE user_id = :uid"),
             {"uid": user_id}
         ).mappings().first()
-    access_jwt = _issue_access_jwt(user_id, user["email"] if user else "")
+    access_jwt = _issue_access_jwt(
+        user_id,
+        user["email"] if user else "",
+        user["role"] if user else "non-member",
+    )
 
     resp = make_response(jsonify({"access_token": access_jwt}), 200)
     _set_refresh_cookie(resp, new_refresh, new_expires)

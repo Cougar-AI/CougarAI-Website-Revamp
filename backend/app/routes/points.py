@@ -75,11 +75,14 @@ def getLeaderboard():
                    profile.first_name,
                    profile.last_name,
                    profile.avatar_url,
+                   profile.current_streak,
+                   profile.max_streak,
                    SUM(points.points) AS total_points
             FROM points
             JOIN profile ON profile.student_id = points.student_id
             WHERE profile.is_public = TRUE {date_filter}
-            GROUP BY profile.student_id, profile.first_name, profile.last_name, profile.avatar_url
+            GROUP BY profile.student_id, profile.first_name, profile.last_name,
+                     profile.avatar_url, profile.current_streak, profile.max_streak
             ORDER BY total_points DESC
             LIMIT %s OFFSET %s
             """,
@@ -122,9 +125,9 @@ def getLeaderboard():
                 my_rank = rank_row["rank"] if rank_row else None
 
     return jsonify({
-        "leaderboard": results,
-        "my_rank": my_rank,
-        "my_total": my_total,
+        "entries": results,
+        "caller_rank": my_rank,
+        "caller_total": my_total,
     }), 200
 
 

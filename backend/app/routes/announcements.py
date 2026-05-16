@@ -3,6 +3,7 @@ from app.utils.query_handler import build_sql_querys
 from app.db import connect"""
 
 from app.imports import *
+from app.raw_db import connect as raw_connect
 
 announcements_bp = Blueprint('announcements', __name__)
 
@@ -108,3 +109,36 @@ def updateAnnouncement(announcement_id):
     except Exception as e:
         connections.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# GET /announcements/pinned  — public, no auth required
+# ---------------------------------------------------------------------------
+
+@announcements_bp.route("/announcements/pinned", methods=["GET", "OPTIONS"])
+def get_pinned_announcement_public():
+    if request.method == "OPTIONS":
+        return "", 200
+    conn = raw_connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, message, created_at, expires_at
+            FROM pinned_announcements
+            WHERE is_active = TRUE
+              AND (expires_at IS NULL OR expires_at > NOW())
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"announcement": None}), 200
+    return jsonify({
+        "announcement": {
+            "id": row["id"],
+            "message": row["message"],
+            "created_at": row["created_at"].isoformat(),
+            "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
+        }
+    }), 200

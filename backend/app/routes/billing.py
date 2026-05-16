@@ -214,6 +214,14 @@ def stripe_webhook():
                     """,
                     (student_id_val, email_val, amount, stripe_session_id, plan_id or None, expires_at),
                 )
+
+                # Upgrade non-member → member on successful payment (never downgrade officers/admins)
+                if user_id_str and user_id_str.isdigit():
+                    cur.execute(
+                        "UPDATE users SET role = 'member' WHERE user_id = %s AND role = 'non-member'",
+                        (int(user_id_str),),
+                    )
+
                 conn.commit()
         except Exception as e:
             current_app.logger.error("webhook handler error: %s", e)

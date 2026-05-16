@@ -17,6 +17,8 @@ interface LeaderboardEntry {
   last_name: string;
   avatar_url: string | null;
   total_points: number;
+  current_streak: number;
+  max_streak: number;
   is_public: boolean;
 }
 
@@ -36,6 +38,7 @@ interface StreakEntry {
 
 type Filter = "all" | "monthly" | "weekly";
 type SubTab = "points" | "streaks";
+type SortBy = "rank" | "name" | "points" | "streak";
 
 function getDateRange(filter: Filter): { start_date?: string; end_date?: string } {
   if (filter === "all") return {};
@@ -75,9 +78,19 @@ function Avatar({ url, name, size = 32 }: { url: string | null; name: string; si
   );
 }
 
+function sortEntries(entries: LeaderboardEntry[], sortBy: SortBy): LeaderboardEntry[] {
+  if (sortBy === "rank") return entries;
+  return [...entries].sort((a, b) => {
+    if (sortBy === "name") return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
+    if (sortBy === "streak") return b.current_streak - a.current_streak;
+    return b.total_points - a.total_points;
+  });
+}
+
 export default function LeaderboardTab({ meData }: Props) {
   const [subTab, setSubTab] = useState<SubTab>("points");
   const [filter, setFilter] = useState<Filter>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("rank");
 
   const dateRange = getDateRange(filter);
   const params = new URLSearchParams(
@@ -175,36 +188,61 @@ export default function LeaderboardTab({ meData }: Props) {
               <p className="text-sm text-white/30">No entries yet.</p>
             </div>
           ) : (
-            <div className="space-y-1">
-              {pointsData.entries.map((entry) => {
-                const isMe = meData?.profile?.student_id === entry.student_id;
-                const displayName = entry.is_public
-                  ? `${entry.first_name} ${entry.last_name}`
-                  : "Anonymous Member";
-
-                return (
-                  <div
-                    key={entry.student_id}
-                    className="flex items-center gap-3 rounded-xl px-4 py-2.5 transition"
+            <>
+              {/* Sortable column headers */}
+              <div className="mb-1 flex items-center gap-3 px-4">
+                <span className="w-6 flex-shrink-0" />
+                <span className="w-7 flex-shrink-0" />
+                {(["name", "streak", "points"] as const).map((col) => (
+                  <button
+                    key={col}
+                    onClick={() => setSortBy(col)}
+                    className="text-xs font-medium transition-colors"
                     style={{
-                      background: isMe ? "rgba(185,28,28,.08)" : "rgba(255,255,255,.02)",
-                      borderLeft: isMe ? "2px solid #b91c1c" : "2px solid transparent",
+                      color: sortBy === col ? "#fca5a5" : "rgba(255,255,255,.3)",
+                      flex: col === "name" ? 1 : undefined,
+                      textAlign: col === "name" ? "left" : "right",
+                      borderBottom: sortBy === col ? "1px solid rgba(252,165,165,.4)" : "none",
                     }}
                   >
-                    <span className="w-6 flex-shrink-0 text-center text-xs font-medium text-white/40">
-                      {entry.rank}
-                    </span>
-                    {entry.is_public && (
-                      <Avatar url={entry.avatar_url} name={displayName} size={28} />
-                    )}
-                    <span className="flex-1 truncate text-sm text-white/80">{displayName}</span>
-                    <span className="flex-shrink-0 font-['Oxanium'] text-sm font-semibold text-white">
-                      {entry.total_points}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                    {col === "streak" ? "Streak 🔥" : col.charAt(0).toUpperCase() + col.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <div className="space-y-1">
+                {sortEntries(pointsData.entries, sortBy).map((entry, i) => {
+                  const isMe = meData?.profile?.student_id === entry.student_id;
+                  const displayName = entry.is_public
+                    ? `${entry.first_name} ${entry.last_name}`
+                    : "Anonymous Member";
+
+                  return (
+                    <div
+                      key={entry.student_id}
+                      className="flex items-center gap-3 rounded-xl px-4 py-2.5 transition"
+                      style={{
+                        background: isMe ? "rgba(185,28,28,.08)" : "rgba(255,255,255,.02)",
+                        borderLeft: isMe ? "2px solid #b91c1c" : "2px solid transparent",
+                      }}
+                    >
+                      <span className="w-6 flex-shrink-0 text-center text-xs font-medium text-white/40">
+                        {sortBy === "rank" ? entry.rank : i + 1}
+                      </span>
+                      {entry.is_public && (
+                        <Avatar url={entry.avatar_url} name={displayName} size={28} />
+                      )}
+                      <span className="flex-1 truncate text-sm text-white/80">{displayName}</span>
+                      <span className="flex-shrink-0 text-xs text-white/40 font-['Oxanium']">
+                        {entry.current_streak}🔥
+                      </span>
+                      <span className="flex-shrink-0 font-['Oxanium'] text-sm font-semibold text-white">
+                        {entry.total_points}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </>
       )}

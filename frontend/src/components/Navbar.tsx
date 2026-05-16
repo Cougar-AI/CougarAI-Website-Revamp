@@ -12,7 +12,8 @@ import type { MeResponse } from '@/pages/Dashboard';
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? '';
 const BACKEND = import.meta.env?.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 
-const OFFICER_ROLES = new Set(['officer', 'webmaster', 'admin']);
+const ADMIN_ROLES = new Set(['admin']);
+const PARTNER_ROLES = new Set(['partner', 'admin']);
 
 const Navbar: React.FC = () => {
     const navigate = useNavigate();
@@ -64,7 +65,8 @@ const Navbar: React.FC = () => {
     }
 
     const avatarUrl = navMe?.profile?.avatar_url ? `${BACKEND}${navMe.profile.avatar_url}` : null;
-    const isOfficer = user?.role && OFFICER_ROLES.has(user.role);
+    const isAdmin = user?.role && ADMIN_ROLES.has(user.role);
+    const isPartner = user?.role && PARTNER_ROLES.has(user.role);
 
     return (
         <>
@@ -88,8 +90,11 @@ const Navbar: React.FC = () => {
                 {isAuthenticated ? (
                     <>
                         <NavLink to="/dashboard" className={({isActive}) => cn(link, isActive && active)}>Dashboard</NavLink>
-                        {isOfficer && (
-                            <NavLink to="/officer" className={({isActive}) => cn(link, isActive && active)}>Officer</NavLink>
+                        {isAdmin && (
+                            <NavLink to="/admin" className={({isActive}) => cn(link, isActive && active)}>Admin</NavLink>
+                        )}
+                        {isPartner && (
+                            <NavLink to="/partner" className={({isActive}) => cn(link, isActive && active)}>Partner</NavLink>
                         )}
                         <div className="flex items-center gap-2">
                             {avatarUrl ? (

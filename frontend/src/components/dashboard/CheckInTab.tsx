@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { QrCode, CheckCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { QrCode, CheckCircle, Camera, X } from "lucide-react";
+import { Html5Qrcode } from "html5-qrcode";
 import { apiPost } from "@/lib/api";
 import type { MeResponse } from "@/pages/Dashboard";
 
@@ -19,6 +20,44 @@ export default function CheckInTab({ meData, onRefresh }: Props) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CheckInResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+
+  useEffect(() => {
+    if (!scanning) return;
+
+    const scanner = new Html5Qrcode("qr-reader");
+    scannerRef.current = scanner;
+
+    scanner
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (text) => {
+          let extracted = text.trim().toUpperCase();
+          try {
+            const url = new URL(text);
+            const param = url.searchParams.get("code");
+            if (param) extracted = param.toUpperCase();
+          } catch {
+            // not a URL — use raw text
+          }
+          scanner.stop().catch(() => {});
+          scannerRef.current = null;
+          setScanning(false);
+          setCode(extracted);
+        },
+        () => {}
+      )
+      .catch(() => {
+        setError("Camera access denied or unavailable.");
+        setScanning(false);
+      });
+
+    return () => {
+      scanner.stop().catch(() => {});
+    };
+  }, [scanning]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -98,6 +137,31 @@ export default function CheckInTab({ meData, onRefresh }: Props) {
               disabled={loading || !meData?.has_profile}
             />
           </div>
+
+          {/* QR camera scanner */}
+          {scanning ? (
+            <div className="relative overflow-hidden rounded-xl" style={{ border: "1px solid rgba(185,28,28,.3)" }}>
+              <div id="qr-reader" className="w-full" />
+              <button
+                type="button"
+                onClick={() => setScanning(false)}
+                className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white/70 transition hover:text-white"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setError(null); setScanning(true); }}
+              disabled={!meData?.has_profile}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-white/70 transition hover:text-white disabled:opacity-40"
+              style={{ background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)" }}
+            >
+              <Camera size={16} />
+              Scan QR Code
+            </button>
+          )}
 
           {error && (
             <div className="rounded-lg bg-rose-900/40 px-3 py-2 text-sm text-rose-200 ring-1 ring-inset ring-rose-500/20">

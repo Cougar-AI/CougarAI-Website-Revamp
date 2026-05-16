@@ -10,6 +10,10 @@ from app.routes.forms import forms_bp
 from app.routes.profiles import profile_bp
 from app.routes.billing import members_bp, billing_bp
 from app.routes.dashboard import dashboard_bp
+from app.routes.admin import admin_bp
+from app.routes.sponsors import sponsors_bp
+from app.routes.progress_reports import progress_bp
+from app.routes.partners import partners_bp
 
 blueprints_with_prefixes = {
     discord_bp: '/discord',
@@ -24,4 +28,8 @@ blueprints_with_prefixes = {
     members_bp: '/members',
     billing_bp: '/billing',
     dashboard_bp: '/dashboard',
+    admin_bp: '/admin',
+    sponsors_bp: '/sponsors',
+    progress_bp: '/progress-reports',
+    partners_bp: '/partners',
 }

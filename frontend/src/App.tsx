@@ -17,12 +17,15 @@ import AuthSuccess from './pages/AuthSuccess.tsx';
 import Join from './pages/Join.tsx';
 import ForgotPassword from './pages/ForgotPassword.tsx';
 import VerifyEmail from './pages/VerifyEmail.tsx';
+import ResetPassword from './pages/ResetPassword.tsx';
 import Terms from './pages/Terms.tsx';
 import Privacy from './pages/Privacy.tsx';
 import Sponsorships from './pages/Sponsorships.tsx';
 import Dashboard from './pages/Dashboard.tsx';
 import Onboarding from './pages/Onboarding.tsx';
-import OfficerPortal from './pages/OfficerPortal.tsx';
+import AdminDashboard from './pages/AdminDashboard.tsx';
+import CheckIn from './pages/CheckIn.tsx';
+import PartnerDashboard from './pages/PartnerDashboard.tsx';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   try {
@@ -51,6 +54,7 @@ export default function App() {
             <Route path={'/join'} element={<Join />} />
             <Route path={'/forgot-password'} element={<ForgotPassword />} />
             <Route path={'/verify-email'} element={<VerifyEmail />} />
+            <Route path={'/reset-password'} element={<ResetPassword />} />
             <Route path={'/terms'} element={<Terms />} />
             <Route path={'/privacy'} element={<Privacy />} />
             <Route path={'/sponsorships'} element={<Sponsorships />} />
@@ -73,10 +77,26 @@ export default function App() {
               }
             />
             <Route
-              path={'/officer'}
+              path={'/admin'}
               element={
-                <ProtectedRoute requiredRole={["officer", "webmaster", "admin"]}>
-                  <OfficerPortal />
+                <ProtectedRoute requiredRole={["admin", "officer"]}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path={'/checkin'}
+              element={
+                <ProtectedRoute>
+                  <CheckIn />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path={'/partner'}
+              element={
+                <ProtectedRoute requiredRole={["partner", "admin"]}>
+                  <PartnerDashboard />
                 </ProtectedRoute>
               }
             />
