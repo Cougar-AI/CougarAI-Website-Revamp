@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPatch, apiDelete } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { Search, ChevronLeft, ChevronRight, X, CalendarPlus } from 'lucide-react';
+import { formatDate } from '@/lib/dates';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 
@@ -153,7 +154,7 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
     }
   }
 
-  const formatDate = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
+  const formatDateLocal = (d: string | null) => (d ? formatDate(d) : '—');
 
   return (
     <div
@@ -391,7 +392,7 @@ export default function AdminUsersTab() {
     backdropFilter: 'blur(10px)',
   };
 
-  const formatDate = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
+  const formatDateLocal = (d: string | null) => (d ? formatDate(d) : '—');
 
   return (
     <>
@@ -499,7 +500,7 @@ export default function AdminUsersTab() {
                           <Badge value={u.membership_status} colorMap={MEMBERSHIP_COLORS} />
                           {u.membership_expires_at && u.membership_status === 'active' && (
                             <p className="text-xs text-white/30 mt-0.5">
-                              Exp: {new Date(u.membership_expires_at).toLocaleDateString()}
+                              Exp: {formatDate(u.membership_expires_at)}
                             </p>
                           )}
                         </div>

@@ -1,12 +1,24 @@
-from flask import Blueprint, request, jsonify 
+from flask import Blueprint, request, jsonify
 from app.utils.query_handler import build_sql_querys
 from app.utils.date_validation import is_valid_date
-from app.raw_db import connect 
+from app.raw_db import connect
+from flask_jwt_extended import jwt_required, get_jwt
 
 payments_bp = Blueprint('payments', __name__)
 
+_ADMIN_ROLES = {"admin"}
+
+def _require_admin():
+    claims = get_jwt()
+    if claims.get("role") not in _ADMIN_ROLES:
+        return jsonify({"error": "Admin access required"}), 403
+    return None
+
 @payments_bp.route("/", methods=["GET"])
+@jwt_required()
 def getPayments():
+    err = _require_admin()
+    if err: return err
     connections = connect()
     with connections.cursor() as cur:
 
@@ -25,7 +37,10 @@ def getPayments():
 
 
 @payments_bp.route("/<int:payment_id>", methods=["DELETE"])
+@jwt_required()
 def deletePayment(payment_id):
+    err = _require_admin()
+    if err: return err
     try:
         connections = connect()
         with connections.cursor() as cur:
@@ -40,7 +55,10 @@ def deletePayment(payment_id):
         return jsonify({"error": str(e)}), 500
     
 @payments_bp.route("/<int:student_id>", methods=["POST"])
+@jwt_required()
 def createPayment(student_id):
+    err = _require_admin()
+    if err: return err
     try:
         connections = connect()
         with connections.cursor() as cur:

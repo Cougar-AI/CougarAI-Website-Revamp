@@ -4,5 +4,5 @@ USING sponsors s2
 WHERE s1.name = s2.name
   AND s1.sponsor_id > s2.sponsor_id;
 
--- Enforce uniqueness going forward
-ALTER TABLE sponsors ADD CONSTRAINT unique_sponsor_name UNIQUE (name);
+-- Enforce uniqueness going forward (idempotent via index)
+CREATE UNIQUE INDEX IF NOT EXISTS unique_sponsor_name ON sponsors (name);

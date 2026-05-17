@@ -39,7 +39,10 @@ export function ProtectedRoute({ children, skipOnboardingCheck, requiredRole }: 
     return <Navigate to="/auth?mode=login" state={{ from: location.pathname }} replace />;
   }
 
-  if (!skipOnboardingCheck && !user?.onboarding_completed) {
+  // Non-default roles imply onboarding was already completed at some point.
+  // This prevents a stale stored-user object (missing the field) from blocking navigation.
+  const isOnboarded = user?.onboarding_completed || (user?.role && user.role !== 'non-member');
+  if (!skipOnboardingCheck && !isOnboarded) {
     return <Navigate to="/onboarding" replace />;
   }
 

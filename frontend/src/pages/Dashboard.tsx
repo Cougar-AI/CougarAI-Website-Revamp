@@ -131,7 +131,7 @@ export default function Dashboard() {
         <>
           {tab === "profile" && <ProfileTab {...tabProps} />}
           {tab === "membership" && <MembershipTab {...tabProps} />}
-          {tab === "checkin" && <CheckInTab {...tabProps} />}
+          {tab === "checkin" && <CheckInTab {...tabProps} userId={meData?.user_id} />}
           {tab === "points" && <PointsTab {...tabProps} />}
           {tab === "leaderboard" && <LeaderboardTab {...tabProps} />}
         </>

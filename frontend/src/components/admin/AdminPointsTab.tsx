@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
 import { Star, TrendingUp, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { formatDate, formatDateTimeFull } from '@/lib/dates';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 void BACKEND;
@@ -309,7 +310,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
               <option value="" style={{ background: '#1a0000' }}>— Pick an event to load attendees —</option>
               {(eventsData?.events ?? []).map((ev) => (
                 <option key={ev.event_id} value={String(ev.event_id)} style={{ background: '#1a0000' }}>
-                  {ev.name} ({new Date(ev.starts_at).toLocaleDateString()})
+                  {ev.name} ({formatDate(ev.starts_at)})
                 </option>
               ))}
             </select>
@@ -452,7 +453,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
             <option value="" style={{ background: '#1a0000' }}>— None —</option>
             {(eventsData?.events ?? []).map((ev) => (
               <option key={ev.event_id} value={String(ev.event_id)} style={{ background: '#1a0000' }}>
-                {ev.name} ({new Date(ev.starts_at).toLocaleDateString()})
+                {ev.name} ({formatDate(ev.starts_at)})
               </option>
             ))}
           </select>
@@ -490,12 +491,7 @@ function RecentAdjustments() {
     retry: false,
   });
 
-  const fmt = (s?: string) => {
-    if (!s) return '—';
-    return new Date(s).toLocaleString('en-US', {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-    });
-  };
+  const fmt = (s?: string) => (!s ? '—' : formatDateTimeFull(s));
 
   return (
     <div className="flex flex-col gap-3">

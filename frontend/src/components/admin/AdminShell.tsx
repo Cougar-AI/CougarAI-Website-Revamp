@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, Calendar, Shield, ChevronDown, ChevronRight,
   Building2, Handshake, Tag, BarChart2, Star, UserSearch, ClipboardList, UserCheck,
+  Receipt, Bell,
 } from 'lucide-react';
 
 export type AdminTab =
   // Admin Tools
   | 'overview' | 'users' | 'officers' | 'sponsors' | 'partners' | 'event-types'
+  | 'receipts' | 'notifications'
   // Officer Tools
   | 'events' | 'event-stats' | 'points' | 'members' | 'progress' | 'checkin';
 
@@ -17,12 +19,14 @@ interface TabDef {
 }
 
 const ADMIN_TABS: TabDef[] = [
-  { id: 'overview',    label: 'Overview',     icon: LayoutDashboard },
-  { id: 'users',       label: 'Users',        icon: Users },
-  { id: 'officers',    label: 'Officers',     icon: Shield },
-  { id: 'sponsors',    label: 'Sponsors',     icon: Building2 },
-  { id: 'partners',    label: 'Partners',     icon: Handshake },
-  { id: 'event-types', label: 'Event Types',  icon: Tag },
+  { id: 'overview',       label: 'Overview',       icon: LayoutDashboard },
+  { id: 'users',          label: 'Users',           icon: Users },
+  { id: 'officers',       label: 'Officers',        icon: Shield },
+  { id: 'sponsors',       label: 'Sponsors',        icon: Building2 },
+  { id: 'partners',       label: 'Partners',        icon: Handshake },
+  { id: 'event-types',    label: 'Event Types',     icon: Tag },
+  { id: 'receipts',       label: 'Receipts',        icon: Receipt },
+  { id: 'notifications',  label: 'Notifications',   icon: Bell },
 ];
 
 const OFFICER_TABS: TabDef[] = [
@@ -103,8 +107,8 @@ export default function AdminShell({ activeTab, onTabChange, children, userRole 
   const activeIsAdmin = ADMIN_TAB_IDS.has(activeTab);
   const activeIsOfficer = OFFICER_TAB_IDS.has(activeTab);
 
-  const [adminOpen, setAdminOpen] = useState(activeIsAdmin || isAdmin);
-  const [officerOpen, setOfficerOpen] = useState(activeIsOfficer || !isAdmin);
+  const [adminOpen, setAdminOpen] = useState(true);
+  const [officerOpen, setOfficerOpen] = useState(true);
 
   const visibleAdminTabs = isAdmin ? ADMIN_TABS : [];
   const visibleOfficerTabs = OFFICER_TABS;

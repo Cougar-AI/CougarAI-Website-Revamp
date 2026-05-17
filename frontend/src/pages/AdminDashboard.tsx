@@ -14,6 +14,8 @@ import AdminEventStatsTab from '@/components/admin/AdminEventStatsTab';
 import AdminPointsTab from '@/components/admin/AdminPointsTab';
 import AdminProgressTab from '@/components/admin/AdminProgressTab';
 import AdminCheckInTab from '@/components/admin/AdminCheckInTab';
+import AdminReceiptsTab from '@/components/admin/AdminReceiptsTab';
+import AdminNotificationsTab from '@/components/admin/AdminNotificationsTab';
 
 // Phase 2.6 — Event Types (stub until built)
 function StubTab({ label }: { label: string }) {
@@ -27,7 +29,7 @@ function StubTab({ label }: { label: string }) {
   );
 }
 
-const ADMIN_TABS: AdminTab[] = ['overview', 'users', 'officers', 'sponsors', 'partners', 'event-types'];
+const ADMIN_TABS: AdminTab[] = ['overview', 'users', 'officers', 'sponsors', 'partners', 'event-types', 'receipts', 'notifications'];
 const OFFICER_TABS: AdminTab[] = ['events', 'event-stats', 'points', 'members', 'progress', 'checkin'];
 const ALL_VALID_TABS: AdminTab[] = [...ADMIN_TABS, ...OFFICER_TABS];
 
@@ -67,7 +69,9 @@ export default function AdminDashboard() {
       {activeTab === 'officers'    && <AdminOfficersTab />}
       {activeTab === 'sponsors'    && <AdminSponsorsTab />}
       {activeTab === 'partners'    && <AdminPartnersTab />}
-      {activeTab === 'event-types' && <AdminEventTypesTab />}
+      {activeTab === 'event-types'   && <AdminEventTypesTab />}
+      {activeTab === 'receipts'      && <AdminReceiptsTab />}
+      {activeTab === 'notifications' && <AdminNotificationsTab />}
 
       {/* Officer tabs */}
       {activeTab === 'events'      && <AdminEventsTab />}

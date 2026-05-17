@@ -755,7 +755,7 @@ def update_officer(student_id):
 
 
 # ---------------------------------------------------------------------------
-# DELETE /admin/officers/<student_id>  — sets end_date to today
+# DELETE /admin/officers/<student_id>  — soft remove (sets end_date) or hard delete (?hard=1)
 # ---------------------------------------------------------------------------
 
 @admin_bp.route("/officers/<student_id>", methods=["DELETE", "OPTIONS"])
@@ -767,17 +767,22 @@ def remove_officer(student_id):
     if err:
         return err
 
+    hard = request.args.get("hard") in ("1", "true")
+
     conn = connect()
     with conn.cursor() as cur:
         cur.execute("SELECT student_id FROM officers WHERE student_id = %s", (student_id,))
         if not cur.fetchone():
             return jsonify({"error": "Officer not found"}), 404
 
-        today = date.today()
-        cur.execute(
-            "UPDATE officers SET end_date = %s WHERE student_id = %s",
-            (today, student_id),
-        )
+        if hard:
+            cur.execute("DELETE FROM officers WHERE student_id = %s", (student_id,))
+        else:
+            today = date.today()
+            cur.execute(
+                "UPDATE officers SET end_date = %s WHERE student_id = %s",
+                (today, student_id),
+            )
 
         # Downgrade user role: back to member if they have active payment, else non-member
         cur.execute(
@@ -796,7 +801,7 @@ def remove_officer(student_id):
         )
         conn.commit()
 
-    return jsonify({"message": "Officer removed (end_date set to today)"}), 200
+    return jsonify({"message": "Officer deleted" if hard else "Officer removed (end_date set to today)"}), 200
 
 
 # ---------------------------------------------------------------------------
@@ -1308,7 +1313,7 @@ def admin_delete_sponsor(sponsor_id):
 # ---------------------------------------------------------------------------
 
 VALID_PARTNER_TYPES = {"company", "university_org", "nonprofit", "other"}
-VALID_PARTNER_ROLES = {"lead", "member", "liaison"}
+VALID_PARTNER_ROLES = {"President", "Marketing", "Manager", "Officer"}
 
 
 def _partner_row(r):
@@ -1519,7 +1524,7 @@ def admin_add_partner_member(partner_id):
 
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
-    partner_role = data.get("partner_role", "member")
+    partner_role = data.get("partner_role", "Officer")
 
     if not user_id:
         return jsonify({"error": "user_id is required"}), 400

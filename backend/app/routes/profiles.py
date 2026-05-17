@@ -1,9 +1,21 @@
 from app.imports import *
+from flask_jwt_extended import jwt_required, get_jwt
 
 profile_bp = Blueprint('profile', __name__)
 
+_OFFICER_ROLES = {"admin", "officer"}
+
+def _require_officer():
+    claims = get_jwt()
+    if claims.get("role") not in _OFFICER_ROLES:
+        return jsonify({"error": "Officer or admin access required"}), 403
+    return None
+
 @profile_bp.route("/", methods=["GET"])
+@jwt_required()
 def getProfile():
+    err = _require_officer()
+    if err: return err
     connection = connect()
     with connection.cursor() as cur:
 
@@ -28,7 +40,10 @@ def getProfile():
 
 
 @profile_bp.route("/<int:student_id>", methods=["DELETE"])
+@jwt_required()
 def deleteProfile(student_id):
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -40,7 +55,10 @@ def deleteProfile(student_id):
         return jsonify({"error": str(e)}), 500
 
 @profile_bp.route("/", methods=["POST"])
+@jwt_required()
 def addProfile():
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -79,7 +97,10 @@ def addProfile():
         return jsonify({"error": str(e)}), 500
     
 @profile_bp.route("/<string:student_id>", methods=["PATCH"])
+@jwt_required()
 def updateProfile(student_id):
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:

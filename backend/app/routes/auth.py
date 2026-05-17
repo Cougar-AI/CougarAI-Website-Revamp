@@ -3,6 +3,7 @@ import json
 import secrets
 import uuid, hashlib, jwt
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Tuple, Optional
 from urllib.parse import urlencode
@@ -583,22 +584,28 @@ def forgot_password():
     Behavior:
       - Only send if account exists AND is verified
       - Always return 200 { "ok": true } (no enumeration)
+      - Always takes at least 200ms to normalize timing and prevent email enumeration
     """
+    _start = time.monotonic()
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
-    if not email:
-        return jsonify({"ok": True}), 200
 
-    try:
-        with db.engine.begin() as conn:
-            user = conn.execute(
-                text("SELECT user_id, email_verified_at FROM users WHERE email = :email"),
-                {"email": email}
-            ).mappings().first()
-        if user and user["email_verified_at"] is not None:
-            _send_reset_email(user["user_id"], email)
-    except Exception as e:
-        current_app.logger.error("Forgot-password mail failed for %s: %r", email, e)
+    if email:
+        try:
+            with db.engine.begin() as conn:
+                user = conn.execute(
+                    text("SELECT user_id, email_verified_at FROM users WHERE email = :email"),
+                    {"email": email}
+                ).mappings().first()
+            if user and user["email_verified_at"] is not None:
+                _send_reset_email(user["user_id"], email)
+        except Exception as e:
+            current_app.logger.error("Forgot-password mail failed for %s: %r", email, e)
+
+    # Ensure a minimum response time regardless of whether the email was found/sent
+    elapsed = time.monotonic() - _start
+    if elapsed < 0.2:
+        time.sleep(0.2 - elapsed)
 
     return jsonify({"ok": True}), 200
 

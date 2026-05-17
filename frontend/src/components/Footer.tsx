@@ -77,22 +77,22 @@ export default function Footer() {
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="#" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href="https://discord.gg/ucd5ZnDDnf" target="_blank" rel="noreferrer">
                       Discord
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="#" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href="https://github.com/Cougar-AI" target="_blank" rel="noreferrer">
                       GitHub
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="#" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href="https://www.instagram.com/cougar_ai/" target="_blank" rel="noreferrer">
                       Instagram
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="#" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href="https://www.linkedin.com/company/cougar-ai/" target="_blank" rel="noreferrer">
                       LinkedIn
                     </a>
                   </li>
@@ -113,7 +113,7 @@ export default function Footer() {
               <div className="flex items-center gap-2 text-white/90">
                 <a
                   aria-label="Instagram"
-                  href="#"
+                  href="https://www.instagram.com/cougar_ai/"
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
@@ -122,7 +122,7 @@ export default function Footer() {
                 </a>
                 <a
                   aria-label="GitHub"
-                  href="#"
+                  href="https://github.com/Cougar-AI"
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
@@ -131,7 +131,7 @@ export default function Footer() {
                 </a>
                 <a
                   aria-label="LinkedIn"
-                  href="#"
+                  href="https://www.linkedin.com/company/cougar-ai/"
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"

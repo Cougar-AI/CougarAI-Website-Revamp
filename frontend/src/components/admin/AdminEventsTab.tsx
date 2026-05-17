@@ -1,8 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
+import { formatDate, formatTime, formatDateTimeFull } from '@/lib/dates';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
-import { Plus, Edit2, Trash2, Users, Copy, RefreshCw, X, CheckCircle, XCircle, QrCode, Files, Link, Calendar, CalendarX, Download, Radio, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Copy, RefreshCw, X, CheckCircle, XCircle, QrCode, Files, Link, Calendar, CalendarX, Download, Radio, ChevronUp, ChevronDown, MapPin, Navigation } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
+import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
+const leafletIcon = L.icon({
+  iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIconRetinaUrl,
+  shadowUrl: markerShadowUrl,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 
 interface Event {
   event_id: number;
@@ -19,6 +36,12 @@ interface Event {
   check_in_expires_at: string | null;
   points_value: number;
   google_event_id: string | null;
+  require_location: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  checkin_radius_m: number;
+  rsvp_enabled: boolean;
+  rsvp_count?: number;
 }
 
 interface Attendee {
@@ -69,6 +92,91 @@ interface PartnerOption {
   partner_id: number;
   name: string;
   type: string;
+  logo_url?: string | null;
+}
+
+interface SponsorOption {
+  sponsor_id: number;
+  name: string;
+  tier: string;
+  logo_url?: string | null;
+}
+
+function generateOccurrences(
+  startsAt: string,
+  expiresAt: string,
+  until: string,
+  freq: 'weekly' | 'monthly',
+): Array<{ starts_at: string; check_in_expires_at: string }> {
+  const occurrences = [];
+  const untilDate = new Date(until + 'T23:59:59');
+  const current = new Date(startsAt);
+  const currentEnd = new Date(expiresAt || startsAt);
+
+  const advance = (d: Date) => {
+    if (freq === 'weekly') d.setDate(d.getDate() + 7);
+    else d.setMonth(d.getMonth() + 1);
+  };
+
+  advance(current);
+  advance(currentEnd);
+
+  while (current <= untilDate) {
+    occurrences.push({
+      starts_at: current.toISOString().slice(0, 16),
+      check_in_expires_at: currentEnd.toISOString().slice(0, 16),
+    });
+    advance(current);
+    advance(currentEnd);
+  }
+  return occurrences;
+}
+
+// UH campus default center
+const UH_CENTER: [number, number] = [29.7199, -95.3422];
+
+function parseGoogleMapsCoords(url: string): { lat: number; lng: number } | null {
+  function validCoords(lat: number, lng: number) {
+    return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+  }
+  const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (atMatch) {
+    const lat = parseFloat(atMatch[1]), lng = parseFloat(atMatch[2]);
+    if (validCoords(lat, lng)) return { lat, lng };
+  }
+  const qMatch = url.match(/[?&](?:q|ll)=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (qMatch) {
+    const lat = parseFloat(qMatch[1]), lng = parseFloat(qMatch[2]);
+    if (validCoords(lat, lng)) return { lat, lng };
+  }
+  return null;
+}
+
+function MapPanner({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => { map.setView(center, 17); }, [center[0], center[1]]);
+  return null;
+}
+
+function MapClickHandler({ onChange }: { onChange: (lat: number, lng: number) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    const handler = (e: L.LeafletMouseEvent) => onChange(e.latlng.lat, e.latlng.lng);
+    map.on('click', handler);
+    return () => { map.off('click', handler); };
+  }, [map, onChange]);
+  return null;
+}
+
+function DraggableMarker({ position, onChange }: { position: [number, number]; onChange: (lat: number, lng: number) => void }) {
+  return (
+    <Marker
+      icon={leafletIcon}
+      draggable
+      position={position}
+      eventHandlers={{ dragend: (e) => { const ll = e.target.getLatLng(); onChange(ll.lat, ll.lng); } }}
+    />
+  );
 }
 
 function ConfirmModal({ message, confirmLabel = 'Confirm', danger = false, onConfirm, onCancel }: {
@@ -112,22 +220,155 @@ function ConfirmModal({ message, confirmLabel = 'Confirm', danger = false, onCon
   );
 }
 
-function addHours(dtLocal: string, h: number): string {
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+
+const _pad = (n: number) => String(n).padStart(2, '0');
+
+function toLocalISO(d: Date): string {
+  return `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+}
+
+function toDatetimeLocal(ts: string | null | undefined): string {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? '' : toLocalISO(d);
+}
+
+function addMinutes(dtLocal: string, m: number): string {
   const d = new Date(dtLocal);
-  d.setHours(d.getHours() + h);
-  return d.toISOString().slice(0, 16);
+  d.setMinutes(d.getMinutes() + m);
+  return toLocalISO(d);
+}
+
+function defaultStartTime(): string {
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  return toLocalISO(d);
+}
+
+interface PickerItem {
+  id: number;
+  name: string;
+  logo_url?: string | null;
+  subtitle?: string;
+}
+
+function MultiSelectDropdown({
+  label,
+  items,
+  selectedIds,
+  onToggle,
+}: {
+  label: string;
+  items: PickerItem[];
+  selectedIds: number[];
+  onToggle: (id: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  const selected = items.filter((i) => selectedIds.includes(i.id));
+
+  return (
+    <div className="flex flex-col gap-1.5" ref={ref}>
+      <label className="text-xs text-white/50">{label}</label>
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all"
+        style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)', color: selected.length ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.35)' }}
+      >
+        <span>{selected.length === 0 ? `Select ${label}…` : `${selected.length} selected`}</span>
+        <ChevronDown
+          size={13}
+          className="transition-transform shrink-0"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        />
+      </button>
+
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs"
+              style={{ background: 'rgba(185,28,28,.25)', border: '1px solid rgba(185,28,28,.4)' }}
+            >
+              {item.logo_url && (
+                <img src={item.logo_url.startsWith('http') ? item.logo_url : `${BACKEND}${item.logo_url}`} alt="" className="h-3.5 w-3.5 rounded-full object-cover" />
+              )}
+              <span style={{ color: 'rgba(248,113,113,.9)' }}>{item.name}</span>
+              <button type="button" onClick={() => onToggle(item.id)} className="text-white/30 hover:text-white/70 ml-0.5 flex items-center">
+                <X size={10} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div
+          className="flex flex-col rounded-lg overflow-hidden"
+          style={{ background: 'rgba(8,0,0,.98)', border: '1px solid rgba(185,28,28,.2)', maxHeight: 180, overflowY: 'auto' }}
+        >
+          {items.length === 0 && (
+            <p className="text-xs text-white/30 px-3 py-2">No options available</p>
+          )}
+          {items.map((item) => {
+            const isSelected = selectedIds.includes(item.id);
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onToggle(item.id)}
+                className="flex items-center gap-2.5 px-3 py-2 text-left transition-all hover:bg-white/5"
+                style={isSelected ? { background: 'rgba(185,28,28,.12)' } : {}}
+              >
+                {item.logo_url ? (
+                  <img src={item.logo_url.startsWith('http') ? item.logo_url : `${BACKEND}${item.logo_url}`} alt="" className="h-6 w-6 rounded object-cover shrink-0" />
+                ) : (
+                  <div
+                    className="h-6 w-6 rounded shrink-0 flex items-center justify-center text-[10px] font-bold"
+                    style={{ background: 'rgba(255,255,255,.08)', color: 'rgba(255,255,255,.4)' }}
+                  >
+                    {item.name[0]?.toUpperCase()}
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs text-white/85 truncate">{item.name}</span>
+                  {item.subtitle && <span className="text-[10px] text-white/35 truncate">{item.subtitle}</span>}
+                </div>
+                {isSelected && <CheckCircle size={12} className="shrink-0" style={{ color: 'rgba(248,113,113,.8)' }} />}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function EventModal({
   event,
   types,
   allPartners,
+  allSponsors,
   onClose,
   onSaved,
 }: {
   event: Event | null;
   types: EventTypeOption[];
   allPartners: PartnerOption[];
+  allSponsors: SponsorOption[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -138,18 +379,34 @@ function EventModal({
     description: event?.description ?? '',
     location: event?.location ?? '',
     location_url: event?.location_url ?? '',
-    starts_at: event?.starts_at ? event.starts_at.slice(0, 16) : '',
-    ends_at: event?.ends_at ? event.ends_at.slice(0, 16) : '',
+    starts_at: toDatetimeLocal(event?.starts_at) || defaultStartTime(),
+    ends_at: toDatetimeLocal(event?.ends_at) || addMinutes(defaultStartTime(), 90),
     capacity: event?.capacity?.toString() ?? '',
     points_value: event?.points_value?.toString() ?? '10',
     check_in_enabled: event?.check_in_enabled ?? false,
-    check_in_expires_at: event?.check_in_expires_at ? event.check_in_expires_at.slice(0, 16) : '',
+    check_in_expires_at: toDatetimeLocal(event?.check_in_expires_at),
+    require_location: event?.require_location ?? false,
+    latitude: event?.latitude?.toString() ?? '',
+    longitude: event?.longitude?.toString() ?? '',
+    checkin_radius_m: event?.checkin_radius_m?.toString() ?? '400',
+    rsvp_enabled: event?.rsvp_enabled ?? false,
   });
   const [expiryTouched, setExpiryTouched] = useState(false);
+  const [endsTouched, setEndsTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [syncToGoogle, setSyncToGoogle] = useState(!!event?.google_event_id);
   const [selectedPartnerIds, setSelectedPartnerIds] = useState<number[]>([]);
+  const [selectedSponsorIds, setSelectedSponsorIds] = useState<number[]>([]);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurFrequency, setRecurFrequency] = useState<'weekly' | 'monthly'>('weekly');
+  const [recurUntil, setRecurUntil] = useState('');
+  const [mapUrlInput, setMapUrlInput] = useState('');
+  const [mapUrlError, setMapUrlError] = useState('');
+  const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
+    if (event?.latitude && event?.longitude) return [event.latitude, event.longitude];
+    return UH_CENTER;
+  });
 
   // Load existing partner tags when editing
   const { data: existingPartnersData } = useQuery<{ partners: Array<{ partner_id: number }> }>({
@@ -163,10 +420,28 @@ function EventModal({
       setSelectedPartnerIds(existingPartnersData.partners.map((p) => p.partner_id));
     }
   }, [existingPartnersData]);
+
+  // Load existing sponsor tags when editing
+  const { data: existingSponsorsData } = useQuery<{ sponsors: Array<{ sponsor_id: number }> }>({
+    queryKey: ['event-sponsors', event?.event_id],
+    queryFn: () => apiGet(`/events/${event!.event_id}/sponsors`),
+    enabled: !!(event && event.event_id > 0),
+  });
+
+  useEffect(() => {
+    if (existingSponsorsData?.sponsors) {
+      setSelectedSponsorIds(existingSponsorsData.sponsors.map((s) => s.sponsor_id));
+    }
+  }, [existingSponsorsData]);
+
   const [syncWarning, setSyncWarning] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (form.ends_at && form.starts_at && form.ends_at < form.starts_at) {
+      setError('Ends At cannot be before Starts At.');
+      return;
+    }
     setSaving(true);
     setError('');
     setSyncWarning('');
@@ -183,6 +458,11 @@ function EventModal({
         points_value: Number(form.points_value) || 10,
         check_in_enabled: form.check_in_enabled,
         check_in_expires_at: form.check_in_expires_at || null,
+        require_location: form.require_location,
+        latitude: form.require_location && form.latitude ? Number(form.latitude) : null,
+        longitude: form.require_location && form.longitude ? Number(form.longitude) : null,
+        checkin_radius_m: form.require_location ? Number(form.checkin_radius_m) || 400 : 400,
+        rsvp_enabled: form.rsvp_enabled,
       };
 
       let savedEventId: number;
@@ -195,19 +475,47 @@ function EventModal({
       }
 
       // Sync partner tags: compute adds/removes relative to existing
-      const existing = existingPartnersData?.partners?.map((p) => p.partner_id) ?? [];
-      const toAdd = selectedPartnerIds.filter((id) => !existing.includes(id));
-      const toRemove = existing.filter((id) => !selectedPartnerIds.includes(id));
+      const existingPartners = existingPartnersData?.partners?.map((p) => p.partner_id) ?? [];
+      const partnersToAdd = selectedPartnerIds.filter((id) => !existingPartners.includes(id));
+      const partnersToRemove = existingPartners.filter((id) => !selectedPartnerIds.includes(id));
       await Promise.all([
-        ...toAdd.map((pid) => apiPost(`/events/${savedEventId}/partners`, { partner_id: pid })),
-        ...toRemove.map((pid) => apiDelete(`/events/${savedEventId}/partners/${pid}`)),
-      ]).catch(() => {}); // Non-fatal — event already saved
+        ...partnersToAdd.map((pid) => apiPost(`/events/${savedEventId}/partners`, { partner_id: pid })),
+        ...partnersToRemove.map((pid) => apiDelete(`/events/${savedEventId}/partners/${pid}`)),
+      ]).catch(() => {});
+
+      // Sync sponsor tags
+      const existingSponsors = existingSponsorsData?.sponsors?.map((s) => s.sponsor_id) ?? [];
+      const sponsorsToAdd = selectedSponsorIds.filter((id) => !existingSponsors.includes(id));
+      const sponsorsToRemove = existingSponsors.filter((id) => !selectedSponsorIds.includes(id));
+      await Promise.all([
+        ...sponsorsToAdd.map((sid) => apiPost(`/events/${savedEventId}/sponsors`, { sponsor_id: sid })),
+        ...sponsorsToRemove.map((sid) => apiDelete(`/events/${savedEventId}/sponsors/${sid}`)),
+      ]).catch(() => {});
+
+      // Create recurring occurrences (new events only)
+      if (isRecurring && recurUntil && !(event && event.event_id > 0)) {
+        const occurrences = generateOccurrences(
+          form.starts_at,
+          form.check_in_expires_at,
+          recurUntil,
+          recurFrequency,
+        );
+        await Promise.all(
+          occurrences.map((occ) =>
+            apiPost('/events/', {
+              ...payload,
+              starts_at: occ.starts_at,
+              check_in_expires_at: occ.check_in_expires_at,
+            }),
+          ),
+        ).catch(() => {});
+      }
 
       if (syncToGoogle) {
         try {
           await apiPost(`/events/${savedEventId}/sync-to-google`, {});
-        } catch {
-          setSyncWarning('Event saved, but Google Calendar sync failed. Check your calendar credentials.');
+        } catch (syncErr: any) {
+          setSyncWarning(`Event saved, but Google Calendar sync failed: ${syncErr?.message ?? 'unknown error'}`);
           onSaved();
           return;
         }
@@ -247,6 +555,7 @@ function EventModal({
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
+            {/* Event Name */}
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-xs text-white/50">Event Name *</label>
               <input
@@ -258,6 +567,7 @@ function EventModal({
               />
             </div>
 
+            {/* Type | Points Value */}
             <div className="flex flex-col gap-1">
               <label className="text-xs text-white/50">Type *</label>
               <select
@@ -267,7 +577,6 @@ function EventModal({
                   setForm({
                     ...form,
                     event_type: e.target.value,
-                    // Auto-fill points only if user hasn't changed it from the default
                     ...(chosen && !event ? { points_value: chosen.default_points.toString() } : {}),
                   });
                 }}
@@ -279,75 +588,6 @@ function EventModal({
                 ))}
               </select>
             </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Location</label>
-              <input
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                className="rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Location URL</label>
-              <div className="flex items-center gap-2">
-                <Link size={13} className="text-white/30 shrink-0" />
-                <input
-                  type="url"
-                  placeholder="https://maps.google.com/…"
-                  value={form.location_url}
-                  onChange={(e) => setForm({ ...form, location_url: e.target.value })}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm"
-                  style={inputStyle}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Starts At *</label>
-              <input
-                type="datetime-local"
-                required
-                value={form.starts_at}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  const isNew = !(event && event.event_id > 0);
-                  setForm({
-                    ...form,
-                    starts_at: val,
-                    ...(isNew && !expiryTouched && val ? { check_in_expires_at: addHours(val, 4) } : {}),
-                  });
-                }}
-                className="rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Ends At</label>
-              <input
-                type="datetime-local"
-                value={form.ends_at}
-                onChange={(e) => setForm({ ...form, ends_at: e.target.value })}
-                className="rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs text-white/50">Capacity</label>
-              <input
-                type="number"
-                min="1"
-                value={form.capacity}
-                onChange={(e) => setForm({ ...form, capacity: e.target.value })}
-                className="rounded-lg px-3 py-2 text-sm"
-                style={inputStyle}
-              />
-            </div>
-
             <div className="flex flex-col gap-1">
               <label className="text-xs text-white/50">Points Value</label>
               <input
@@ -360,6 +600,76 @@ function EventModal({
               />
             </div>
 
+            {/* Location | Location URL */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-white/50">Location</label>
+              <input
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                className="rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-white/50 flex items-center gap-1">
+                <Link size={12} className="text-white/40 shrink-0" />
+                Location URL
+              </label>
+              <input
+                type="url"
+                placeholder="https://maps.google.com/…"
+                value={form.location_url}
+                onChange={(e) => setForm({ ...form, location_url: e.target.value })}
+                className="rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Starts At | Ends At */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-white/50">Starts At *</label>
+              <input
+                type="datetime-local"
+                required
+                value={form.starts_at}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setForm((prev) => ({
+                    ...prev,
+                    starts_at: val,
+                    ...(!endsTouched && !prev.ends_at && val ? { ends_at: addMinutes(val, 90) } : {}),
+                    ...(!expiryTouched && val ? { check_in_expires_at: addMinutes(val, 90) } : {}),
+                  }));
+                }}
+                className="rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-white/50">Ends At</label>
+              <input
+                type="datetime-local"
+                value={form.ends_at}
+                onChange={(e) => { setEndsTouched(true); setForm({ ...form, ends_at: e.target.value }); }}
+                className="rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Capacity */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-white/50">Capacity</label>
+              <input
+                type="number"
+                min="1"
+                value={form.capacity}
+                onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                className="rounded-lg px-3 py-2 text-sm"
+                style={inputStyle}
+              />
+            </div>
+
+            {/* Description */}
             <div className="col-span-2 flex flex-col gap-1">
               <label className="text-xs text-white/50">Description</label>
               <textarea
@@ -372,37 +682,80 @@ function EventModal({
             </div>
           </div>
 
-          {/* Partner orgs */}
-          {allPartners.length > 0 && (
+          {/* Partner Orgs | Sponsors — side-by-side dropdown pickers */}
+          {(allPartners.length > 0 || allSponsors.length > 0) && (
+            <div className="grid grid-cols-2 gap-3">
+              {allPartners.length > 0 && (
+                <MultiSelectDropdown
+                  label="Partner Orgs"
+                  items={allPartners.map((p) => ({ id: p.partner_id, name: p.name, logo_url: p.logo_url, subtitle: p.type }))}
+                  selectedIds={selectedPartnerIds}
+                  onToggle={(id) => setSelectedPartnerIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                />
+              )}
+              {allSponsors.length > 0 && (
+                <MultiSelectDropdown
+                  label="Sponsors"
+                  items={allSponsors.map((s) => ({ id: s.sponsor_id, name: s.name, logo_url: s.logo_url, subtitle: s.tier }))}
+                  selectedIds={selectedSponsorIds}
+                  onToggle={(id) => setSelectedSponsorIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Recurring events (new events only) */}
+          {!(event && event.event_id > 0) && (
             <div
               className="rounded-xl p-4 flex flex-col gap-3"
               style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(185,28,28,.12)' }}
             >
-              <span className="text-sm font-medium text-white/70">Partner Orgs</span>
-              <div className="flex flex-wrap gap-2">
-                {allPartners.map((p) => {
-                  const selected = selectedPartnerIds.includes(p.partner_id);
-                  return (
-                    <button
-                      key={p.partner_id}
-                      type="button"
-                      onClick={() =>
-                        setSelectedPartnerIds((prev) =>
-                          selected ? prev.filter((id) => id !== p.partner_id) : [...prev, p.partner_id]
-                        )
-                      }
-                      className="px-3 py-1 rounded-full text-xs transition-all"
-                      style={
-                        selected
-                          ? { background: 'rgba(185,28,28,.5)', color: 'rgba(248,113,113,.9)', border: '1px solid rgba(185,28,28,.4)' }
-                          : { background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.5)', border: '1px solid rgba(255,255,255,.08)' }
-                      }
-                    >
-                      {p.name}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-white/70">Recurring Event</span>
+                <div
+                  onClick={() => setIsRecurring((r) => !r)}
+                  className="relative w-9 h-5 rounded-full transition-colors cursor-pointer"
+                  style={{ background: isRecurring ? 'rgba(185,28,28,.7)' : 'rgba(255,255,255,.15)' }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                    style={{ left: isRecurring ? '18px' : '2px' }}
+                  />
+                </div>
               </div>
+              {isRecurring && (
+                <div className="flex flex-col gap-3">
+                  <div className="flex gap-3">
+                    <div className="flex flex-col gap-1 flex-1">
+                      <label className="text-xs text-white/50">Frequency</label>
+                      <select
+                        value={recurFrequency}
+                        onChange={(e) => setRecurFrequency(e.target.value as 'weekly' | 'monthly')}
+                        className="rounded-lg px-3 py-2 text-sm"
+                        style={inputStyle}
+                      >
+                        <option value="weekly" style={{ background: '#1a0000' }}>Weekly</option>
+                        <option value="monthly" style={{ background: '#1a0000' }}>Monthly</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-1 flex-1">
+                      <label className="text-xs text-white/50">Repeat Until *</label>
+                      <input
+                        type="date"
+                        required={isRecurring}
+                        value={recurUntil}
+                        min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                        onChange={(e) => setRecurUntil(e.target.value)}
+                        className="rounded-lg px-3 py-2 text-sm"
+                        style={inputStyle}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-white/40">
+                    Creates one event per {recurFrequency === 'weekly' ? 'week' : 'month'} from the start date until the chosen date.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -451,6 +804,142 @@ function EventModal({
                 }}
                 className="rounded-lg px-3 py-2 text-sm"
                 style={inputStyle}
+              />
+            </div>
+
+            {/* Geolocation check-in */}
+            <div className="flex items-center justify-between pt-1">
+              <label className="flex items-center gap-2 text-xs text-white/50 cursor-pointer">
+                <MapPin size={13} className="text-white/30" />
+                Require location check-in
+              </label>
+              <div
+                onClick={() => {
+                  const enabling = !form.require_location;
+                  setForm((f) => ({
+                    ...f,
+                    require_location: enabling,
+                    ...(enabling && !f.latitude ? { latitude: mapCenter[0].toFixed(6), longitude: mapCenter[1].toFixed(6) } : {}),
+                  }));
+                }}
+                className="relative w-9 h-5 rounded-full transition-colors cursor-pointer"
+                style={{ background: form.require_location ? 'rgba(185,28,28,.7)' : 'rgba(255,255,255,.15)' }}
+              >
+                <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all" style={{ left: form.require_location ? '18px' : '2px' }} />
+              </div>
+            </div>
+
+            {form.require_location && (
+              <div className="flex flex-col gap-3">
+                {/* Buttons row */}
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          const lat = pos.coords.latitude.toFixed(6);
+                          const lng = pos.coords.longitude.toFixed(6);
+                          setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
+                          setMapCenter([pos.coords.latitude, pos.coords.longitude]);
+                        },
+                        () => alert('Could not get your location. Check browser permissions.'),
+                        { timeout: 8000 },
+                      );
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                    style={{ background: 'rgba(185,28,28,.2)', color: 'rgba(248,113,113,.9)', border: '1px solid rgba(185,28,28,.3)' }}
+                  >
+                    <Navigation size={12} /> Use My Location
+                  </button>
+                  <div className="flex flex-1 gap-1 min-w-0">
+                    <input
+                      type="text"
+                      placeholder="Paste Google Maps URL…"
+                      value={mapUrlInput}
+                      onChange={(e) => { setMapUrlInput(e.target.value); setMapUrlError(''); }}
+                      className="flex-1 rounded-lg px-3 py-1.5 text-xs min-w-0"
+                      style={inputStyle}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const coords = parseGoogleMapsCoords(mapUrlInput);
+                        if (!coords) { setMapUrlError('Could not extract coordinates from this URL. Try a Google Maps link with visible lat/lng.'); return; }
+                        setMapUrlError('');
+                        const lat = coords.lat.toFixed(6);
+                        const lng = coords.lng.toFixed(6);
+                        setForm((f) => ({ ...f, latitude: lat, longitude: lng }));
+                        setMapCenter([coords.lat, coords.lng]);
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs text-white/80 transition-all shrink-0"
+                      style={{ background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.1)' }}
+                    >
+                      Parse
+                    </button>
+                  </div>
+                </div>
+                {mapUrlError && <p className="text-red-400 text-xs">{mapUrlError}</p>}
+
+                {/* Map */}
+                <div className="rounded-xl overflow-hidden" style={{ height: 280, border: '1px solid rgba(185,28,28,.2)' }}>
+                  <MapContainer
+                    center={mapCenter}
+                    zoom={17}
+                    style={{ height: '100%', width: '100%' }}
+                    scrollWheelZoom
+                  >
+                    <TileLayer
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      attribution='&copy; <a href="https://openstreetmap.org">OpenStreetMap</a>'
+                    />
+                    <MapPanner center={mapCenter} />
+                    <MapClickHandler onChange={(lat, lng) => setForm((f) => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }))} />
+                    <DraggableMarker
+                      position={[parseFloat(form.latitude) || mapCenter[0], parseFloat(form.longitude) || mapCenter[1]]}
+                      onChange={(lat, lng) => setForm((f) => ({ ...f, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }))}
+                    />
+                  </MapContainer>
+                </div>
+
+                {/* Coords + radius */}
+                <div className="flex items-center gap-3 text-xs text-white/50 flex-wrap">
+                  <span>Lat: <span className="text-white/80 font-mono">{form.latitude || '—'}</span></span>
+                  <span>Lng: <span className="text-white/80 font-mono">{form.longitude || '—'}</span></span>
+                  <div className="flex items-center gap-1.5 ml-auto">
+                    <label className="text-white/50">Radius (m):</label>
+                    <input
+                      type="number"
+                      min="50"
+                      max="5000"
+                      value={form.checkin_radius_m}
+                      onChange={(e) => setForm((f) => ({ ...f, checkin_radius_m: e.target.value }))}
+                      className="w-20 rounded-lg px-2 py-1 text-xs"
+                      style={inputStyle}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* RSVP */}
+          <div
+            className="rounded-xl p-4 flex items-center justify-between"
+            style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(185,28,28,.12)' }}
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-white/70">Enable RSVP</span>
+              <span className="text-xs text-white/30">Members can RSVP before the event. Optional.</span>
+            </div>
+            <div
+              onClick={() => setForm({ ...form, rsvp_enabled: !form.rsvp_enabled })}
+              className="relative w-9 h-5 rounded-full transition-colors cursor-pointer"
+              style={{ background: form.rsvp_enabled ? 'rgba(185,28,28,.7)' : 'rgba(255,255,255,.15)' }}
+            >
+              <div
+                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all"
+                style={{ left: form.rsvp_enabled ? '18px' : '2px' }}
               />
             </div>
           </div>
@@ -659,18 +1148,24 @@ function AttendanceDrawer({
     staleTime: 30_000,
   });
 
+  function escapeCsvCell(val: string): string {
+    // Prefix formula-triggering characters to prevent CSV injection in Excel/Sheets
+    const escaped = /^[=+\-@\t\r]/.test(val) ? `'${val}` : val;
+    return `"${escaped.replace(/"/g, '""')}"`;
+  }
+
   function downloadCsv() {
     if (!data) return;
     const rows = [
       ['Name', 'Student ID', 'Checked In At', 'Points Awarded'],
       ...data.attendees.map((a) => [
         a.first_name && a.last_name ? `${a.first_name} ${a.last_name}` : '',
-        a.student_id ?? '',
-        a.checked_in_at ? new Date(a.checked_in_at).toLocaleString() : '',
+        a.student_id != null ? String(a.student_id) : '',
+        a.checked_in_at ? formatDateTimeFull(a.checked_in_at) : '',
         a.points !== null ? String(a.points) : '',
       ]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows.map((r) => r.map(escapeCsvCell).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -799,16 +1294,16 @@ function AttendanceDrawer({
                         key={b.ts}
                         className="flex-1 rounded-sm relative group"
                         style={{ height: `${Math.max(b.pct, 8)}%`, background: 'rgba(185,28,28,.5)', minWidth: 4 }}
-                        title={`${new Date(b.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}: ${b.count}`}
+                        title={`${formatTime(b.ts)}: ${b.count}`}
                       />
                     ))}
                   </div>
                   <div className="flex justify-between mt-1">
                     <span className="text-[10px] text-white/20">
-                      {new Date(timeline[0].ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatTime(timeline[0].ts)}
                     </span>
                     <span className="text-[10px] text-white/20">
-                      {new Date(timeline[timeline.length - 1].ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {formatTime(timeline[timeline.length - 1].ts)}
                     </span>
                   </div>
                 </div>
@@ -842,7 +1337,7 @@ function AttendanceDrawer({
                         {a.first_name && a.last_name ? `${a.first_name} ${a.last_name}` : a.student_id ?? 'Unknown'}
                       </p>
                       <p className="text-xs text-white/30">
-                        {a.checked_in_at ? new Date(a.checked_in_at).toLocaleTimeString() : ''}
+                        {a.checked_in_at ? formatTime(a.checked_in_at) : ''}
                       </p>
                     </div>
                     {a.points !== null && (
@@ -979,7 +1474,7 @@ function LiveEventModal({ event, onClose }: { event: Event; onClose: () => void 
                     {a.first_name && a.last_name ? `${a.first_name} ${a.last_name}` : a.student_id ?? 'Unknown'}
                   </span>
                   <span className="text-xs text-white/30">
-                    {a.checked_in_at ? new Date(a.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    {a.checked_in_at ? formatTime(a.checked_in_at) : ''}
                   </span>
                   {a.points !== null && <span className="text-xs text-green-400">+{a.points}</span>}
                 </div>
@@ -1005,11 +1500,19 @@ export default function AdminEventsTab() {
   const [copiedCode, setCopiedCode] = useState<number | null>(null);
   const [qrEvent, setQrEvent] = useState<Event | null>(null);
   const [liveEvent, setLiveEvent] = useState<Event | null>(null);
+  const [revealedCodes, setRevealedCodes] = useState<Set<number>>(new Set());
 
   const [modalEvent, setModalEvent] = useState<Event | null>(null);
+  const [modalKey, setModalKey] = useState(0);
+
+  function openModal(ev: Event | null) {
+    setModalEvent(ev);
+    setModalKey((k) => k + 1);
+    setShowModal(true);
+  }
 
   function openDuplicate(ev: Event) {
-    setModalEvent({
+    openModal({
       ...ev,
       event_id: 0,
       name: ev.name + ' (Copy)',
@@ -1019,7 +1522,6 @@ export default function AdminEventsTab() {
       check_in_code: null,
       check_in_expires_at: null,
     });
-    setShowModal(true);
   }
 
   const { data: eventTypesData } = useQuery<{ event_types: EventTypeOption[] }>({
@@ -1035,6 +1537,13 @@ export default function AdminEventsTab() {
     staleTime: 120_000,
   });
   const allPartners = partnersData?.partners ?? [];
+
+  const { data: sponsorsData } = useQuery<{ sponsors: SponsorOption[] }>({
+    queryKey: ['admin-sponsors-list'],
+    queryFn: () => apiGet('/sponsors/'),
+    staleTime: 120_000,
+  });
+  const allSponsors = sponsorsData?.sponsors ?? [];
 
   const { data: events, isLoading } = useQuery<Event[]>({
     queryKey: ['admin-events'],
@@ -1092,9 +1601,11 @@ export default function AdminEventsTab() {
     <>
       {showModal && (
         <EventModal
+          key={modalKey}
           event={modalEvent}
           types={eventTypes}
           allPartners={allPartners}
+          allSponsors={allSponsors}
           onClose={() => { setShowModal(false); setModalEvent(null); }}
           onSaved={() => qc.invalidateQueries({ queryKey: ['admin-events'] })}
         />
@@ -1164,7 +1675,7 @@ export default function AdminEventsTab() {
           />
 
           <button
-            onClick={() => { setModalEvent(null); setShowModal(true); }}
+            onClick={() => openModal(null)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ml-auto"
             style={{ background: 'rgba(185,28,28,.6)', boxShadow: '0 0 20px rgba(185,28,28,.2)' }}
           >
@@ -1183,7 +1694,7 @@ export default function AdminEventsTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid rgba(185,28,28,.15)' }}>
-                    {(['Event', 'Date', 'Location', 'Check-in', 'Pts', 'Actions'] as const).map((h) => (
+                    {(['Event', 'Date', 'Location', 'Check-in', 'RSVP', 'Pts', 'Actions'] as const).map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-xs text-white/40 uppercase tracking-wide font-medium">
                         {h === 'Date' ? (
                           <button
@@ -1227,13 +1738,13 @@ export default function AdminEventsTab() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-white/50">
-                          {new Date(ev.starts_at).toLocaleDateString()}
+                          {formatDate(ev.starts_at)}
                           <br />
-                          {new Date(ev.starts_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {formatTime(ev.starts_at)}
                         </td>
                         <td className="px-4 py-3 text-xs text-white/50">
                           {ev.location ? (
-                            ev.location_url ? (
+                            ev.location_url && /^https?:\/\//i.test(ev.location_url) ? (
                               <a
                                 href={ev.location_url}
                                 target="_blank"
@@ -1249,7 +1760,27 @@ export default function AdminEventsTab() {
                         <td className="px-4 py-3">
                           <CheckInStatusBadge event={ev} />
                           {ev.check_in_code && (
-                            <p className="text-xs text-white/30 font-mono mt-0.5">{ev.check_in_code}</p>
+                            <button
+                              type="button"
+                              title="Click to reveal full code"
+                              onClick={() => setRevealedCodes((s) => {
+                                const next = new Set(s);
+                                next.has(ev.event_id) ? next.delete(ev.event_id) : next.add(ev.event_id);
+                                return next;
+                              })}
+                              className="text-xs text-white/30 font-mono mt-0.5 hover:text-white/60 transition-colors cursor-pointer block"
+                            >
+                              {revealedCodes.has(ev.event_id)
+                                ? ev.check_in_code
+                                : `${ev.check_in_code.slice(0, 2)}${'•'.repeat(ev.check_in_code.length - 4)}${ev.check_in_code.slice(-2)}`}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {ev.rsvp_enabled ? (
+                            <span className="text-white/70">{ev.rsvp_count ?? 0}</span>
+                          ) : (
+                            <span className="text-white/20">—</span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-xs text-white/60">{ev.points_value}</td>
@@ -1257,7 +1788,7 @@ export default function AdminEventsTab() {
                           <div className="flex items-center gap-1 flex-wrap">
                             {/* Primary actions — labeled */}
                             <button
-                              onClick={() => { setModalEvent(ev); setShowModal(true); }}
+                              onClick={() => openModal(ev)}
                               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/60 hover:text-white transition-colors"
                               style={{ background: 'rgba(255,255,255,.06)' }}
                             >
@@ -1294,7 +1825,14 @@ export default function AdminEventsTab() {
 
                             {/* Check-in cluster — icon only */}
                             <button
-                              onClick={() => toggleCheckin.mutate({ id: ev.event_id, enabled: !ev.check_in_enabled })}
+                              onClick={async () => {
+                                const enabling = !ev.check_in_enabled;
+                                await toggleCheckin.mutateAsync({ id: ev.event_id, enabled: enabling });
+                                // Auto-generate a check-in code if enabling and none exists yet
+                                if (enabling && !ev.check_in_code) {
+                                  regenCode.mutate(ev.event_id);
+                                }
+                              }}
                               title={ev.check_in_enabled ? 'Disable check-in' : 'Enable check-in'}
                               className="p-1.5 rounded-lg transition-colors"
                               style={

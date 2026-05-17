@@ -1,6 +1,30 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { departments, type Department, type Officer } from "@/data/officers";
+
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+
+interface PublicSponsor {
+  sponsor_id: number;
+  name: string;
+  logo_url: string | null;
+  website: string | null;
+  tier: string;
+}
+
+interface PublicPartner {
+  partner_id: number;
+  name: string;
+  type: string;
+  logo_url: string | null;
+  website: string | null;
+}
+
+function resolveLogoUrl(logo_url: string | null): string | null {
+  if (!logo_url) return null;
+  return logo_url.startsWith("/admin/uploads/") ? `${BACKEND}${logo_url}` : logo_url;
+}
 
 const glass: React.CSSProperties = {
   borderRadius: 20,
@@ -71,6 +95,21 @@ export default function About() {
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(initialDept);
   const [query, setQuery] = useState("");
 
+  const { data: sponsorsData } = useQuery<{ sponsors: PublicSponsor[] }>({
+    queryKey: ["public-sponsors"],
+    queryFn: () => fetch(`${BACKEND}/sponsors/`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: partnersData } = useQuery<{ partners: PublicPartner[] }>({
+    queryKey: ["public-partners"],
+    queryFn: () => fetch(`${BACKEND}/partners/public`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const sponsors = sponsorsData?.sponsors ?? [];
+  const partners = partnersData?.partners ?? [];
+
   useEffect(() => {
     setSelectedDeptId(searchParams.get("dept"));
   }, [searchParams]);
@@ -137,6 +176,75 @@ export default function About() {
               {departments.map((d) => <DeptCard key={d.id} dept={d} onClick={() => selectDept(d)} />)}
             </div>
           </section>
+
+          {/* Sponsors & Partners */}
+          {(sponsors.length > 0 || partners.length > 0) && (
+            <section style={{ ...glass, marginTop: 16 }}>
+              <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 22, margin: "0 0 6px", color: "#fff" }}>Our Community</h2>
+              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13.5, marginBottom: 24 }}>The companies and organizations that support CougarAI.</p>
+
+              {sponsors.length > 0 && (
+                <div style={{ marginBottom: partners.length > 0 ? 28 : 0 }}>
+                  <p style={{ fontFamily: "Oxanium,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: "rgba(248,113,113,.7)", textTransform: "uppercase", marginBottom: 14 }}>Sponsors</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    {sponsors.map((s) => {
+                      const logo = resolveLogoUrl(s.logo_url);
+                      const letter = s.name.trim().charAt(0).toUpperCase();
+                      const card = (
+                        <div
+                          key={s.sponsor_id}
+                          style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.2)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, minWidth: 160, transition: "border-color .2s" }}
+                        >
+                          {logo
+                            ? <img src={logo} alt={s.name} style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 8, background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
+                            : <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(185,28,28,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 16, color: "rgba(248,113,113,.9)" }}>{letter}</div>
+                          }
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13.5, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                            <div style={{ fontSize: 11, color: "rgba(248,113,113,.65)", textTransform: "capitalize", marginTop: 2 }}>{s.tier}</div>
+                          </div>
+                        </div>
+                      );
+                      return s.website
+                        ? <a key={s.sponsor_id} href={s.website} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>{card}</a>
+                        : <React.Fragment key={s.sponsor_id}>{card}</React.Fragment>;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {partners.length > 0 && (
+                <div>
+                  <p style={{ fontFamily: "Oxanium,sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", color: "rgba(248,113,113,.7)", textTransform: "uppercase", marginBottom: 14 }}>Partner Organizations</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    {partners.map((p) => {
+                      const logo = resolveLogoUrl(p.logo_url);
+                      const letter = p.name.trim().charAt(0).toUpperCase();
+                      const typeLabel: Record<string, string> = { company: "Company", university_org: "University Org", nonprofit: "Nonprofit", other: "Other" };
+                      const card = (
+                        <div
+                          key={p.partner_id}
+                          style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.2)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, minWidth: 160 }}
+                        >
+                          {logo
+                            ? <img src={logo} alt={p.name} style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 8, background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
+                            : <div style={{ width: 36, height: 36, borderRadius: 8, background: "rgba(185,28,28,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 16, color: "rgba(248,113,113,.9)" }}>{letter}</div>
+                          }
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13.5, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                            <div style={{ fontSize: 11, color: "rgba(248,113,113,.65)", marginTop: 2 }}>{typeLabel[p.type] ?? p.type}</div>
+                          </div>
+                        </div>
+                      );
+                      return p.website
+                        ? <a key={p.partner_id} href={p.website} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none", color: "inherit" }}>{card}</a>
+                        : <React.Fragment key={p.partner_id}>{card}</React.Fragment>;
+                    })}
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
         </>
       )}
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
 import { Users, Calendar, DollarSign, TrendingUp, Star, Clock, Megaphone, X, Trash2, RefreshCw } from 'lucide-react';
+import { formatDate } from '@/lib/dates';
 
 interface AdminStats {
   total_users: number;
@@ -99,7 +100,7 @@ function AnnouncementCard() {
             <p className="text-sm text-amber-200/90">{active.message}</p>
             {active.expires_at && (
               <p className="text-xs text-white/30 mt-1">
-                Expires: {new Date(active.expires_at).toLocaleDateString()}
+                Expires: {formatDate(active.expires_at)}
               </p>
             )}
           </div>

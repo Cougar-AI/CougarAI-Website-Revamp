@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { setAuthNotice } from "@/lib/auth";
 import logo from "../assets/logo.png";
@@ -25,6 +25,15 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<string[]>([]);
 
+  const pwChecks = useMemo(() => ({
+    len:   password.length >= 8,
+    upper: /[A-Z]/.test(password),
+    lower: /[a-z]/.test(password),
+    num:   /[0-9]/.test(password),
+    sym:   /[^A-Za-z0-9]/.test(password),
+  }), [password]);
+  const pwStrong = Object.values(pwChecks).every(Boolean);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -32,6 +41,10 @@ export default function ResetPassword() {
 
     if (!token) {
       setError("No reset token found. Please use the link from your email.");
+      return;
+    }
+    if (!pwStrong) {
+      setError("Password must be at least 8 characters with uppercase, lowercase, a number, and a symbol.");
       return;
     }
     if (password !== confirm) {
@@ -159,6 +172,24 @@ export default function ResetPassword() {
                 className="block w-full rounded-xl border-0 bg-white/5 px-3 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/70"
                 placeholder="••••••••"
               />
+              {password && (
+                <div className="mt-1.5 flex gap-1.5 flex-wrap">
+                  {[
+                    [pwChecks.len,   "8+ chars"],
+                    [pwChecks.upper, "Uppercase"],
+                    [pwChecks.lower, "Lowercase"],
+                    [pwChecks.num,   "Number"],
+                    [pwChecks.sym,   "Symbol"],
+                  ].map(([ok, label]) => (
+                    <span
+                      key={String(label)}
+                      className={`text-xs px-1.5 py-0.5 rounded-full ${ok ? "bg-emerald-900/50 text-emerald-300" : "bg-white/5 text-white/30"}`}
+                    >
+                      {String(label)}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div>

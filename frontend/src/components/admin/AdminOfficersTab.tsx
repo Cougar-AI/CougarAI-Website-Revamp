@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
-import { Plus, Edit2, UserMinus, X, Search } from 'lucide-react';
+import { Plus, Edit2, UserMinus, Trash2, X, Search } from 'lucide-react';
+import { formatDate } from '@/lib/dates';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 
@@ -406,6 +407,11 @@ export default function AdminOfficersTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-officers'] }),
   });
 
+  const deleteOfficer = useMutation({
+    mutationFn: (studentId: string) => apiDelete(`/admin/officers/${studentId}?hard=1`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-officers'] }),
+  });
+
   const officers = data?.officers ?? [];
   const active = officers.filter((o) => o.is_active);
   const inactive = officers.filter((o) => !o.is_active);
@@ -455,10 +461,10 @@ export default function AdminOfficersTab() {
           )}
         </td>
         <td className="px-4 py-3 text-xs text-white/50">
-          {o.join_date ? new Date(o.join_date).toLocaleDateString() : '—'}
+          {o.join_date ? formatDate(o.join_date) : '—'}
         </td>
         <td className="px-4 py-3 text-xs text-white/50">
-          {o.end_date ? new Date(o.end_date).toLocaleDateString() : '—'}
+          {o.end_date ? formatDate(o.end_date) : '—'}
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-1">
@@ -484,6 +490,18 @@ export default function AdminOfficersTab() {
                 <UserMinus size={13} />
               </button>
             )}
+            <button
+              onClick={() => {
+                if (confirm(`Permanently delete ${o.first_name ?? o.student_id} from the officers table? This cannot be undone.`)) {
+                  deleteOfficer.mutate(o.student_id);
+                }
+              }}
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ background: 'rgba(185,28,28,.08)', color: 'rgba(248,113,113,.5)' }}
+              title="Delete record"
+            >
+              <Trash2 size={13} />
+            </button>
           </div>
         </td>
       </tr>

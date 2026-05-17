@@ -2,9 +2,20 @@ from app.imports import *
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from typing import Optional
-from datetime import date as date_type
+from datetime import date as date_type, timezone
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from app import limiter
+import math
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    """Return distance in metres between two lat/lon points."""
+    R = 6_371_000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dl / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
 
 _MUTATE_ROLES = {"officer", "admin"}
 _ADMIN_ROLES = {"admin"}
@@ -43,6 +54,38 @@ def _to_rfc3339(dt_str: str) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+@events_bp.route("/event-types", methods=["GET", "OPTIONS"])
+def get_public_event_types():
+    """Public endpoint — returns active event types with their colors and names."""
+    if request.method == "OPTIONS":
+        return "", 200
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT type_id, name, color, default_points "
+            "FROM event_types WHERE is_active = TRUE ORDER BY name ASC"
+        )
+        rows = cur.fetchall()
+    return jsonify({"event_types": [dict(r) for r in rows]}), 200
+
+
+@events_bp.route("/my-rsvps", methods=["GET", "OPTIONS"])
+@jwt_required()
+def list_my_rsvps():
+    """Return all event_ids the current user has RSVP'd to."""
+    if request.method == "OPTIONS":
+        return "", 200
+    user_id = int(get_jwt_identity())
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT event_id FROM event_rsvps WHERE user_id = %s",
+            (user_id,),
+        )
+        event_ids = [row["event_id"] for row in cur.fetchall()]
+    return jsonify({"rsvped_event_ids": event_ids}), 200
+
 
 @events_bp.route("/google", methods=["GET"])
 def getGoogleCalendarEvents():
@@ -97,7 +140,10 @@ def getEvents():
 
         query, params = build_sql_querys(
             "SELECT event_id, name, event_type, description, location, location_url, starts_at, ends_at, "
-            "capacity, check_in_code, check_in_enabled, check_in_expires_at, points_value, google_event_id FROM events",
+            "capacity, check_in_code, check_in_enabled, check_in_expires_at, points_value, google_event_id, "
+            "rsvp_enabled, require_location, latitude, longitude, checkin_radius_m, "
+            "(SELECT COUNT(*) FROM event_rsvps WHERE event_rsvps.event_id = events.event_id) AS rsvp_count "
+            "FROM events",
             filter_dict, date_column="starts_at"
         )
 
@@ -151,6 +197,11 @@ def addEvent():
                 "check_in_enabled": request.json.get("check_in_enabled"),
                 "check_in_expires_at": request.json.get("check_in_expires_at"),
                 "points_value": request.json.get("points_value"),
+                "require_location": request.json.get("require_location"),
+                "latitude": request.json.get("latitude"),
+                "longitude": request.json.get("longitude"),
+                "checkin_radius_m": request.json.get("checkin_radius_m"),
+                "rsvp_enabled": request.json.get("rsvp_enabled"),
             }
             if filter_dict["starts_at"] is None or filter_dict["event_type"] is None or filter_dict["name"] is None:
                 return jsonify({"error": "name, starts_at and event_type are required"}), 400
@@ -159,7 +210,7 @@ def addEvent():
             query += " RETURNING event_id"
         
             cur.execute(query, tuple(params))
-            event_id = cur.fetchone()[0]
+            event_id = cur.fetchone()["event_id"]
             connection.commit()
             return jsonify({"message": "Success", "event_id": event_id}), 201
         
@@ -241,12 +292,20 @@ def updateEvent(event_id):
                 "check_in_enabled": request.json.get("check_in_enabled"),
                 "check_in_expires_at": request.json.get("check_in_expires_at"),
                 "points_value": request.json.get("points_value"),
+                "require_location": request.json.get("require_location"),
+                "latitude": request.json.get("latitude"),
+                "longitude": request.json.get("longitude"),
+                "checkin_radius_m": request.json.get("checkin_radius_m"),
+                "rsvp_enabled": request.json.get("rsvp_enabled"),
             }
 
-            if filter_dict["starts_at"] and not is_valid_date(filter_dict["starts_at"]):
-                return jsonify({"error": "Invalid starts_at format"}), 400
-            if filter_dict["ends_at"] and not is_valid_date(filter_dict["ends_at"]):
-                return jsonify({"error": "Invalid ends_at format"}), 400
+            try:
+                if filter_dict["starts_at"]:
+                    datetime.fromisoformat(filter_dict["starts_at"])
+                if filter_dict["ends_at"]:
+                    datetime.fromisoformat(filter_dict["ends_at"])
+            except ValueError:
+                return jsonify({"error": "Invalid datetime format"}), 400
 
             query, params = build_sql_querys("UPDATE events", filter_dict, date_column="starts_at", mode="SET")
             query += " WHERE event_id = %s"
@@ -316,13 +375,18 @@ def member_checkin():
     if not code:
         return jsonify({"error": "code is required"}), 400
 
+    member_lat = data.get("lat")
+    member_lon = data.get("lon")
+
     conn = connect()
     with conn.cursor() as cur:
         # Validate event code
         cur.execute(
             """
             SELECT event_id, name, check_in_expires_at,
-                   COALESCE(points_value, 10) as points_value
+                   COALESCE(points_value, 10) as points_value,
+                   require_location, latitude, longitude,
+                   COALESCE(checkin_radius_m, 400) as checkin_radius_m
             FROM events
             WHERE check_in_code = %s AND check_in_enabled = TRUE
             """,
@@ -332,9 +396,21 @@ def member_checkin():
         if not event:
             return jsonify({"error": "Invalid or inactive check-in code"}), 404
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         if event["check_in_expires_at"] and event["check_in_expires_at"] < now:
             return jsonify({"error": "This check-in code has expired"}), 410
+
+        # Geolocation check
+        if event["require_location"] and event["latitude"] is not None and event["longitude"] is not None:
+            if member_lat is None or member_lon is None:
+                return jsonify({"error": "This event requires location verification — please enable location access"}), 400
+            try:
+                distance = _haversine_m(float(member_lat), float(member_lon),
+                                        float(event["latitude"]), float(event["longitude"]))
+            except (TypeError, ValueError):
+                return jsonify({"error": "Invalid location coordinates"}), 400
+            if distance > event["checkin_radius_m"]:
+                return jsonify({"error": f"You are not within range of the event location ({int(distance)}m away, {event['checkin_radius_m']}m required)"}), 403
 
         # Require linked profile
         cur.execute("SELECT student_id FROM profile WHERE user_id = %s", (user_id,))
@@ -422,19 +498,20 @@ def officer_checkin():
                 (student_id,),
             )
 
-        # Duplicate check (check both tables)
+        today = date_type.today()
+        # Atomic insert — the UNIQUE(student_id, event_id) constraint prevents duplicates
+        # even under concurrent requests. ON CONFLICT lets us detect already-checked-in cleanly.
         cur.execute(
-            "SELECT points_id FROM points WHERE student_id = %s AND event_id = %s",
-            (student_id, event_id),
+            """
+            INSERT INTO points (student_id, event_id, points, date, officer_user_id)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (student_id, event_id) DO NOTHING
+            """,
+            (student_id, event_id, event["points_value"], today, user_id),
         )
-        if cur.fetchone():
+        if cur.rowcount == 0:
             return jsonify({"message": "Already checked in", "event_name": event["name"]}), 200
 
-        today = date_type.today()
-        cur.execute(
-            "INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)",
-            (student_id, event_id, event["points_value"], today),
-        )
         # Also record in event_checkins so attendance counts are accurate
         cur.execute(
             """
@@ -584,9 +661,11 @@ def get_event_partners(event_id):
     return jsonify({"partners": [dict(r) for r in rows]}), 200
 
 
-@events_bp.route("/<int:event_id>/partners", methods=["POST"])
+@events_bp.route("/<int:event_id>/partners", methods=["POST", "OPTIONS"])
 @jwt_required()
 def add_event_partner(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
     err = _check_role(_MUTATE_ROLES)
     if err:
         return err
@@ -600,6 +679,10 @@ def add_event_partner(event_id):
 
     conn = connect()
     with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM events WHERE event_id = %s", (event_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Event not found"}), 404
+
         cur.execute(
             """
             INSERT INTO event_partners (event_id, partner_id, role)
@@ -632,3 +715,212 @@ def remove_event_partner(event_id, partner_id):
 
     return jsonify({"ok": True}), 200
 
+
+# Event sponsor tagging  — GET/POST/DELETE /events/<id>/sponsors
+# ---------------------------------------------------------------------------
+
+@events_bp.route("/<int:event_id>/sponsors", methods=["GET", "OPTIONS"])
+@jwt_required()
+def get_event_sponsors(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT s.sponsor_id, s.name, s.logo_url, s.tier
+            FROM event_sponsors es
+            JOIN sponsors s ON es.sponsor_id = s.sponsor_id
+            WHERE es.event_id = %s
+            ORDER BY s.name
+            """,
+            (event_id,),
+        )
+        rows = cur.fetchall()
+
+    return jsonify({"sponsors": [dict(r) for r in rows]}), 200
+
+
+@events_bp.route("/<int:event_id>/sponsors", methods=["POST", "OPTIONS"])
+@jwt_required()
+def add_event_sponsor(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    data = request.get_json(silent=True) or {}
+    sponsor_id = data.get("sponsor_id")
+
+    if not sponsor_id:
+        return jsonify({"error": "sponsor_id is required"}), 400
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute("SELECT 1 FROM events WHERE event_id = %s", (event_id,))
+        if not cur.fetchone():
+            return jsonify({"error": "Event not found"}), 404
+
+        cur.execute(
+            """
+            INSERT INTO event_sponsors (event_id, sponsor_id)
+            VALUES (%s, %s)
+            ON CONFLICT DO NOTHING
+            """,
+            (event_id, sponsor_id),
+        )
+        conn.commit()
+
+    return jsonify({"ok": True}), 201
+
+
+@events_bp.route("/<int:event_id>/sponsors/<int:sponsor_id>", methods=["DELETE", "OPTIONS"])
+@jwt_required()
+def remove_event_sponsor(event_id, sponsor_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM event_sponsors WHERE event_id = %s AND sponsor_id = %s",
+            (event_id, sponsor_id),
+        )
+        conn.commit()
+
+    return jsonify({"ok": True}), 200
+
+
+# ── RSVP endpoints ─────────────────────────────────────────────────────────────
+
+_MEMBER_PLUS = {"member", "officer", "admin", "partner"}
+
+
+@events_bp.route("/<int:event_id>/rsvp", methods=["GET", "OPTIONS"])
+@jwt_required()
+def list_event_rsvps(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT r.rsvp_id, r.user_id, r.created_at, u.email
+               FROM event_rsvps r
+               JOIN users u ON u.user_id = r.user_id
+               WHERE r.event_id = %s
+               ORDER BY r.created_at""",
+            (event_id,),
+        )
+        rsvps = []
+        for row in cur.fetchall():
+            rsvps.append({
+                "rsvp_id": row["rsvp_id"],
+                "user_id": row["user_id"],
+                "email": row["email"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            })
+    return jsonify({"rsvps": rsvps, "count": len(rsvps)})
+
+
+@events_bp.route("/<int:event_id>/rsvp/stats", methods=["GET", "OPTIONS"])
+@jwt_required()
+def event_rsvp_stats(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    err = _check_role(_MUTATE_ROLES)
+    if err:
+        return err
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) AS rsvp_count FROM event_rsvps WHERE event_id = %s",
+            (event_id,),
+        )
+        rsvp_count = int(cur.fetchone()["rsvp_count"])
+
+        cur.execute(
+            "SELECT COUNT(*) AS attended FROM event_checkins WHERE event_id = %s",
+            (event_id,),
+        )
+        attended = int(cur.fetchone()["attended"])
+
+        conversion = round(attended / rsvp_count * 100, 1) if rsvp_count > 0 else 0.0
+
+    return jsonify({
+        "event_id": event_id,
+        "rsvp_count": rsvp_count,
+        "attended": attended,
+        "conversion_pct": conversion,
+    })
+
+
+@events_bp.route("/<int:event_id>/rsvp", methods=["POST", "OPTIONS"])
+@jwt_required()
+def create_rsvp(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    claims = get_jwt()
+    if claims.get("role") not in _MEMBER_PLUS:
+        return jsonify({"error": "Membership required to RSVP"}), 403
+    user_id = int(get_jwt_identity())
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute("SELECT rsvp_enabled FROM events WHERE event_id = %s", (event_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({"error": "Event not found"}), 404
+        if not row["rsvp_enabled"]:
+            return jsonify({"error": "RSVP is not enabled for this event"}), 400
+        cur.execute(
+            """INSERT INTO event_rsvps (event_id, user_id)
+               VALUES (%s, %s)
+               ON CONFLICT (event_id, user_id) DO NOTHING""",
+            (event_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"success": True}), 201
+
+
+@events_bp.route("/<int:event_id>/my-rsvp", methods=["GET", "OPTIONS"])
+@jwt_required()
+def get_my_rsvp(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    try:
+        user_id = int(get_jwt_identity())
+        conn = connect()
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM event_rsvps WHERE event_id = %s AND user_id = %s",
+                (event_id, user_id),
+            )
+            return jsonify({"rsvped": cur.fetchone() is not None}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@events_bp.route("/<int:event_id>/rsvp", methods=["DELETE", "OPTIONS"])
+@jwt_required()
+def cancel_rsvp(event_id):
+    if request.method == "OPTIONS":
+        return "", 200
+    user_id = int(get_jwt_identity())
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            "DELETE FROM event_rsvps WHERE event_id = %s AND user_id = %s",
+            (event_id, user_id),
+        )
+        conn.commit()
+    return jsonify({"success": True})

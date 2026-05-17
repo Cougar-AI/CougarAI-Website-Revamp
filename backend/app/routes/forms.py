@@ -1,10 +1,19 @@
 from app.imports import *
 from datetime import datetime
-from google.oauth2 import service_account 
-from googleapiclient.discovery import build 
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 from typing import Optional
+from flask_jwt_extended import jwt_required, get_jwt
 
 forms_bp = Blueprint("forms", __name__)
+
+_OFFICER_ROLES = {"admin", "officer"}
+
+def _require_officer():
+    claims = get_jwt()
+    if claims.get("role") not in _OFFICER_ROLES:
+        return jsonify({"error": "Officer or admin access required"}), 403
+    return None
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
@@ -26,7 +35,10 @@ def parse_forms_ts(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 @forms_bp.route("/<string:spreadsheet_id>", methods=["POST"])
+@jwt_required()
 def process_sheet(spreadsheet_id):
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -119,13 +131,8 @@ def process_sheet(spreadsheet_id):
         except Exception:
             pass
         import traceback
-        return jsonify({
-            "error": "Failed to process the spreadsheet",
-            "details": str(e),
-            "repr": repr(e),
-            "type": type(e).__name__,
-            "trace": traceback.format_exc(),
-        }), 500
+        traceback.print_exc()
+        return jsonify({"error": "Failed to process the spreadsheet"}), 500
 
     finally:
         try:

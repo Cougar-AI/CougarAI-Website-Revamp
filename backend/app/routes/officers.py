@@ -1,6 +1,15 @@
 from app.imports import *
+from flask_jwt_extended import jwt_required, get_jwt
 
 officers_bp = Blueprint('officers', __name__)
+
+_OFFICER_WRITE_ROLES = {"admin", "officer"}
+
+def _require_officer_role():
+    claims = get_jwt()
+    if claims.get("role") not in _OFFICER_WRITE_ROLES:
+        return jsonify({"error": "Officer or admin access required"}), 403
+    return None
 
 @officers_bp.route("/", methods=["GET"])
 def getOfficers():
@@ -24,7 +33,10 @@ def getOfficers():
         return (jsonify(results), 200) if results else (jsonify({"error": "No officers found"}), 404)
     
 @officers_bp.route("/<int:student_id>", methods=["POST"])
+@jwt_required()
 def addOfficer(student_id):
+    err = _require_officer_role()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -62,7 +74,10 @@ def addOfficer(student_id):
         return jsonify({"error": str(e)}), 500
     
 @officers_bp.route("/<int:student_id>", methods=["DELETE"])
+@jwt_required()
 def deleteOfficer(student_id):
+    err = _require_officer_role()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -85,7 +100,10 @@ def getOfficer(student_id):
         return jsonify(result) if result else jsonify({"error": "Officer not found"}), 404
             
 @officers_bp.route("/<int:student_id>", methods=["PATCH"])
+@jwt_required()
 def updateOfficer(student_id):
+    err = _require_officer_role()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:

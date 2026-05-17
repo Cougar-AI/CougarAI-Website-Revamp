@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Star, Trophy, Flame, Calendar } from "lucide-react";
 import { apiGet } from "@/lib/api";
 import type { MeResponse } from "@/pages/Dashboard";
+import { formatDate } from "@/lib/dates";
 
 interface Props {
   meData?: MeResponse;
@@ -116,7 +117,7 @@ export default function PointsTab({ meData }: Props) {
                     {entry.event_name ?? "Event"}
                   </p>
                   <p className={`text-xs ${eventTypeColor(entry.event_type)}`}>
-                    {entry.event_type ?? "other"} · {new Date(entry.date).toLocaleDateString()}
+                    {entry.event_type ?? "other"} · {formatDate(entry.date)}
                   </p>
                 </div>
                 <span className="ml-4 flex-shrink-0 text-sm font-semibold text-white">

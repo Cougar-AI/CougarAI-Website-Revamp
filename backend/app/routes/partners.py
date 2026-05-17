@@ -393,6 +393,164 @@ def add_resource_link(partner_id):
     return jsonify({"link_id": link_id, "message": "Link added"}), 201
 
 
+# ---------------------------------------------------------------------------
+# GET /partners/public  — no auth, safe fields only for About Us page
+# ---------------------------------------------------------------------------
+
+@partners_bp.route("/public", methods=["GET", "OPTIONS"])
+def list_partners_public():
+    if request.method == "OPTIONS":
+        return "", 200
+
+    conn = connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT partner_id, name, type, logo_url, website, description
+            FROM partners
+            WHERE is_active = TRUE
+            ORDER BY name
+            """
+        )
+        rows = cur.fetchall()
+
+    partners = [
+        {
+            "partner_id": r["partner_id"],
+            "name": r["name"],
+            "type": r["type"],
+            "logo_url": r["logo_url"],
+            "website": r["website"],
+            "description": r["description"],
+        }
+        for r in rows
+    ]
+    return jsonify({"partners": partners}), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /partners/<id>/members  — President/Manager of that org can add members
+# ---------------------------------------------------------------------------
+
+_LEADER_ROLES = {"President", "Manager"}
+_VALID_PARTNER_ROLES = {"President", "Marketing", "Manager", "Officer"}
+
+
+def _get_caller_partner_role(cur, user_id: int, partner_id: int):
+    """Return the caller's partner_role in this org, or None if not a member."""
+    cur.execute(
+        "SELECT partner_role FROM partner_members WHERE partner_id = %s AND user_id = %s",
+        (partner_id, user_id),
+    )
+    row = cur.fetchone()
+    return row["partner_role"] if row else None
+
+
+@partners_bp.route("/<int:partner_id>/members", methods=["POST", "OPTIONS"])
+@jwt_required()
+def add_partner_member(partner_id):
+    if request.method == "OPTIONS":
+        return "", 200
+
+    claims = _get_claims()
+    caller_id = int(get_jwt_identity())
+    is_admin = _is_admin(claims)
+
+    conn = connect()
+    with conn.cursor() as cur:
+        if not is_admin:
+            caller_role = _get_caller_partner_role(cur, caller_id, partner_id)
+            if caller_role not in _LEADER_ROLES:
+                return jsonify({"error": "President or Manager access required"}), 403
+
+        data = request.get_json(silent=True) or {}
+        email = (data.get("email") or "").strip().lower()
+        partner_role = (data.get("partner_role") or "").strip()
+
+        if not email:
+            return jsonify({"error": "email is required"}), 400
+        if partner_role not in _VALID_PARTNER_ROLES:
+            return jsonify({"error": f"partner_role must be one of: {', '.join(sorted(_VALID_PARTNER_ROLES))}"}), 400
+
+        cur.execute("SELECT user_id, role FROM users WHERE LOWER(email) = %s", (email,))
+        user_row = cur.fetchone()
+        if not user_row:
+            return jsonify({"error": "No user found with that email address"}), 404
+
+        target_id = user_row["user_id"]
+
+        cur.execute(
+            "SELECT 1 FROM partner_members WHERE partner_id = %s AND user_id = %s",
+            (partner_id, target_id),
+        )
+        if cur.fetchone():
+            return jsonify({"error": "User is already a member of this partner org"}), 409
+
+        cur.execute(
+            "INSERT INTO partner_members (partner_id, user_id, partner_role) VALUES (%s, %s, %s)",
+            (partner_id, target_id, partner_role),
+        )
+        if user_row["role"] in ("member", "non-member"):
+            cur.execute("UPDATE users SET role = 'partner' WHERE user_id = %s", (target_id,))
+        conn.commit()
+
+    return jsonify({"message": "Member added", "user_id": target_id, "partner_role": partner_role}), 201
+
+
+# ---------------------------------------------------------------------------
+# DELETE /partners/<id>/members/<user_id>  — President/Manager can remove members
+# ---------------------------------------------------------------------------
+
+@partners_bp.route("/<int:partner_id>/members/<int:target_user_id>", methods=["DELETE", "OPTIONS"])
+@jwt_required()
+def remove_partner_member(partner_id, target_user_id):
+    if request.method == "OPTIONS":
+        return "", 200
+
+    claims = _get_claims()
+    caller_id = int(get_jwt_identity())
+    is_admin = _is_admin(claims)
+
+    conn = connect()
+    with conn.cursor() as cur:
+        if not is_admin:
+            caller_role = _get_caller_partner_role(cur, caller_id, partner_id)
+            if caller_role not in _LEADER_ROLES:
+                return jsonify({"error": "President or Manager access required"}), 403
+
+        cur.execute(
+            "DELETE FROM partner_members WHERE partner_id = %s AND user_id = %s",
+            (partner_id, target_user_id),
+        )
+        if cur.rowcount == 0:
+            return jsonify({"error": "Member not found"}), 404
+
+        # Revert global role if no longer in any partner org
+        cur.execute(
+            "SELECT 1 FROM partner_members WHERE user_id = %s LIMIT 1",
+            (target_user_id,),
+        )
+        still_partner = cur.fetchone() is not None
+        if not still_partner:
+            cur.execute(
+                """
+                SELECT 1 FROM payments
+                WHERE (student_id = (SELECT student_id FROM profile WHERE user_id = %s)
+                       OR email = (SELECT email FROM users WHERE user_id = %s))
+                  AND expires_at >= CURRENT_DATE
+                LIMIT 1
+                """,
+                (target_user_id, target_user_id),
+            )
+            has_active = cur.fetchone() is not None
+            new_role = "member" if has_active else "non-member"
+            cur.execute("UPDATE users SET role = %s WHERE user_id = %s", (new_role, target_user_id))
+
+        conn.commit()
+
+    return jsonify({"ok": True}), 200
+
+
 @partners_bp.route("/<int:partner_id>/resource-links/<int:link_id>", methods=["DELETE", "OPTIONS"])
 @jwt_required()
 def delete_resource_link(partner_id, link_id):

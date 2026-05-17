@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { BarChart2, Users, TrendingUp, Calendar, X, ChevronUp, ChevronDown, Download } from 'lucide-react';
+import { formatDate, formatTime } from '@/lib/dates';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 void BACKEND; // kept for potential avatar URLs
@@ -97,9 +98,7 @@ function AttendanceModal({ event, onClose }: { event: Event; onClose: () => void
           <div>
             <h2 className="text-base font-bold text-white font-['Oxanium']">{event.name}</h2>
             <p className="text-xs text-white/40 mt-0.5">
-              {new Date(event.starts_at).toLocaleDateString('en-US', {
-                weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
-              })}
+              {formatDate(event.starts_at)}
             </p>
           </div>
           <button onClick={onClose} className="text-white/40 hover:text-white/80 transition-colors shrink-0">
@@ -173,7 +172,7 @@ function AttendanceModal({ event, onClose }: { event: Event; onClose: () => void
                     )}
                     {a.checked_in_at && (
                       <span className="text-xs text-white/30 shrink-0">
-                        {new Date(a.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {formatTime(a.checked_in_at)}
                       </span>
                     )}
                   </div>
@@ -255,9 +254,6 @@ export default function AdminEventStatsTab() {
       setSortDir(key === 'date' ? 'desc' : 'desc');
     }
   }
-
-  const formatDate = (s: string) =>
-    new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const isPast = (e: Event) => new Date(e.starts_at) < now;
 

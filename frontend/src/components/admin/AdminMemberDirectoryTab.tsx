@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
 import { Search, X, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatDate } from '@/lib/dates';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 
@@ -122,7 +123,7 @@ function DetailModal({ userId, onClose }: { userId: number; onClose: () => void 
     staleTime: 0,
   });
 
-  const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
+  const fmt = (d: string | null) => (d ? formatDate(d) : '—');
 
   return (
     <div
@@ -272,7 +273,7 @@ function exportCsv(users: DirectoryUser[]) {
     u.membership_status,
     u.points_total ?? '',
     u.checkin_count ?? '',
-    u.created_at ? new Date(u.created_at).toLocaleDateString() : '',
+    u.created_at ? formatDate(u.created_at) : '',
   ]);
   const csv = [headers, ...rows]
     .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
@@ -318,7 +319,7 @@ export default function AdminMemberDirectoryTab() {
     staleTime: 60_000,
   });
 
-  const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—');
+  const fmt = (d: string | null) => (d ? formatDate(d) : '—');
 
   return (
     <>

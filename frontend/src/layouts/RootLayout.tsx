@@ -12,7 +12,7 @@ export default function RootLayout() {
         Skip to content
       </a>
 
-      <div className="relative z-10">
+      <div className="relative z-20">
         <Navbar />
       </div>
 

@@ -140,6 +140,10 @@ def stripe_webhook():
     sig_header = request.headers.get("Stripe-Signature", "")
     secret = current_app.config.get("STRIPE_WEBHOOK_SECRET", "")
 
+    if not secret:
+        current_app.logger.error("STRIPE_WEBHOOK_SECRET is not configured — rejecting all webhook requests")
+        return jsonify({"error": "Webhook not configured"}), 500
+
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, secret)
     except (stripe.errors.SignatureVerificationError, ValueError) as e:

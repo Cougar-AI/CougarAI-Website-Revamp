@@ -47,7 +47,7 @@ def create_app(config_class='config.DevelopmentConfig'):
     jwt.init_app(app)
     limiter.init_app(app)
 
-    # Register blueprints with more specific error handling
+    # Register blueprints first (so all modules are fully imported before scheduler loads)
     try:
         from app.imports.routes_import import blueprints_with_prefixes
         for blueprint, prefix in blueprints_with_prefixes.items():
@@ -58,7 +58,17 @@ def create_app(config_class='config.DevelopmentConfig'):
         app.logger.warning("Blueprint registration failed (invalid blueprint configuration): %r", e)
     except Exception as e:
         app.logger.error("Unexpected error during blueprint registration: %r", e)
-        # Re-raise for unexpected errors to fail fast in production
         raise
+
+    # APScheduler for notification jobs — imported after blueprints to avoid circular imports
+    try:
+        from app.services.notification_scheduler import scheduler, reload_schedules
+        app.config["SCHEDULER_API_ENABLED"] = False
+        scheduler.init_app(app)
+        if not scheduler.running:
+            scheduler.start()
+        reload_schedules(app)
+    except Exception as exc:
+        app.logger.warning("Could not start notification scheduler: %s", exc)
 
     return app

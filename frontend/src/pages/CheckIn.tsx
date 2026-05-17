@@ -9,14 +9,14 @@ interface CheckInResult {
   total_points: number;
 }
 
-type Status = 'loading' | 'success' | 'error';
+type Status = 'locating' | 'loading' | 'success' | 'error';
 
 export default function CheckIn() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const code = searchParams.get('code') ?? '';
 
-  const [status, setStatus] = useState<Status>('loading');
+  const [status, setStatus] = useState<Status>('locating');
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -27,15 +27,31 @@ export default function CheckIn() {
       return;
     }
 
-    apiPost<CheckInResult>('/events/checkin', { code })
-      .then((res) => {
+    async function doCheckIn() {
+      // Try to get location; proceed without it if unavailable (server decides if required)
+      let geoPayload: { lat?: number; lon?: number } = {};
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000 })
+        );
+        geoPayload = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      } catch {
+        // Location unavailable — attempt check-in without coords
+      }
+
+      setStatus('loading');
+      try {
+        const res = await apiPost<CheckInResult>('/events/checkin', { code, ...geoPayload });
         setResult(res);
         setStatus('success');
-      })
-      .catch((err) => {
-        setErrorMsg(err?.message ?? 'Check-in failed. The code may be invalid or expired.');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Check-in failed. The code may be invalid or expired.';
+        setErrorMsg(msg);
         setStatus('error');
-      });
+      }
+    }
+
+    doCheckIn();
   }, [code]);
 
   return (
@@ -52,6 +68,16 @@ export default function CheckIn() {
           boxShadow: '0 20px 60px rgba(0,0,0,.5)',
         }}
       >
+        {status === 'locating' && (
+          <>
+            <Loader2 size={48} className="text-blue-400 animate-spin" />
+            <div>
+              <h1 className="text-xl font-bold text-white font-['Oxanium']">Acquiring location…</h1>
+              <p className="text-sm text-white/40 mt-1">This may take a moment</p>
+            </div>
+          </>
+        )}
+
         {status === 'loading' && (
           <>
             <Loader2 size={48} className="text-red-400 animate-spin" />

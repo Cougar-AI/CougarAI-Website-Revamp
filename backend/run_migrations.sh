@@ -45,13 +45,22 @@ MIGRATIONS=(
   add_event_types_table.sql
   add_officer_positions_table.sql
   add_sponsors_table.sql
+  add_sponsors_unique_name.sql
   add_partners_tables.sql
   add_points_admin_fields.sql
+  add_points_unique_constraint.sql
   add_progress_reports_table.sql
   add_events_google_calendar_id.sql
   add_event_partners_table.sql
   add_partner_resource_links_table.sql
   add_pinned_announcements_table.sql
+  add_events_geolocation.sql
+  add_event_sponsors_table.sql
+  add_receipts_table.sql
+  add_events_rsvp.sql
+  add_notifications_tables.sql
+  fix_events_event_name_nullable.sql
+  add_user_notifications_table.sql
 )
 
 FAILED=0

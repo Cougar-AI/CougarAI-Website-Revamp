@@ -36,7 +36,7 @@ interface UserSearchResult {
 }
 
 const PARTNER_TYPES = ['company', 'university_org', 'nonprofit', 'other'];
-const PARTNER_ROLES = ['lead', 'member', 'liaison'];
+const PARTNER_ROLES = ['President', 'Marketing', 'Manager', 'Officer'];
 
 const TYPE_LABELS: Record<string, string> = {
   company: 'Company',
@@ -261,7 +261,7 @@ function MembersDrawer({ partner, onClose }: { partner: Partner; onClose: () => 
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
-  const [addRole, setAddRole] = useState('member');
+  const [addRole, setAddRole] = useState('Manager');
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');

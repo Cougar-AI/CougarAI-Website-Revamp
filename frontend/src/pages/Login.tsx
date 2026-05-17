@@ -102,8 +102,7 @@ export default function Login({
 
   const emailError = useMemo(() => {
     if (!email) return null;
-    // Simple RFC5322-ish check; adjust to your needs
-    const ok = /\S+@\S+\.\S+/.test(email);
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
     return ok ? null : "Enter a valid email";
   }, [email]);
 

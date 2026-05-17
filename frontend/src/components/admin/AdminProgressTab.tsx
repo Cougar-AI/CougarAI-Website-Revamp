@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { formatDate } from '@/lib/dates';
 
 interface ProgressReport {
   report_id: number;
@@ -74,7 +75,7 @@ function mondayOf(d: Date): Date {
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatDate(iso);
 }
 
 function isoDate(d: Date): string {

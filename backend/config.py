@@ -35,6 +35,12 @@ def _build_uri():
 def _split_origins(value: str):
     return [origin.strip() for origin in value.split(",") if origin.strip()]
 
+def _require_env(key: str) -> str:
+    val = os.environ.get(key)
+    if not val:
+        raise RuntimeError(f"Required environment variable {key!r} is not set. Set it in backend/.env before starting the server.")
+    return val
+
 class BaseConfig:
     """Base configuration with common settings."""
     DEBUG = False
@@ -42,6 +48,7 @@ class BaseConfig:
     PRODUCTION = False
     SECRET_KEY = os.getenv("SECRET_KEY_BASE", "changemedev")
     JSON_AS_ASCII = False
+    # Dev/test fallbacks — overridden in ProductionConfig to require real values
     JWT_ACCESS_SECRET  = os.environ.get("JWT_ACCESS_SECRET",  "dev-access-secret")
     JWT_REFRESH_SECRET = os.environ.get("JWT_REFRESH_SECRET", "dev-refresh-secret")
     JWT_EMAIL_SECRET   = os.environ.get("JWT_EMAIL_SECRET",   "dev-email-secret")
@@ -92,3 +99,19 @@ class ProductionConfig(BaseConfig):
     """Production environment configuration."""
     PRODUCTION = True
     SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or _build_uri()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+    @classmethod
+    def _validate_secrets(cls):
+        # In production all secrets must be explicitly set — no insecure defaults allowed
+        cls.JWT_ACCESS_SECRET  = _require_env("JWT_ACCESS_SECRET")
+        cls.JWT_REFRESH_SECRET = _require_env("JWT_REFRESH_SECRET")
+        cls.JWT_EMAIL_SECRET   = _require_env("JWT_EMAIL_SECRET")
+        cls.JWT_RESET_SECRET   = _require_env("JWT_RESET_SECRET")
+        cls.STRIPE_WEBHOOK_SECRET = _require_env("STRIPE_WEBHOOK_SECRET")
+
+# Validate production secrets at import time only when this config will actually be used
+if os.getenv("FLASK_ENV") == "production" or os.getenv("COUGARAI_ENV") == "production":
+    ProductionConfig._validate_secrets()
