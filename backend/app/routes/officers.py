@@ -1,19 +1,14 @@
-from app.imports import *
-from flask_jwt_extended import jwt_required, get_jwt
+from flask import Blueprint, request, jsonify
+from app.raw_db import get_db
+from app.utils.date_validation import is_valid_date
+from app.utils.query_handler import build_sql_querys
+from app.utils.auth_decorators import require_officer
 
 officers_bp = Blueprint('officers', __name__)
 
-_OFFICER_WRITE_ROLES = {"admin", "officer"}
-
-def _require_officer_role():
-    claims = get_jwt()
-    if claims.get("role") not in _OFFICER_WRITE_ROLES:
-        return jsonify({"error": "Officer or admin access required"}), 403
-    return None
-
 @officers_bp.route("/", methods=["GET"])
 def getOfficers():
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
         filter_dict = {
             "student_id": request.args.get("student_id", type=int),
@@ -31,14 +26,12 @@ def getOfficers():
         cur.execute(query, tuple(params))
         results = cur.fetchall()
         return (jsonify(results), 200) if results else (jsonify({"error": "No officers found"}), 404)
-    
-@officers_bp.route("/<int:student_id>", methods=["POST"])
-@jwt_required()
+
+@officers_bp.route("/<int:student_id>", methods=["POST", "OPTIONS"])
+@require_officer
 def addOfficer(student_id):
-    err = _require_officer_role()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
 
             filter_dict = {
@@ -47,16 +40,16 @@ def addOfficer(student_id):
                 "end_date": request.json.get("end_date"),
                 "role": request.json.get("role")
             }
-            
+
             if not (1000000 <= student_id <= 9999999):
                 return jsonify({"error": "student_id must be a 7-digit number"}), 400
 
             if filter_dict["join_date"] is None or filter_dict["role"] is None:
                 return jsonify({"error": "student_id, join_date and role are required"}), 400
-            
+
             if not is_valid_date(filter_dict["join_date"]):
                 return jsonify({"error": "Invalid join_date format"}), 400
-            
+
             if filter_dict["end_date"] and not is_valid_date(filter_dict["end_date"]):
                 return jsonify({"error": "Invalid end_date format"}), 400
 
@@ -72,14 +65,12 @@ def addOfficer(student_id):
             return jsonify({"results": result}), 201
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
-@officers_bp.route("/<int:student_id>", methods=["DELETE"])
-@jwt_required()
+
+@officers_bp.route("/<int:student_id>", methods=["DELETE", "OPTIONS"])
+@require_officer
 def deleteOfficer(student_id):
-    err = _require_officer_role()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             cur.execute("DELETE FROM officers WHERE student_id = %s", (student_id,))
             if cur.rowcount == 0:
@@ -90,22 +81,20 @@ def deleteOfficer(student_id):
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
-        
+
 @officers_bp.route("/<int:student_id>", methods=["GET"])
 def getOfficer(student_id):
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
         cur.execute("SELECT * FROM officers WHERE student_id = %s", (student_id,))
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Officer not found"}), 404
-            
-@officers_bp.route("/<int:student_id>", methods=["PATCH"])
-@jwt_required()
+
+@officers_bp.route("/<int:student_id>", methods=["PATCH", "OPTIONS"])
+@require_officer
 def updateOfficer(student_id):
-    err = _require_officer_role()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = {
                 "student_id": student_id,
@@ -119,7 +108,7 @@ def updateOfficer(student_id):
 
             if filter_dict["join_date"] and not is_valid_date(filter_dict["join_date"]):
                 return jsonify({"error": "Invalid join_date format"}), 400
-            
+
             if filter_dict["end_date"] and not is_valid_date(filter_dict["end_date"]):
                 return jsonify({"error": "Invalid end_date format"}), 400
 

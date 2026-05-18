@@ -132,12 +132,30 @@ frontend/src/
   main.tsx        # Entry point
 
 backend/app/
-  routes/         # Flask blueprints (auth, events, officers, payments, announcements, billing, ...)
-  services/       # Business logic
-  utils/          # Helpers
+  routes/         # Flask blueprints — thin route handlers only; no business logic
+    admin/        # admin_bp package: users, events, officers, sponsors, partners, points, misc
+    events/       # events_bp package: crud, checkin, rsvp, integrations
+    auth/         # auth_bp package: credentials, oauth, _helpers
+    partners/     # partners_bp package: dashboard, members, resources
+    (other single-file blueprints: billing, dashboard, forms, notifications, officers, payments, points, profiles, receipts, progress_reports, sponsors, announcements, discord)
+  services/       # Business logic — OOP service classes (BaseService pattern)
+    base_service.py           # BaseService(conn) base class
+    user_service.py           # UserService
+    event_admin_service.py    # EventAdminService
+    officer_service.py        # OfficerService
+    partner_admin_service.py  # PartnerAdminService
+    points_service.py         # PointsService (admin)
+    sponsor_service.py        # SponsorService
+    dashboard_service.py      # DashboardService
+    receipt_service.py        # ReceiptService
+    notification_service.py   # NotificationService
+    progress_report_service.py # ProgressReportService
+    mailer.py                 # send_email utility
+    notification_scheduler.py # APScheduler jobs
+  utils/          # Helpers (auth_decorators, date_validation, query_handler, passwords)
   imports/        # Aggregated imports (libraries.py, routes_import.py, utilities.py)
   __init__.py     # App factory — blueprint registration & CORS config lives here
-  raw_db.py       # Raw DB connection utilities
+  raw_db.py       # Raw DB connection utilities — get_db() returns g-scoped psycopg2 RealDictCursor conn
 
 backend/
   config.py       # Environment configs (Base/Dev/Test/Production)
@@ -192,7 +210,9 @@ All pages share a warm dark-red aesthetic. Follow these conventions when buildin
 - **Frontend path alias:** `@/` resolves to `frontend/src/` — use it for all internal imports
 - **Adding shadcn components:** `npx shadcn@latest add <component>` from `frontend/` — do not manually edit files in `components/ui/`
 - **Backend blueprints:** register new blueprints in `backend/app/imports/routes_import.py`, then the factory in `__init__.py` picks them up automatically
-- **Backend imports:** aggregate shared imports via `backend/app/imports/` rather than importing directly in each route file
+- **Backend imports:** use explicit imports in route files — do NOT use `from app.imports import *`; that module is legacy and only used by the app factory
+- **Backend service pattern:** business logic lives in `app/services/` as `XxxService(BaseService)` classes instantiated per-request: `svc = XxxService(get_db())`. Route handlers validate input, call the service, and return `jsonify(...)`. No direct DB access in route handlers except for one-liner edge cases
+- **Backend auth decorators:** use `@require_admin`, `@require_officer`, `@require_authenticated` from `app.utils.auth_decorators` — never use `@jwt_required()` directly. OPTIONS is handled automatically by these decorators
 - **Auth tokens:** access (15 min), refresh (7 days), email verify (24 hr), password reset (30 min) — configured in `config.py`
 - **CORS:** allowed origin is `FRONTEND_URL` env var; enforced via flask-cors + an `after_request` hook in `__init__.py` that covers error responses too. New blueprints must explicitly handle `OPTIONS` in their routes (add `"OPTIONS"` to `methods` and return `"", 200`) — flask-cors 6.x + Flask 3.x does not auto-handle preflight for blueprint routes reliably
 - **API calls from frontend:** use `const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001"` — do not use relative `/api/...` paths (no Vite proxy configured)
@@ -340,6 +360,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ Backend OOP refactor — all route files use explicit imports (no `from app.imports import *`); large blueprints split into sub-packages (`admin/`, `events/`, `auth/`, `partners/`); 11 service classes extracted (`BaseService` pattern); `@jwt_required()` replaced with `@require_authenticated`; `get_db()` returns g-scoped connection (no leaks)
 - ✅ User Dashboard (`/dashboard`) — Profile, Membership, Points, Leaderboard, Check-In tabs
 - ✅ Onboarding wizard (`/onboarding`) — 3-step first-login flow; student ID required
 - ✅ Event self-check-in — code entry + QR camera scan (`html5-qrcode`); `POST /events/checkin`

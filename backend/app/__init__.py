@@ -42,6 +42,15 @@ def create_app(config_class='config.DevelopmentConfig'):
 
     app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
     db.init_app(app)
+
+    from flask import g
+
+    @app.teardown_appcontext
+    def _close_db(error):
+        conn = g.pop('db_conn', None)
+        if conn is not None:
+            conn.close()
+
     app.config["JWT_SECRET_KEY"] = app.config["JWT_ACCESS_SECRET"]  # access token secret
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = app.config["ACCESS_EXPIRES"]
     jwt.init_app(app)

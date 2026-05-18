@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { UserCheck, Clock } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import { formatDate } from "@/lib/dates";
 
 interface Event {
   event_id: number;
-  event_name: string;
-  event_date: string;
+  name: string;
+  starts_at: string;
   event_type: string;
 }
 
@@ -93,7 +94,7 @@ export default function AdminCheckInTab() {
               </option>
               {events?.map((ev) => (
                 <option key={ev.event_id} value={ev.event_id}>
-                  {ev.event_name} — {new Date(ev.event_date).toLocaleDateString()}
+                  {ev.name} — {formatDate(ev.starts_at)}
                 </option>
               ))}
             </select>

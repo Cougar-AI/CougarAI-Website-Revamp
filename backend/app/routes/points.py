@@ -1,19 +1,14 @@
-from app.imports import *
-from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
-import traceback
+from flask import Blueprint, request, jsonify
+from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from app.raw_db import get_db
+from app.utils.date_validation import is_valid_date
+from app.utils.query_handler import build_sql_querys
+from app.utils.auth_decorators import require_officer
 
 points_bp = Blueprint('points', __name__)
-
-_OFFICER_ROLES = {"admin", "officer"}
-
-def _require_officer():
-    claims = get_jwt()
-    if claims.get("role") not in _OFFICER_ROLES:
-        return jsonify({"error": "Officer or admin access required"}), 403
-    return None
 @points_bp.route("/", methods=["GET"])
 def getPoints():
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
 
         filter_dict = {
@@ -34,12 +29,10 @@ def getPoints():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
         
 @points_bp.route("/<int:points_id>", methods=["DELETE"])
-@jwt_required()
+@require_officer
 def deletePoints(points_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             cur.execute("DELETE FROM points WHERE points_id = %s", (points_id,))
             if cur.rowcount == 0:
@@ -78,7 +71,7 @@ def getLeaderboard():
         date_filter += " AND points.date <= %s"
         date_params.append(end_date)
 
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
         # Public leaderboard — only is_public profiles
         cur.execute(
@@ -144,12 +137,10 @@ def getLeaderboard():
 
 
 @points_bp.route("/add/<int:student_id>", methods=["POST"])
-@jwt_required()
+@require_officer
 def addPoints(student_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             
             filter_dict = {
@@ -185,12 +176,10 @@ def addPoints(student_id):
         
     
 @points_bp.route("/<int:points_id>", methods=["PATCH"])
-@jwt_required()
+@require_officer
 def updatePoints(points_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = { 
                 "student_id": request.json.get("student_id"),
@@ -216,7 +205,7 @@ def updatePoints(points_id):
 @points_bp.route("/student/<int:student_id>", methods=["GET"])
 def getStudentPoints(student_id):
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
 
             filter_dict = {
@@ -238,7 +227,7 @@ def getStudentPoints(student_id):
 @points_bp.route("/total", methods=["GET"])
 def getTotalPoints():
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = {
                 "points.student_id": request.args.get("student_id", type=int),
@@ -279,25 +268,21 @@ def getTotalPoints():
             return jsonify(result_dict)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return jsonify({"error": "Failed to retrieve total points"}), 500
-    finally:
-        connection.close()
 
     
 
 @points_bp.route("/<int:points_id>", methods=["GET"])
 def getPointById(points_id):
-    connection = connect()
-    with connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur: # converts from a tuple to dict used in the jsonify
+    connection = get_db()
+    with connection.cursor() as cur:
         cur.execute("SELECT * FROM points WHERE points_id = %s", (points_id,))
         result = cur.fetchone()
         return jsonify(result) if result else jsonify({"error": "Point not found"}), 404
     
 @points_bp.route("/total/by-month", methods=["GET"])
 def getMonthlyTotals():
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
 
         filter_dict = {
@@ -323,7 +308,7 @@ def getMonthlyTotals():
 
 @points_bp.route("/event_type", methods=["GET"])
 def getEventType():
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
 
         filter_dict = {
@@ -346,7 +331,7 @@ def getEventType():
 def getStreakLeaderboard():
     if request.method == "OPTIONS":
         return "", 200
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
         cur.execute(
             """

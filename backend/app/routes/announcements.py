@@ -1,26 +1,14 @@
-"""from flask import Blueprint, request, jsonify
-from app.utils.query_handler import build_sql_querys
-from app.db import connect"""
-
-from app.imports import *
-from app.raw_db import connect as raw_connect
-from flask_jwt_extended import jwt_required, get_jwt
 from datetime import datetime, timezone
+from flask import Blueprint, request, jsonify
+from app.raw_db import get_db
+from app.utils.query_handler import build_sql_querys
+from app.utils.auth_decorators import require_officer
 
 announcements_bp = Blueprint('announcements', __name__)
 
-_ADMIN_ROLES = {"admin"}
-_OFFICER_ROLES = {"admin", "officer"}
-
-def _require_officer():
-    claims = get_jwt()
-    if claims.get("role") not in _OFFICER_ROLES:
-        return jsonify({"error": "Officer or admin access required"}), 403
-    return None
-
 @announcements_bp.route("/announcements/", methods=["GET"])
 def getAnnouncements():
-    connections = connect()
+    connections = get_db()
     with connections.cursor() as cur:
 
         filter_dict = {
@@ -42,13 +30,11 @@ def getAnnouncements():
         results = cur.fetchall()
         return (jsonify(results),200) if results else (jsonify({"error": "No announcements found"}), 404)
     
-@announcements_bp.route("/announcements/<int:announcement_id>", methods=["DELETE"])
-@jwt_required()
+@announcements_bp.route("/announcements/<int:announcement_id>", methods=["DELETE", "OPTIONS"])
+@require_officer
 def deleteAnnouncement(announcement_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connections = connect()
+        connections = get_db()
         with connections.cursor() as cur:
             cur.execute("DELETE FROM discord_announcements WHERE announcement_id = %s", (announcement_id,))
             if cur.rowcount == 0:
@@ -59,13 +45,11 @@ def deleteAnnouncement(announcement_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@announcements_bp.route("/announcements/<string:guild_id>", methods=["POST"])
-@jwt_required()
+@announcements_bp.route("/announcements/<string:guild_id>", methods=["POST", "OPTIONS"])
+@require_officer
 def createAnnouncement(guild_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connections = connect()
+        connections = get_db()
         with connections.cursor() as cur:
 
             filter_dict = {
@@ -98,13 +82,11 @@ def createAnnouncement(guild_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@announcements_bp.route("/announcements/<int:announcement_id>", methods=["PATCH"])
-@jwt_required()
+@announcements_bp.route("/announcements/<int:announcement_id>", methods=["PATCH", "OPTIONS"])
+@require_officer
 def updateAnnouncement(announcement_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connections = connect()
+        connections = get_db()
         with connections.cursor() as cur:
             filter_dict = {
                 "title": request.json.get("title"),
@@ -140,7 +122,7 @@ def updateAnnouncement(announcement_id):
 def get_pinned_announcement_public():
     if request.method == "OPTIONS":
         return "", 200
-    conn = raw_connect()
+    conn = get_db()
     with conn.cursor() as cur:
         cur.execute(
             """

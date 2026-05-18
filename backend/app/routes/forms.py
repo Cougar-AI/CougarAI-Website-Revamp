@@ -1,19 +1,13 @@
-from app.imports import *
+import os
 from datetime import datetime
+from typing import Optional
+from flask import Blueprint, request, jsonify
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from typing import Optional
-from flask_jwt_extended import jwt_required, get_jwt
+from app.raw_db import get_db
+from app.utils.auth_decorators import require_officer
 
 forms_bp = Blueprint("forms", __name__)
-
-_OFFICER_ROLES = {"admin", "officer"}
-
-def _require_officer():
-    claims = get_jwt()
-    if claims.get("role") not in _OFFICER_ROLES:
-        return jsonify({"error": "Officer or admin access required"}), 403
-    return None
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
@@ -34,13 +28,11 @@ def parse_forms_ts(s: str) -> datetime:
             pass
     return datetime.fromisoformat(s)
 
-@forms_bp.route("/<string:spreadsheet_id>", methods=["POST"])
-@jwt_required()
+@forms_bp.route("/<string:spreadsheet_id>", methods=["POST", "OPTIONS"])
+@require_officer
 def process_sheet(spreadsheet_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             event_id = request.json.get("event_id")
             points = request.json.get("points", 10)
@@ -57,9 +49,9 @@ def process_sheet(spreadsheet_id):
             service = build('sheets', 'v4', credentials=creds)
 
             sheet = service.spreadsheets()
-            result = sheet.values().get(spreadsheetId=spreadsheet_id, 
+            result = sheet.values().get(spreadsheetId=spreadsheet_id,
                                         range='Form Responses 1').execute()
-            
+
             values = result.get("values", [])
             if not values or len(values) < 2:
                 return jsonify({"error": "No data found in the spreadsheet"}), 400
@@ -72,7 +64,7 @@ def process_sheet(spreadsheet_id):
             except ValueError as he:
                 return jsonify({"error": "Missing expected header", "details": str(he)}), 400
 
-            added = 0 
+            added = 0
 
             for row in values[1:]:
                 if len(row) <= max(student_idx, timestampx, email_idx):
@@ -83,10 +75,10 @@ def process_sheet(spreadsheet_id):
                 timestamp_str = row[timestampx].strip()
 
                 if not student_id.isdigit() or not(len(student_id) == 7):
-                    continue 
+                    continue
 
                 if not email:
-                    continue 
+                    continue
 
                 student_id = int(student_id)
 
@@ -101,7 +93,7 @@ def process_sheet(spreadsheet_id):
                 if row_user is None:
                     cur.execute("SELECT user_id FROM users WHERE email = %s", (email,))
                     row_user = cur.fetchone()
-                    
+
                 if row_user is None:
                     return jsonify({"error": f"Could not resolve user_id for {email!r}"}), 400
 
@@ -124,19 +116,10 @@ def process_sheet(spreadsheet_id):
             connection.commit()
             return jsonify({"status": "success", "inserted": added})
     except Exception as e:
-        # ALWAYS return a response here
         try:
-            if connection:
-                connection.rollback()
+            connection.rollback()
         except Exception:
             pass
         import traceback
         traceback.print_exc()
         return jsonify({"error": "Failed to process the spreadsheet"}), 500
-
-    finally:
-        try:
-            if connection:
-                connection.close()
-        except Exception:
-            pass

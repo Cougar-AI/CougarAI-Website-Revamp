@@ -1,28 +1,18 @@
 from flask import Blueprint, request, jsonify
 from app.utils.query_handler import build_sql_querys
 from app.utils.date_validation import is_valid_date
-from app.raw_db import connect
-from flask_jwt_extended import jwt_required, get_jwt
+from app.raw_db import get_db
+from app.utils.auth_decorators import require_admin
 
 payments_bp = Blueprint('payments', __name__)
 
-_ADMIN_ROLES = {"admin"}
-
-def _require_admin():
-    claims = get_jwt()
-    if claims.get("role") not in _ADMIN_ROLES:
-        return jsonify({"error": "Admin access required"}), 403
-    return None
-
-@payments_bp.route("/", methods=["GET"])
-@jwt_required()
+@payments_bp.route("/", methods=["GET", "OPTIONS"])
+@require_admin
 def getPayments():
-    err = _require_admin()
-    if err: return err
-    connections = connect()
+    connections = get_db()
     with connections.cursor() as cur:
 
-        filter_dict = { 
+        filter_dict = {
             "payment_id": request.args.get("payment_id", type=int),
             "student_id": request.args.get("student_id", type=int),
             "start_date": request.args.get("start_date"),
@@ -30,19 +20,17 @@ def getPayments():
         }
 
         query, params = build_sql_querys("SELECT * FROM payments", filter_dict, date_column="date")
-        
+
         cur.execute(query, tuple(params))
         results = cur.fetchall()
         return (jsonify(results), 200) if results else (jsonify({"error": "No payments found"}), 404)
 
 
-@payments_bp.route("/<int:payment_id>", methods=["DELETE"])
-@jwt_required()
+@payments_bp.route("/<int:payment_id>", methods=["DELETE", "OPTIONS"])
+@require_admin
 def deletePayment(payment_id):
-    err = _require_admin()
-    if err: return err
     try:
-        connections = connect()
+        connections = get_db()
         with connections.cursor() as cur:
             cur.execute("DELETE FROM payments WHERE payment_id = %s", (payment_id,))
 
@@ -53,14 +41,12 @@ def deletePayment(payment_id):
     except Exception as e:
         connections.rollback()
         return jsonify({"error": str(e)}), 500
-    
-@payments_bp.route("/<int:student_id>", methods=["POST"])
-@jwt_required()
+
+@payments_bp.route("/<int:student_id>", methods=["POST", "OPTIONS"])
+@require_admin
 def createPayment(student_id):
-    err = _require_admin()
-    if err: return err
     try:
-        connections = connect()
+        connections = get_db()
         with connections.cursor() as cur:
             date = request.json.get("date")
             amount = request.json.get("amount")
@@ -86,5 +72,3 @@ def createPayment(student_id):
     except Exception as e:
         connections.rollback()
         return jsonify({"error": str(e)}), 500
-    
-

@@ -1,7 +1,8 @@
 # app/raw_db.py
 from app.imports import *
-from flask import current_app
+from flask import current_app, g
 from urllib.parse import urlparse, unquote
+from contextlib import contextmanager
 import os
 
 REQUIRED = ("dbname", "user", "password")
@@ -57,3 +58,10 @@ def connect():
         port=dsn["port"],
         cursor_factory=psycopg2.extras.RealDictCursor,
     )
+
+
+def get_db():
+    """Return a request-scoped DB connection. Creates one per request, reuses it on repeat calls."""
+    if 'db_conn' not in g:
+        g.db_conn = connect()
+    return g.db_conn

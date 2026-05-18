@@ -1,7 +1,7 @@
 import stripe
 from datetime import date
 from flask import Blueprint, current_app, request, jsonify
-from app.raw_db import connect
+from app.raw_db import get_db
 from app import limiter
 
 members_bp = Blueprint("members", __name__)
@@ -38,7 +38,7 @@ def join_member():
 
     if student_id:
         try:
-            conn = connect()
+            conn = get_db()
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
                 if not cur.fetchone():
@@ -82,7 +82,7 @@ def create_checkout_session():
     existing_customer_id = None
     if user_id and str(user_id).isdigit():
         try:
-            conn = connect()
+            conn = get_db()
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT stripe_customer_id FROM users WHERE user_id = %s",
@@ -163,7 +163,7 @@ def stripe_webhook():
             today = date.today()
             expires_at = _get_membership_expiry(plan_id, today) if plan_id else None
 
-            conn = connect()
+            conn = get_db()
             with conn.cursor() as cur:
                 # Persist Stripe customer ID on the users row
                 if user_id_str and user_id_str.isdigit() and stripe_customer_id:

@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from app.raw_db import connect
+from app.raw_db import get_db
 
 sponsors_bp = Blueprint("sponsors", __name__)
 
@@ -11,7 +11,7 @@ def list_sponsors():
     if request.method == "OPTIONS":
         return "", 200
 
-    conn = connect()
+    conn = get_db()
     with conn.cursor() as cur:
         cur.execute(
             """
