@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import React, { useState } from 'react'
+import { hasAccessToken } from '@/lib/auth'
 
 const JOIN_HREF = '/join'
+const AUTH_HREF = '/register'
 
 const Check: React.FC<{ className?: string }> = ({ className }) => (
   <svg
@@ -123,6 +125,8 @@ const FAQItem: React.FC<{ q: string; a: string; open: boolean; onToggle: () => v
 
 const Memberships: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
+  const isLoggedIn = hasAccessToken()
+  const joinHref = isLoggedIn ? JOIN_HREF : AUTH_HREF
 
   const btnPrimary = "inline-flex items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
   const btnSecondary = "inline-flex items-center justify-center rounded-xl bg-white/8 px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/15"
@@ -146,7 +150,7 @@ const Memberships: React.FC = () => {
             Open to <strong className="text-white">all majors</strong>. Build real projects, learn from peers, and level up your portfolio.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link to={JOIN_HREF} className={btnPrimary} style={{ boxShadow: '0 0 26px rgba(185,28,28,.38)' }}>
+            <Link to={joinHref} className={btnPrimary} style={{ boxShadow: '0 0 26px rgba(185,28,28,.38)' }}>
               Join now
             </Link>
             <a href="#pricing" className={btnSecondary}>
@@ -184,11 +188,11 @@ const Memberships: React.FC = () => {
               features={['Full member access', 'All workshops and events', 'Member rewards eligibility']}
               cta={
                 <Link
-                  to={JOIN_HREF}
+                  to={isLoggedIn ? `${JOIN_HREF}?plan=semester` : AUTH_HREF}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-red-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
                   style={{ boxShadow: '0 0 24px rgba(185,28,28,.35)' }}
                 >
-                  Get Semester
+                  {isLoggedIn ? 'Get Semester' : 'Sign up to join'}
                 </Link>
               }
             />
@@ -199,15 +203,27 @@ const Memberships: React.FC = () => {
               features={['All semester benefits', 'Priority for project teams', 'Best value for active members']}
               cta={
                 <Link
-                  to={JOIN_HREF}
+                  to={isLoggedIn ? `${JOIN_HREF}?plan=yearly` : AUTH_HREF}
                   className="inline-flex w-full items-center justify-center rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/15"
                 >
-                  Get Yearly
+                  {isLoggedIn ? 'Get Yearly' : 'Sign up to join'}
                 </Link>
               }
             />
           </div>
-          <p className="mt-4 text-center text-xs text-white/35">
+          {!isLoggedIn && (
+            <p className="mt-5 text-center text-sm text-white/55">
+              You'll need an account before purchasing.{' '}
+              <Link to={AUTH_HREF} className="text-red-400 hover:text-red-300 underline underline-offset-2">
+                Create one for free
+              </Link>
+              {' '}or{' '}
+              <Link to="/login" className="text-red-400 hover:text-red-300 underline underline-offset-2">
+                log in
+              </Link>.
+            </p>
+          )}
+          <p className="mt-3 text-center text-xs text-white/35">
             Prices subject to change. Student org dues help fund venues, food, compute, and club resources.
           </p>
         </section>
@@ -280,7 +296,7 @@ const Memberships: React.FC = () => {
             Join the community, learn in public, and ship projects that make your resume pop.
           </p>
           <Link
-            to={JOIN_HREF}
+            to={joinHref}
             className={btnPrimary}
             style={{ boxShadow: '0 0 26px rgba(185,28,28,.38)' }}
           >

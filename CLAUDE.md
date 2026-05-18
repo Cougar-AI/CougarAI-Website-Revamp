@@ -43,6 +43,60 @@ pytest              # run tests (some require Docker)
 gunicorn wsgi:app   # production WSGI server
 ```
 
+### Testing
+
+Two tiers — unit tests require no infrastructure; integration tests require Docker.
+
+**Unit tests** (no Docker, runs in ~2s):
+```bash
+cd backend && source venv/bin/activate
+pytest tests/unit/ -v
+pytest tests/unit/ --cov=app --cov-report=term-missing   # with coverage
+```
+
+**Integration tests** (requires Docker):
+```bash
+cd backend && source venv/bin/activate
+pytest tests/integration/ -v
+```
+
+**Full suite** (unit + integration):
+```bash
+pytest --cov=app --cov-report=term-missing
+```
+
+Coverage HTML report → `backend/htmlcov/index.html`
+
+#### Test structure
+```
+backend/tests/
+  conftest.py         # Shared: docker/app/client session fixtures (not autouse)
+  docker-compose.yml  # PostgreSQL 17 for integration tests
+  integration/        # Requires Docker; db_session autouse=True scoped here
+    conftest.py       # db_session (autouse=True, function scope)
+    test_app.py       # App factory sanity checks
+  unit/               # Pure Python; no DB, no Docker
+    conftest.py       # Minimal Flask+JWT fixture (no DB)
+    test_passwords.py
+    test_date_validation.py
+    test_query_handler.py
+    test_auth_decorators.py
+```
+
+#### Adding new tests
+- **New utility function** → add to corresponding `tests/unit/test_*.py`
+- **New route or service** → add to `tests/integration/` (Phase 2)
+
+#### Test coverage rule
+Every new backend route or service must ship with tests. No exceptions.
+- New auth/utility logic → unit test in `tests/unit/`
+- New Flask route (blueprint) → integration test in `tests/integration/`
+- New service class method → integration test covering the happy path + at least one error case
+- Run `pytest tests/unit/ -v` before committing; run the full suite (`pytest`) before merging to main
+
+#### Known limitation (Phase 1)
+`db_session` in `tests/integration/conftest.py` uses SQLAlchemy session nesting, but the app uses raw psycopg2 via `get_db()` — so service/route commits are NOT rolled back between tests. Phase 2 will replace this with psycopg2 savepoint isolation.
+
 ## Social Links
 
 All four are wired in `frontend/src/components/Footer.tsx`. LinkedIn text link + icon button, Discord, Instagram, GitHub icon buttons are all live.
@@ -334,6 +388,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - **Run DB migrations on prod** — `bash backend/run_migrations.sh` (safe to re-run; all migrations use `IF NOT EXISTS`)
 - **Google OAuth frontend** — backend done; set `VITE_SHOW_AUTH_LINKS=true` + flip button enabled once tested. Needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env`.
 - **Enable Login/Register in navbar** — flip `VITE_SHOW_AUTH_LINKS=true` in `frontend/.env` once Google OAuth is tested end-to-end
+- **Join page post-auth redirect** — after login/register, redirect back to `/join` so user lands on the checkout form automatically (currently they must navigate back manually)
 - **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
 - **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
 - **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
@@ -360,6 +415,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ Phase 1 testing foundation — `tests/unit/` (104 tests, no Docker); `tests/integration/` (db_session autouse scoped to integration only); `.coveragerc`; pytest markers; passlib replaced with direct `bcrypt` in `passwords.py` (passlib 1.7.4 + bcrypt 5.x incompatibility fix); utils coverage: passwords 100%, date_validation 100%, query_handler 99%, auth_decorators 94%
 - ✅ Backend OOP refactor — all route files use explicit imports (no `from app.imports import *`); large blueprints split into sub-packages (`admin/`, `events/`, `auth/`, `partners/`); 11 service classes extracted (`BaseService` pattern); `@jwt_required()` replaced with `@require_authenticated`; `get_db()` returns g-scoped connection (no leaks)
 - ✅ User Dashboard (`/dashboard`) — Profile, Membership, Points, Leaderboard, Check-In tabs
 - ✅ Onboarding wizard (`/onboarding`) — 3-step first-login flow; student ID required
@@ -404,3 +460,5 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - ✅ Security hardening — JWT secrets required in prod; SQL injection guard in query_handler; all blueprints auth-protected; webhook secret guard; timing attack fix on forgot-password
 - ✅ Calendar page overhaul — dynamic event types from admin panel; RSVP in event modal; "My RSVPs" filter; NaN fix; points badge on tiles; past event dimming; CT timezone display; auto-generates check-in code when enabling check-in with no code; `GET /events/event-types` + `GET /events/my-rsvps` endpoints
 - ✅ Central Time (CT) — `frontend/src/lib/dates.ts` utility; all date display across frontend uses `America/Chicago`
+- ✅ Registration inline validation — validation errors now show inline under each field instead of a global banner; server errors still use the banner
+- ✅ Membership auth gate — Memberships pricing CTAs redirect unauthenticated users to `/register`; Join page shows "account required" view when not logged in

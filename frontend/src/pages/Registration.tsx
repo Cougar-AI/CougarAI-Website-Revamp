@@ -116,10 +116,10 @@ export default function Registration({
   const error = errorProp ?? localError;
 
   const emailError = useMemo(() => {
-    if (!email) return null;
+    if (!email) return triedSubmit ? "Email is required" : null;
     const ok = /\S+@\S+\.\S+/.test(email);
     return ok ? null : "Enter a valid email";
-  }, [email]);
+  }, [email, triedSubmit]);
 
   // Password checks: must be 8+ and include upper, lower, number, symbol (all 4).
   const pwChecks = useMemo(() => {
@@ -146,18 +146,18 @@ export default function Registration({
   }, [password]);
 
   const pwError = useMemo(() => {
-    if (!password) return null;
+    if (!password) return triedSubmit ? "Password is required" : null;
     if (!pwChecks.len) return "Password must be at least 8 characters";
     if (!(pwChecks.upper && pwChecks.lower && pwChecks.num && pwChecks.sym)) {
       return "Include an uppercase letter, a lowercase letter, a number, and a symbol";
     }
     return null;
-  }, [password, pwChecks]);
+  }, [password, pwChecks, triedSubmit]);
 
   const confirmError = useMemo(() => {
-    if (!confirm) return null;
+    if (!confirm) return triedSubmit ? "Please confirm your password" : null;
     return confirm === password ? null : "Passwords do not match";
-  }, [confirm, password]);
+  }, [confirm, password, triedSubmit]);
 
   const termsError = triedSubmit && !acceptTerms ? "You must accept the Terms to continue" : null;
 
@@ -271,17 +271,17 @@ export default function Registration({
     setTriedSubmit(true);
 
     const problems = [
-      email ? null : "Email is required",
-      password ? null : "Password is required",
-      confirm ? null : "Confirm your password",
-      acceptTerms ? null : "You must accept the Terms to continue",
+      email ? null : true,
+      password ? null : true,
+      confirm ? null : true,
+      acceptTerms ? null : true,
       emailError,
       pwError,
       confirmError,
-    ].filter(Boolean) as string[];
+    ].filter(Boolean);
 
     if (problems.length) {
-      setLocalError(problems[0]!);
+      // Inline errors already show at each field; no global banner needed
       return;
     }
 
@@ -320,11 +320,7 @@ export default function Registration({
       if (status === 422 && data.field_errors) {
         if (data.field_errors.email?.length) setServerEmailErrors(data.field_errors.email);
         if (data.field_errors.password?.length) setServerPwErrors(data.field_errors.password);
-        // Prefer first field error as banner too
-        const first =
-          data.field_errors.email?.[0] ??
-          data.field_errors.password?.[0];
-        setLocalError(first || "Please fix the highlighted fields");
+        // Field errors shown inline; no global banner needed
       } else {
         setLocalError(err?.message || "Registration failed");
       }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
+import { hasAccessToken } from "@/lib/auth";
 
 /**
  * JoinUs page (aligned with Memberships page)
@@ -180,11 +181,48 @@ function CanceledView() {
   );
 }
 
+function NotLoggedInView() {
+  return (
+    <div className="mx-auto max-w-lg text-center text-white py-12">
+      <div
+        className="inline-flex h-16 w-16 items-center justify-center rounded-full mb-6 text-red-400"
+        style={{ background: "rgba(185,28,28,.15)", border: "1px solid rgba(185,28,28,.4)" }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 28, height: 28 }}>
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="12" cy="7" r="4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </div>
+      <h1 className="font-['Oxanium'] text-3xl font-extrabold mb-3">Account required</h1>
+      <p className="text-white/60 mb-8">
+        You'll need a CougarAI account before purchasing a membership. Create one — it's free and only takes a minute.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <Link
+          to="/register"
+          className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110"
+          style={{ background: "#b91c1c", boxShadow: "0 0 24px rgba(185,28,28,.4)" }}
+        >
+          Create account
+        </Link>
+        <Link
+          to="/login"
+          className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/10"
+          style={{ background: "rgba(255,255,255,.06)" }}
+        >
+          Log in
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function JoinUs() {
   const urlStatus = new URLSearchParams(window.location.search).get("status");
 
   if (urlStatus === "success") return <SuccessView />;
   if (urlStatus === "canceled") return <CanceledView />;
+  if (!hasAccessToken()) return <NotLoggedInView />;
 
   // Read ?plan= from URL, fallback to "semester"
   const initialPlan = ((): PlanId => {
