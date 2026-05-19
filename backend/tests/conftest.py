@@ -51,8 +51,26 @@ def _postgres_url(docker_services):
 
 @pytest.fixture(scope="session")
 def app(_postgres_url):
-    from app import create_app
-    return create_app("config.TestConfig")
+    import os
+    from sqlalchemy import text as sqlt
+    from app import create_app, db
+
+    application = create_app("config.TestConfig")
+
+    # Apply schema once — db-init tables then core migrations (same order as run_migrations.sh)
+    root = os.path.join(os.path.dirname(__file__), "..")
+    schema_files = [
+        os.path.join(root, "db-init", "001_auth.sql"),
+        os.path.join(root, "migrations", "add_users_dashboard_fields.sql"),
+        os.path.join(root, "migrations", "add_non_member_default_role.sql"),
+    ]
+    with application.app_context():
+        with db.engine.begin() as conn:
+            for path in schema_files:
+                with open(path) as f:
+                    conn.execute(sqlt(f.read()))
+
+    return application
 
 
 @pytest.fixture(scope="session")

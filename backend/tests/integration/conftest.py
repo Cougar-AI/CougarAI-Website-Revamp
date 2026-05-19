@@ -16,8 +16,6 @@ def db_session(app):
     from app import db as _db
 
     with app.app_context():
-        _db.create_all()
-
         connection = _db.engine.connect()
         outer_tx = connection.begin()
 

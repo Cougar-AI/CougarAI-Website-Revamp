@@ -70,11 +70,12 @@ Coverage HTML report → `backend/htmlcov/index.html`
 #### Test structure
 ```
 backend/tests/
-  conftest.py         # Shared: docker/app/client session fixtures (not autouse)
+  conftest.py         # Shared: docker/app/client session fixtures; applies DB schema on startup
   docker-compose.yml  # PostgreSQL 17 for integration tests
   integration/        # Requires Docker; db_session autouse=True scoped here
-    conftest.py       # db_session (autouse=True, function scope)
+    conftest.py       # db_session (autouse=True, function scope) — wraps each test in a transaction
     test_app.py       # App factory sanity checks
+    test_auth.py      # /auth/* route integration tests (register, login, verify, refresh, logout)
   unit/               # Pure Python; no DB, no Docker
     conftest.py       # Minimal Flask+JWT fixture (no DB)
     test_passwords.py
@@ -83,9 +84,16 @@ backend/tests/
     test_auth_decorators.py
 ```
 
+#### Schema setup for integration tests
+`tests/conftest.py::app` (session scope) applies the schema to the fresh Docker DB right after creating the Flask app. When new tables are needed for new integration tests, add the corresponding SQL files to the `schema_files` list in that fixture (follow the order in `run_migrations.sh`):
+- `db-init/001_auth.sql` — users + refresh_tokens
+- `migrations/add_users_dashboard_fields.sql` — role, onboarding_completed_at, etc.
+- `migrations/add_non_member_default_role.sql` — sets role DEFAULT to 'non-member'
+
 #### Adding new tests
 - **New utility function** → add to corresponding `tests/unit/test_*.py`
-- **New route or service** → add to `tests/integration/` (Phase 2)
+- **New route or service** → add to `tests/integration/test_<blueprint>.py`
+- **New integration test needs a new table** → add the migration SQL file to `schema_files` in `tests/conftest.py::app`
 
 #### Test coverage rule
 Every new backend route or service must ship with tests. No exceptions.
@@ -95,7 +103,7 @@ Every new backend route or service must ship with tests. No exceptions.
 - Run `pytest tests/unit/ -v` before committing; run the full suite (`pytest`) before merging to main
 
 #### Known limitation (Phase 1)
-`db_session` in `tests/integration/conftest.py` uses SQLAlchemy session nesting, but the app uses raw psycopg2 via `get_db()` — so service/route commits are NOT rolled back between tests. Phase 2 will replace this with psycopg2 savepoint isolation.
+`db_session` in `tests/integration/conftest.py` uses SQLAlchemy session nesting, but the app uses raw psycopg2 via `get_db()` — so service/route commits are NOT rolled back between tests. Tests must use unique data (e.g., uuid-suffix emails) to stay isolated. Phase 2 will replace this with psycopg2 savepoint isolation.
 
 ## Social Links
 
@@ -475,3 +483,4 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - ✅ Discord OAuth account linking fix — callback looks up existing user by `discord_id` only (username excluded — usernames can change); falls back to email provisioning for new accounts
 - ✅ Discord button layout — icon pinned left via `absolute left-4`, text centered; full-width on Login + Registration pages matching Google button style
 - ✅ Change / Set Password — Profile tab Security section; credential users enter current + new password; OAuth users (no password) can set one for the first time; 30-min email confirmation link required to apply; `GET /auth/password-status`, `POST /auth/change-password/request`, `POST /auth/change-password/confirm` routes in `credentials.py`
+- ✅ Integration test schema setup — `tests/conftest.py::app` now applies `db-init/001_auth.sql` + auth migrations to the fresh Docker DB; `db_session` fixture no longer calls `create_all()` (was a no-op); login route fixed to SELECT and return actual `role` + `onboarding_completed_at`; `_build_auth_response` returns HTTP 200 (was 201); `tests/integration/test_auth.py` covers register, login, verify-email, refresh, logout, resend-verification, forgot-password

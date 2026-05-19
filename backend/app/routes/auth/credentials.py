@@ -106,7 +106,8 @@ def login():
     with db.engine.begin() as conn:
         user = conn.execute(
             text("""
-                SELECT user_id, email, password_hash, email_verified_at, is_active
+                SELECT user_id, email, password_hash, email_verified_at, is_active,
+                       role, onboarding_completed_at
                 FROM users WHERE email = :email
             """),
             {"email": email}
@@ -118,7 +119,11 @@ def login():
     if user["email_verified_at"] is None or not user["is_active"]:
         return jsonify({"error": "invalid_credentials"}), 401
 
-    return _build_auth_response(user["user_id"], user["email"])
+    return _build_auth_response(
+        user["user_id"], user["email"],
+        role=user["role"],
+        onboarding_completed=user["onboarding_completed_at"] is not None,
+    )
 
 
 @auth_bp.post("/resend-verification")

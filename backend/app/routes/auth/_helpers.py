@@ -175,7 +175,7 @@ def _build_auth_response(user_id: int, email: str, role: str = "member", onboard
     resp = make_response(jsonify({
         "access_token": access_jwt,
         "user": {"user_id": user_id, "email": email, "role": role, "onboarding_completed": onboarding_completed},
-    }), 201)
+    }), 200)
     _set_refresh_cookie(resp, refresh_token, expires_at)
     return resp
 
