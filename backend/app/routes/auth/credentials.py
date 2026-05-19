@@ -15,6 +15,7 @@ from app.routes.auth._helpers import (
     _build_auth_response, _set_refresh_cookie, _clear_refresh_cookie,
 )
 from app.utils.passwords import validate_password, hash_password, verify_password
+from app.utils.auth_decorators import require_authenticated, caller_id
 
 
 @auth_bp.post("/register")
@@ -280,6 +281,121 @@ def refresh():
     resp = make_response(jsonify({"access_token": access_jwt}), 200)
     _set_refresh_cookie(resp, new_refresh, new_expires)
     return resp
+
+
+@auth_bp.get("/password-status")
+@require_authenticated
+def password_status():
+    uid = caller_id()
+    with db.engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT password_hash FROM users WHERE user_id = :uid"),
+            {"uid": uid},
+        ).mappings().first()
+    return jsonify({"has_password": bool(row and row["password_hash"])}), 200
+
+
+@auth_bp.post("/change-password/request")
+@require_authenticated
+def change_password_request():
+    uid = caller_id()
+    data = request.get_json(silent=True) or {}
+    current_pw = data.get("current_password") or ""
+    new_pw = data.get("new_password") or ""
+    confirm_pw = data.get("confirm_password") or ""
+
+    with db.engine.connect() as conn:
+        user = conn.execute(
+            text("SELECT email, password_hash FROM users WHERE user_id = :uid"),
+            {"uid": uid},
+        ).mappings().first()
+
+    if not user:
+        return jsonify({"error": "user_not_found"}), 400
+
+    has_password = bool(user["password_hash"])
+
+    if has_password:
+        if not current_pw:
+            return jsonify({"field_errors": {"current_password": ["Current password is required."]}}), 422
+        if not verify_password(current_pw, user["password_hash"]):
+            return jsonify({"field_errors": {"current_password": ["Current password is incorrect."]}}), 401
+
+    if not new_pw:
+        return jsonify({"field_errors": {"new_password": ["New password is required."]}}), 422
+    if new_pw != confirm_pw:
+        return jsonify({"field_errors": {"confirm_password": ["Passwords do not match."]}}), 422
+
+    pw_errors = validate_password(new_pw)
+    if pw_errors:
+        return jsonify({"field_errors": {"new_password": pw_errors}}), 422
+
+    new_hash = hash_password(new_pw)
+    import uuid as _uuid
+    token = _jwt_encode(
+        {"typ": "change_password", "sub": str(uid), "new_hash": new_hash, "jti": str(_uuid.uuid4())},
+        current_app.config["JWT_RESET_SECRET"],
+        delta=current_app.config["RESET_EXPIRES"],
+    )
+
+    fe = current_app.config["FRONTEND_URL"].rstrip("/")
+    confirm_url = f"{fe}/dashboard?tab=profile&change_pw_token={token}"
+    action = "set" if not has_password else "change"
+    subject = "Confirm your password change"
+    text_body = (
+        f"You requested to {action} your CougarAI password.\n\n"
+        "Click the link below within 30 minutes to confirm:\n"
+        f"{confirm_url}\n\n"
+        "If you didn't request this, you can ignore this email."
+    )
+    html_body = f"""
+    <p>You requested to {action} your CougarAI password.</p>
+    <p>Click the link below within 30 minutes to confirm:</p>
+    <p><a href="{confirm_url}">Confirm Password Change</a></p>
+    <p><small>If you didn't request this, you can ignore this email.</small></p>
+    """
+    try:
+        from app.services.mailer import send_email
+        send_email(user["email"], subject, text_body, html_body)
+    except Exception as e:
+        current_app.logger.error("Change-password email failed for uid=%s: %r", uid, e)
+
+    return jsonify({"ok": True}), 200
+
+
+@auth_bp.post("/change-password/confirm")
+def change_password_confirm():
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    if not token:
+        return jsonify({"error": "token_required"}), 400
+
+    try:
+        claims = _jwt_decode(token, current_app.config["JWT_RESET_SECRET"])
+    except Exception:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+
+    if claims.get("typ") != "change_password":
+        return jsonify({"error": "invalid_token_type"}), 401
+
+    try:
+        uid = int(claims.get("sub") or 0)
+    except Exception:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+    if not uid:
+        return jsonify({"error": "invalid_or_expired_token"}), 401
+
+    new_hash = claims.get("new_hash") or ""
+    if not new_hash:
+        return jsonify({"error": "invalid_token_type"}), 401
+
+    with db.engine.begin() as conn:
+        conn.execute(
+            text("UPDATE users SET password_hash = :h WHERE user_id = :uid"),
+            {"h": new_hash, "uid": uid},
+        )
+
+    return jsonify({"ok": True}), 200
 
 
 @auth_bp.delete("/logout")

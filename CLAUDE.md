@@ -145,6 +145,10 @@ STRIPE_WEBHOOK_SECRET=         # whsec_... from Stripe Dashboard → Developers 
 FRONTEND_URL=http://localhost:5173
 FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173,https://cougarai.org,https://www.cougarai.org
 GOOGLE_OAUTH_CLIENT_ID=
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_BOT_TOKEN=
+DISCORD_REDIRECT_URI=         # optional; defaults to {backend_url}/auth/discord/callback
 ```
 
 SMTP variables are also supported — see `backend/config.py` for the full list.
@@ -157,6 +161,7 @@ VITE_STRIPE_PUBLISHABLE_KEY=           # live publishable key
 VITE_STRIPE_TEST_PUBLISHABLE_KEY=      # test publishable key
 VITE_STRIPE_MODE=test                  # "test" or "live" — flip both files to switch modes
 VITE_SHOW_AUTH_LINKS=false             # set true to show Login/Register in navbar
+VITE_ENABLE_DISCORD_OAUTH=false        # set true to show Discord button on Login/Register
 ```
 
 Service account JSON key files live in `backend/google/` — never commit them.
@@ -385,10 +390,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Todo
 
-- **Run DB migrations on prod** — `bash backend/run_migrations.sh` (safe to re-run; all migrations use `IF NOT EXISTS`)
-- **Google OAuth frontend** — backend done; set `VITE_SHOW_AUTH_LINKS=true` + flip button enabled once tested. Needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env`.
-- **Enable Login/Register in navbar** — flip `VITE_SHOW_AUTH_LINKS=true` in `frontend/.env` once Google OAuth is tested end-to-end
-- **Join page post-auth redirect** — after login/register, redirect back to `/join` so user lands on the checkout form automatically (currently they must navigate back manually)
+- **Run DB migrations on prod** — `bash backend/run_migrations.sh` (safe to re-run; all migrations use `IF NOT EXISTS`); includes new `normalize_event_type_names.sql`
+- **Google OAuth frontend** — backend done; navbar auth link already visible; needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env` for full end-to-end test.
 - **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
 - **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
 - **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
@@ -397,8 +400,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - **Officer Task Board** — To Do / In Progress / Done kanban; `officer_tasks` table
 - **Meeting Notes** — per-meeting notes (title, date, attendees, agenda, action items); `meeting_notes` table
 - **Microsoft / Outlook OAuth** — `POST /auth/microsoft` via `msal`; auto-verify `@cougarnet.uh.edu` / `@uh.edu`
-- **Discord OAuth** — model after `POST /auth/google`; button on Login/Register/Profile
-- **Discord Webhook** — on event create/update, post to Discord incoming webhook; `club_settings` table for URL
+- **Discord OAuth follow-up** — integration tests for `/auth/discord/callback` (login + connect intents)
+- **Discord Webhook** — on event create/update, post to Discord incoming webhook; use `discord_config.announcement_channel`
 - **Discord Event Sync** — create Discord Guild Scheduled Events via API when admin creates/updates an event
 - **Event Archive** — searchable public page of past events
 - **Projects Archive** — officer/member project showcase; `projects` + `project_contributors` tables
@@ -459,6 +462,16 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - ✅ Check-in expiry auto-prefill — start + 4h default; locks on manual edit
 - ✅ Security hardening — JWT secrets required in prod; SQL injection guard in query_handler; all blueprints auth-protected; webhook secret guard; timing attack fix on forgot-password
 - ✅ Calendar page overhaul — dynamic event types from admin panel; RSVP in event modal; "My RSVPs" filter; NaN fix; points badge on tiles; past event dimming; CT timezone display; auto-generates check-in code when enabling check-in with no code; `GET /events/event-types` + `GET /events/my-rsvps` endpoints
+- ✅ Calendar UX polish — Legend removed (redundant with Event Type filter); NaN day-number fix in list view (`Number(dateKey.slice(8,10))`); officer/admin "Edit Event" button in event modal (navigates to `/admin?tab=events`); event type colors updated to CougarAI red palette via `update_event_type_colors.sql` migration + frontend `TYPE_BRAND_COLORS` fallback
+- ✅ Calendar event type colors fix — events in both month and list view now use DB color from `event_types`; `normalize_event_type_names.sql` migration corrects legacy singular names (`Social`→`Socials`, `Workshop`→`Workshops`); fuzzy prefix fallback added to `getTypeColor` for future stragglers; AgendaView now passes `ev.typeColor` override
+- ✅ Calendar list view RSVP badge — replaced plain red text with a colored pill badge (dot + label) that uses the event's type color; shows count for officers/admins
 - ✅ Central Time (CT) — `frontend/src/lib/dates.ts` utility; all date display across frontend uses `America/Chicago`
 - ✅ Registration inline validation — validation errors now show inline under each field instead of a global banner; server errors still use the banner
 - ✅ Membership auth gate — Memberships pricing CTAs redirect unauthenticated users to `/register`; Join page shows "account required" view when not logged in
+- ✅ Post-auth redirect to `/join` — NotLoggedInView links use `state={{ from: '/join' }}` so Login/Registration redirect back after auth
+- ✅ Registration resend email UX — "Resend email" button on success screen with 60-second cooldown countdown
+- ✅ Login/Register in navbar — already live; `VITE_SHOW_AUTH_LINKS` was never implemented; navbar shows auth link when logged out automatically
+- ✅ Discord OAuth — `GET /auth/discord/start`, `POST /auth/discord/connect-start`, `GET /auth/discord/callback`; login/register buttons on Login + Registration pages (gated by `VITE_ENABLE_DISCORD_OAUTH=true`); Profile tab shows connect/connected/disconnect UI; `discord_username` column added to `profile`; `auto_role` assigned on connect; `member_role` assigned in Discord when Stripe payment completes; `discord_config` extended with `officer_role`/`auto_role` columns + pre-seeded with CougarAI server IDs; requires `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN` in backend `.env`
+- ✅ Discord OAuth account linking fix — callback looks up existing user by `discord_id` only (username excluded — usernames can change); falls back to email provisioning for new accounts
+- ✅ Discord button layout — icon pinned left via `absolute left-4`, text centered; full-width on Login + Registration pages matching Google button style
+- ✅ Change / Set Password — Profile tab Security section; credential users enter current + new password; OAuth users (no password) can set one for the first time; 30-min email confirmation link required to apply; `GET /auth/password-status`, `POST /auth/change-password/request`, `POST /auth/change-password/confirm` routes in `credentials.py`

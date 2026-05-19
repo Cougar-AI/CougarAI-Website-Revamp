@@ -27,6 +27,7 @@ export type MeResponse = {
     major: string | null;
     shirt_size: string | null;
     discord_id: string | null;
+    discord_username: string | null;
     notification_settings: Record<string, boolean>;
     current_streak: number;
     max_streak: number;

@@ -26,7 +26,9 @@ export default function AuthSuccess() {
     const provider = (searchParams.get("provider") || "").trim();
     const accessToken = (searchParams.get("access_token") || "").trim();
 
-    if (provider !== "microsoft" || !queryUser || storedUser) {
+    const isOAuthRedirect = (provider === "microsoft" || provider === "discord") && !!queryUser && !storedUser;
+
+    if (!isOAuthRedirect) {
       const timeout = window.setTimeout(() => {
         navigate("/", { replace: true });
       }, 1800);
@@ -44,7 +46,7 @@ export default function AuthSuccess() {
           });
           const data = (await res.json().catch(() => ({}))) as Partial<RefreshOk>;
           if (!res.ok || !data.access_token) {
-            throw new Error("We couldn't finish Microsoft sign-in.");
+            throw new Error(`We couldn't finish ${provider} sign-in.`);
           }
           token = data.access_token;
         }
@@ -55,7 +57,7 @@ export default function AuthSuccess() {
         }
       } catch (err: any) {
         if (!cancelled) {
-          setError(err?.message || "We couldn't finish Microsoft sign-in.");
+          setError(err?.message || `We couldn't finish ${provider} sign-in.`);
         }
       }
     }, 600);

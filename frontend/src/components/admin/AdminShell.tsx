@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, Calendar, Shield, ChevronDown, ChevronRight,
   Building2, Handshake, Tag, BarChart2, Star, UserSearch, ClipboardList, UserCheck,
-  Receipt, Bell,
+  Receipt, Bell, Mail,
 } from 'lucide-react';
 
 export type AdminTab =
   // Admin Tools
   | 'overview' | 'users' | 'officers' | 'sponsors' | 'partners' | 'event-types'
-  | 'receipts' | 'notifications'
+  | 'receipts' | 'notifications' | 'bulk-email'
   // Officer Tools
   | 'events' | 'event-stats' | 'points' | 'members' | 'progress' | 'checkin';
 
@@ -27,6 +27,7 @@ const ADMIN_TABS: TabDef[] = [
   { id: 'event-types',    label: 'Event Types',     icon: Tag },
   { id: 'receipts',       label: 'Receipts',        icon: Receipt },
   { id: 'notifications',  label: 'Notifications',   icon: Bell },
+  { id: 'bulk-email',     label: 'Bulk Email',      icon: Mail },
 ];
 
 const OFFICER_TABS: TabDef[] = [

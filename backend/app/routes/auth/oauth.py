@@ -235,8 +235,12 @@ def _discord_fetch_json(url: str, *, method: str = "GET", headers: Optional[dict
         headers=headers or {},
         method=method,
     )
-    with urlopen(req) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urlopen(req) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except HTTPError as e:
+        error_body = e.read().decode("utf-8") if e.fp else ""
+        raise HTTPError(e.url, e.code, f"{e.reason} — body: {error_body}", e.headers, None) from e
 
 def _discord_exchange_code(code: str) -> dict:
     body = urlencode({
@@ -249,14 +253,20 @@ def _discord_exchange_code(code: str) -> dict:
     return _discord_fetch_json(
         "https://discord.com/api/v10/oauth2/token",
         method="POST",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": f"CougarAIBot (https://cougarai.org, 1.0)",
+        },
         body=body,
     )
 
 def _discord_get_profile(access_token: str) -> dict:
     return _discord_fetch_json(
         "https://discord.com/api/v10/users/@me",
-        headers={"Authorization": f"Bearer {access_token}"},
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "User-Agent": "CougarAIBot (https://cougarai.org, 1.0)",
+        },
     )
 
 def _discord_authorize_url(state: str) -> str:
@@ -393,20 +403,45 @@ def discord_callback():
 
             return redirect(f"{frontend_url}/dashboard?discord_connected=1")
 
-        # login / register intent
-        if not email or not verified:
-            query = urlencode({"error": "discord_email_unverified"})
-            return redirect(f"{frontend_url}/login?{query}")
+        # login / register intent — find any account that has this Discord linked
+        _linked = None
+        try:
+            from app.raw_db import get_db as _get_db
+            _raw = _get_db()
+            with _raw.cursor() as _cur:
+                _cur.execute(
+                    """
+                    SELECT u.user_id, u.email, u.email_verified_at, u.is_active,
+                           u.role, u.onboarding_completed_at
+                    FROM profile p
+                    JOIN users u ON u.user_id = p.user_id
+                    WHERE p.discord_id::text = %s
+                    """,
+                    (discord_user_id,),
+                )
+                _linked = _cur.fetchone()
+        except Exception:
+            current_app.logger.warning("discord linked-account lookup failed, falling back to email", exc_info=True)
 
-        user = _provision_oauth_user(email)
+        if _linked:
+            if not _linked["is_active"]:
+                raise PermissionError("inactive_user")
+            user = _linked
+        else:
+            if not email or not verified:
+                query = urlencode({"error": "discord_email_unverified"})
+                return redirect(f"{frontend_url}/login?{query}")
+            user = _provision_oauth_user(email)
 
         # Store discord_id + discord_username on profile if it exists
-        from app import db
-        with db.engine.begin() as conn:
-            conn.execute(
-                text("UPDATE profile SET discord_id = :did, discord_username = :dun WHERE user_id = :uid"),
-                {"did": discord_user_id, "dun": discord_username, "uid": user["user_id"]},
+        from app.raw_db import get_db as _get_db2
+        _raw2 = _get_db2()
+        with _raw2.cursor() as _cur2:
+            _cur2.execute(
+                "UPDATE profile SET discord_id = %s, discord_username = %s WHERE user_id = %s",
+                (discord_user_id, discord_username, user["user_id"]),
             )
+        _raw2.commit()
 
         _discord_assign_auto_role(discord_user_id)
 

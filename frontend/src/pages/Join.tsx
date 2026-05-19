@@ -199,14 +199,16 @@ function NotLoggedInView() {
       </p>
       <div className="flex flex-col sm:flex-row gap-3 justify-center">
         <Link
-          to="/register"
+          to="/auth?mode=register"
+          state={{ from: "/join" }}
           className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110"
           style={{ background: "#b91c1c", boxShadow: "0 0 24px rgba(185,28,28,.4)" }}
         >
           Create account
         </Link>
         <Link
-          to="/login"
+          to="/auth?mode=login"
+          state={{ from: "/join" }}
           className="inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/15 transition hover:bg-white/10"
           style={{ background: "rgba(255,255,255,.06)" }}
         >

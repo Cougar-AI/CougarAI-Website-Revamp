@@ -21,7 +21,7 @@ const leafletIcon = L.icon({
   shadowSize: [41, 41],
 });
 
-interface Event {
+export interface Event {
   event_id: number;
   name: string;
   event_type: string;
@@ -63,7 +63,7 @@ interface AttendanceResponse {
   attendees: Attendee[];
 }
 
-interface EventTypeOption {
+export interface EventTypeOption {
   type_id: number;
   name: string;
   default_points: number;
@@ -88,14 +88,14 @@ const cardStyle = {
   backdropFilter: 'blur(10px)',
 };
 
-interface PartnerOption {
+export interface PartnerOption {
   partner_id: number;
   name: string;
   type: string;
   logo_url?: string | null;
 }
 
-interface SponsorOption {
+export interface SponsorOption {
   sponsor_id: number;
   name: string;
   tier: string;
@@ -357,7 +357,7 @@ function MultiSelectDropdown({
   );
 }
 
-function EventModal({
+export function EventModal({
   event,
   types,
   allPartners,

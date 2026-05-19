@@ -13,6 +13,13 @@ export default defineConfig({
       "/auth": {
         target: backendTarget,
         changeOrigin: true,
+        bypass(req) {
+          // Frontend-only routes under /auth must not be proxied to Flask
+          const url = req.url ?? "";
+          if (url === "/auth/success" || url.startsWith("/auth/success?") || url === "/auth" || url.startsWith("/auth?")) {
+            return url;
+          }
+        },
       },
       "/events": {
         target: backendTarget,
