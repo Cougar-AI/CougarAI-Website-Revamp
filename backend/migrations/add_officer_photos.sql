@@ -1,0 +1,4 @@
+ALTER TABLE officers
+  ADD COLUMN IF NOT EXISTS photo_url TEXT,
+  ADD COLUMN IF NOT EXISTS photo_object_position TEXT DEFAULT '50% 50%',
+  ADD COLUMN IF NOT EXISTS linkedin_url TEXT;

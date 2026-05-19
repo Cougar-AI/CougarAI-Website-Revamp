@@ -1,19 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { GraduationCap, FlaskConical, Users, Crown, BookOpen, BookMarked, Megaphone, CalendarDays, Wrench, Globe, Briefcase, type LucideIcon } from "lucide-react";
+import { GraduationCap, FlaskConical, Users, Crown, BookOpen, Megaphone, CalendarDays, Wrench, Globe, Briefcase, Camera, type LucideIcon } from "lucide-react";
 
-const DEPT_ICONS: Record<string, LucideIcon> = {
-  executive: Crown,
-  advisors: BookOpen,
-  historians: BookMarked,
-  marketing: Megaphone,
-  events: CalendarDays,
-  workshops: Wrench,
-  webmasters: Globe,
-  corporate: Briefcase,
+const DEPT_ICON_MAP: Record<string, LucideIcon> = {
+  "Executive Board":      Crown,
+  "Advisors":             BookOpen,
+  "Webmasters":           Globe,
+  "Marketing":            Megaphone,
+  "Corporate Relations":  Briefcase,
+  "Events Directors":     CalendarDays,
+  "Workshops / Projects": Wrench,
+  "Historians":           Camera,
 };
+
 import { useQuery } from "@tanstack/react-query";
-import { departments, type Department, type Officer } from "@/data/officers";
+import { departments as staticDepartments } from "@/data/officers";
 import Slideshow, { type SlideImage } from "@/components/Slideshow";
 
 const AU_FALLBACK: SlideImage[] = [
@@ -49,9 +50,150 @@ interface PublicPartner {
   website: string | null;
 }
 
+interface DBOfficer {
+  first_name: string | null;
+  last_name: string | null;
+  photo_url: string | null;
+  photo_object_position: string;
+  linkedin_url: string | null;
+  position_title: string | null;
+  position_department: string | null;
+  position_sort_order: number | null;
+}
+
+// Normalized shape used by OfficerCard and DeptCard
+interface OfficerData {
+  id: string;
+  name: string;
+  position: string;
+  photoUrl: string | null;
+  photoObjectPosition: string;
+  linkedinUrl: string | null;
+}
+
+interface DeptData {
+  id: string;
+  name: string;
+  officers: OfficerData[];
+}
+
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+function resolveOfficerPhoto(url: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith("/admin/uploads/")) return `${BACKEND}${url}`;
+  return url;
+}
+
 function resolveLogoUrl(logo_url: string | null): string | null {
   if (!logo_url) return null;
   return logo_url.startsWith("/admin/uploads/") ? `${BACKEND}${logo_url}` : logo_url;
+}
+
+// Build DeptData[] from DB directory response, sorted by position sort_order
+function buildDepsFromDB(officers: DBOfficer[]): DeptData[] {
+  const deptMap = new Map<string, { officers: OfficerData[]; minSort: number }>();
+
+  for (const o of officers) {
+    const deptName = o.position_department ?? "Other";
+    if (!deptMap.has(deptName)) {
+      deptMap.set(deptName, { officers: [], minSort: o.position_sort_order ?? 999 });
+    }
+    const entry = deptMap.get(deptName)!;
+    if ((o.position_sort_order ?? 999) < entry.minSort) {
+      entry.minSort = o.position_sort_order ?? 999;
+    }
+    const fullName = [o.first_name, o.last_name].filter(Boolean).join(" ") || "Unknown";
+    entry.officers.push({
+      id: slugify(fullName),
+      name: fullName,
+      position: o.position_title ?? "",
+      photoUrl: resolveOfficerPhoto(o.photo_url),
+      photoObjectPosition: o.photo_object_position ?? "50% 50%",
+      linkedinUrl: o.linkedin_url,
+    });
+  }
+
+  return Array.from(deptMap.entries())
+    .sort(([, a], [, b]) => a.minSort - b.minSort)
+    .map(([name, { officers }]) => ({
+      id: slugify(name),
+      name,
+      officers,
+    }));
+}
+
+// Build DeptData[] from static officers.ts (fallback / supplement)
+function buildDepsFromStatic(): DeptData[] {
+  return [...staticDepartments]
+    .sort((a, b) => deptSortKey(a.name) - deptSortKey(b.name))
+    .map((d) => ({
+      id: d.id,
+      name: d.name,
+      officers: d.officers.map((o) => ({
+        id: o.id,
+        name: o.name,
+        position: o.position,
+        photoUrl: o.photo !== "/officer_photo_blank.png" ? o.photo : null,
+        photoObjectPosition: "50% 50%",
+        linkedinUrl: o.linkedin !== "https://linkedin.com" ? o.linkedin : null,
+      })),
+    }));
+}
+
+const DEPT_ORDER: Record<string, number> = {
+  "Executive Board":      1,
+  "Advisors":             2,
+  "Webmasters":           3,
+  "Marketing":            4,
+  "Corporate Relations":  5,
+  "Events Directors":     6,
+  "Workshops / Projects": 7,
+  "Historians":           8,
+};
+
+function deptSortKey(name: string) {
+  return DEPT_ORDER[name] ?? 999;
+}
+
+// Merge DB officers with static: DB data takes priority; static officers not
+// matched by name in the DB are appended to their departments so all officers
+// always appear even before they have accounts.
+function buildDepsMerged(dbOfficers: DBOfficer[]): DeptData[] {
+  const depts = buildDepsFromDB(dbOfficers);
+
+  const dbNames = new Set(
+    dbOfficers.map((o) =>
+      [o.first_name, o.last_name].filter(Boolean).join(" ").toLowerCase()
+    )
+  );
+
+  for (const staticDept of staticDepartments) {
+    for (const o of staticDept.officers) {
+      if (dbNames.has(o.name.toLowerCase())) continue;
+
+      const officerData: OfficerData = {
+        id: o.id,
+        name: o.name,
+        position: o.position,
+        photoUrl: o.photo !== "/officer_photo_blank.png" ? o.photo : null,
+        photoObjectPosition: "50% 50%",
+        linkedinUrl: o.linkedin !== "https://linkedin.com" ? o.linkedin : null,
+      };
+
+      const existing = depts.find((d) => d.name === staticDept.name);
+      if (existing) {
+        existing.officers.push(officerData);
+      } else {
+        depts.push({ id: staticDept.id, name: staticDept.name, officers: [officerData] });
+      }
+    }
+  }
+
+  depts.sort((a, b) => deptSortKey(a.name) - deptSortKey(b.name));
+  return depts;
 }
 
 const glass: React.CSSProperties = {
@@ -62,14 +204,13 @@ const glass: React.CSSProperties = {
   padding: "24px",
 };
 
-function OfficerCard({ officer }: { officer: Officer }) {
+function OfficerCard({ officer }: { officer: OfficerData }) {
   const initials = officer.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
-  const hasPhoto = officer.photo && officer.photo !== '/officer_photo_blank.png';
   return (
     <div style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.18)", padding: "20px 18px", display: "flex", alignItems: "center", gap: 16 }}>
       <div style={{ width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,rgba(100,8,8,.8),rgba(185,28,28,.4))", border: "2px solid rgba(185,28,28,.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-        {hasPhoto
-          ? <img src={officer.photo} alt={officer.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        {officer.photoUrl
+          ? <img src={officer.photoUrl} alt={officer.name} style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: officer.photoObjectPosition }} />
           : <span style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 18, color: "rgba(255,255,255,.85)" }}>{initials}</span>
         }
       </div>
@@ -80,18 +221,20 @@ function OfficerCard({ officer }: { officer: Officer }) {
         <div style={{ fontSize: 12.5, color: "rgba(248,113,113,.9)", marginBottom: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
           {officer.position}
         </div>
-        <a href={officer.linkedin} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(220,38,38,.85)", fontWeight: 600, textDecoration: "none" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></svg>
-          LinkedIn
-        </a>
+        {officer.linkedinUrl && (
+          <a href={officer.linkedinUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, color: "rgba(220,38,38,.85)", fontWeight: 600, textDecoration: "none" }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></svg>
+            LinkedIn
+          </a>
+        )}
       </div>
     </div>
   );
 }
 
-function DeptCard({ dept, onClick }: { dept: Department; onClick: () => void }) {
+function DeptCard({ dept, onClick }: { dept: DeptData; onClick: () => void }) {
   const [hov, setHov] = useState(false);
-  const Icon = DEPT_ICONS[dept.id];
+  const Icon = DEPT_ICON_MAP[dept.name];
   return (
     <button
       onClick={onClick}
@@ -137,13 +280,11 @@ export default function About() {
     staleTime: 5 * 60_000,
   });
 
-  const slideImages: SlideImage[] = slideshowData?.photos?.length
-    ? slideshowData.photos.map((p) => ({
-        src: p.url.startsWith("/admin/uploads/") ? `${BACKEND}${p.url}` : p.url,
-        objectPosition: p.object_position,
-        caption: p.caption ?? undefined,
-      }))
-    : AU_FALLBACK;
+  const { data: officerDirData } = useQuery<{ officers: DBOfficer[] }>({
+    queryKey: ["officers-directory"],
+    queryFn: () => fetch(`${BACKEND}/admin/officers/directory`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
 
   const { data: sponsorsData } = useQuery<{ sponsors: PublicSponsor[] }>({
     queryKey: ["public-sponsors"],
@@ -157,16 +298,32 @@ export default function About() {
     staleTime: 5 * 60_000,
   });
 
+  const slideImages: SlideImage[] = slideshowData?.photos?.length
+    ? slideshowData.photos.map((p) => ({
+        src: p.url.startsWith("/admin/uploads/") ? `${BACKEND}${p.url}` : p.url,
+        objectPosition: p.object_position,
+        caption: p.caption ?? undefined,
+      }))
+    : AU_FALLBACK;
+
   const sponsors = sponsorsData?.sponsors ?? [];
   const partners = partnersData?.partners ?? [];
+
+  // Merge DB + static: DB officers take priority by name, remaining static officers fill in the gaps
+  const departments: DeptData[] = useMemo(() => {
+    if (officerDirData?.officers?.length) {
+      return buildDepsMerged(officerDirData.officers);
+    }
+    return buildDepsFromStatic();
+  }, [officerDirData]);
 
   useEffect(() => {
     setSelectedDeptId(searchParams.get("dept"));
   }, [searchParams]);
 
-  const selectedDept: Department | null = useMemo(
+  const selectedDept: DeptData | null = useMemo(
     () => departments.find((d) => d.id === selectedDeptId) ?? null,
-    [selectedDeptId],
+    [selectedDeptId, departments],
   );
 
   const filteredOfficers = useMemo(() => {
@@ -178,7 +335,7 @@ export default function About() {
     );
   }, [selectedDept, query]);
 
-  const selectDept = (dept: Department) => {
+  const selectDept = (dept: DeptData) => {
     setSelectedDeptId(dept.id);
     setQuery("");
     setSearchParams({ dept: dept.id });

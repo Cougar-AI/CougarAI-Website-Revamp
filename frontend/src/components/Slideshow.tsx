@@ -47,9 +47,9 @@ export default function Slideshow({ images = DEFAULT_IMAGES, objectPosition = 'c
               />
               {caption && (
                 <div style={{
-                  position: 'absolute', bottom: 32, left: 0, right: 0,
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
                   background: 'linear-gradient(transparent, rgba(0,0,0,.6))',
-                  padding: '18px 20px 10px',
+                  padding: '30px 20px 32px',
                   pointerEvents: 'none',
                 }}>
                   <span style={{

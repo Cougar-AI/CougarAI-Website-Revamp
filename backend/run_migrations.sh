@@ -62,6 +62,10 @@ MIGRATIONS=(
   fix_events_event_name_nullable.sql
   add_user_notifications_table.sql
   add_slideshow_photos.sql
+  add_officer_photos.sql
+  add_officers_student_id_unique.sql
+  add_officers_display_name.sql
+  reorder_officer_departments.sql
 )
 
 FAILED=0
