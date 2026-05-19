@@ -1,6 +1,152 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { departments, type Department, type Officer } from "@/data/officers";
+
+// Add filenames for group photos here. Place image files in frontend/public/
+const ABOUT_PHOTOS = [
+  "/au_officer.jpeg",
+  "/au_group.png",
+  "/au_group2nasa.jpg",
+  "/au_nasav1.jpg",
+  "/au_nasav2.jpg",
+  "/au_nasav3.jpg",
+  "/au_hctra.jpg",
+];
+
+const N = ABOUT_PHOTOS.length;
+
+function PhotoCarousel() {
+  const [index, setIndex] = useState(0);
+  const dragStart = useRef<number | null>(null);
+
+  const prev = () => setIndex((i) => (i - 1 + N) % N);
+  const next = () => setIndex((i) => (i + 1) % N);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    dragStart.current = e.clientX;
+  };
+  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (dragStart.current === null) return;
+    const dx = e.clientX - dragStart.current;
+    dragStart.current = null;
+    if (Math.abs(dx) < 10) return; // treat as click, not swipe
+    if (dx > 50) prev();
+    else if (dx < -50) next();
+  };
+
+  const ArrowBtn = ({
+    side,
+    onClick,
+    label,
+    d,
+  }: {
+    side: "left" | "right";
+    onClick: () => void;
+    label: string;
+    d: string;
+  }) => {
+    const [hov, setHov] = useState(false);
+    return (
+      <button
+        type="button"
+        aria-label={label}
+        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onPointerUp={(e) => e.stopPropagation()}
+        onMouseEnter={() => setHov(true)}
+        onMouseLeave={() => setHov(false)}
+        style={{
+          position: "absolute",
+          [side]: 12,
+          top: "50%",
+          transform: "translateY(-50%)",
+          background: hov ? "rgba(185,28,28,.7)" : "rgba(0,0,0,.6)",
+          border: "1px solid rgba(185,28,28,.55)",
+          borderRadius: "50%",
+          width: 40,
+          height: 40,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          color: "#fff",
+          backdropFilter: "blur(6px)",
+          transition: "background .18s",
+          zIndex: 2,
+        }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d={d} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    );
+  };
+
+  return (
+    <div style={{ margin: "0 auto 75px", maxWidth: 580, userSelect: "none" }}>
+      {/* Image frame */}
+      <div
+        style={{
+          position: "relative",
+          borderRadius: 20,
+          border: "7px solid rgba(185,28,28,.85)",
+          overflow: "hidden",
+          boxShadow: "0 0 50px rgba(185,28,28,.25), 0 8px 40px rgba(0,0,0,.5)",
+          cursor: "grab",
+        }}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={() => { dragStart.current = null; }}
+      >
+        <div style={{ position: "relative", width: "100%", paddingBottom: "90%", overflow: "hidden" }}>
+          <div style={{ position: "absolute", inset: 0, display: "flex", transform: `translateX(-${index * 100}%)`, transition: "transform 0.45s ease" }}>
+            {ABOUT_PHOTOS.map((src, i) => (
+              <img
+                key={src}
+                src={src}
+                alt={`CougarAI team photo ${i + 1}`}
+                style={{ minWidth: "100%", width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", display: "block", pointerEvents: "none", flexShrink: 0 }}
+                loading="lazy"
+                draggable={false}
+              />
+            ))}
+          </div>
+        </div>
+
+        {N > 1 && (
+          <>
+            <ArrowBtn side="left"  onClick={prev} label="Previous photo" d="M10 3L5 8l5 5" />
+            <ArrowBtn side="right" onClick={next} label="Next photo"     d="M6 3l5 5-5 5" />
+          </>
+        )}
+      </div>
+
+      {/* Dot indicators */}
+      {N > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 14 }}>
+          {ABOUT_PHOTOS.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setIndex(i)}
+              aria-label={`Go to photo ${i + 1}`}
+              style={{
+                width: i === index ? 22 : 10,
+                height: 10,
+                borderRadius: 5,
+                border: "none",
+                cursor: "pointer",
+                transition: "all .25s",
+                background: i === index ? "#b91c1c" : "rgba(255,255,255,.28)",
+                padding: 0,
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const glass: React.CSSProperties = {
   borderRadius: 20,
@@ -102,14 +248,14 @@ export default function About() {
   };
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 20px 90px" }}>
+    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 20px 40px" }}>
 
       {/* Header */}
       <header style={{ textAlign: "center", marginBottom: selectedDept ? 28 : 36 }}>
         <h1 style={{ fontFamily: "Oxanium,sans-serif", fontSize: "clamp(28px,4.5vw,48px)", fontWeight: 800, letterSpacing: "-.025em", margin: "0 0 12px", color: "#fff" }}>About Us</h1>
         {!selectedDept && (
-          <p style={{ color: "rgba(255,255,255,.62)", fontSize: 16, lineHeight: 1.7, maxWidth: 560, margin: "0 auto" }}>
-            University of Houston's community for AI & Data Science. All majors welcome — learn, build, and ship projects with us.
+          <p style={{ color: "rgba(255,255,255,.62)", fontSize: 16, lineHeight: 1.7, maxWidth: 820, margin: "0 auto" }}>
+            CougarAI is the University of Houston's student organization dedicated to making artificial intelligence and data science accessible to everyone. Curiosity is the only prerequisite. Through hands-on workshops, research projects, and industry partnerships, we give members the tools to turn ideas into real solutions and build a community where every major belongs.
           </p>
         )}
       </header>
@@ -117,12 +263,8 @@ export default function About() {
       {/* Landing state */}
       {!selectedDept && (
         <>
-          {/* Group photo */}
-          <div style={{ margin: "0 auto 40px", maxWidth: 800 }}>
-            <div style={{ borderRadius: 20, border: "7px solid rgba(185,28,28,.85)", overflow: "hidden", boxShadow: "0 0 50px rgba(185,28,28,.25), 0 8px 40px rgba(0,0,0,.5)" }}>
-              <img src="/mockAboutPhoto.webp" alt="CougarAI team" style={{ width: "100%", height: "auto", display: "block" }} loading="lazy" />
-            </div>
-          </div>
+          {/* Group photo carousel */}
+          <PhotoCarousel />
 
           {/* Departments grid */}
           <section style={glass}>
