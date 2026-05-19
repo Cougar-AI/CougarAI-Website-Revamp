@@ -423,6 +423,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - **Bulk Email Composer** — one-off blast from admin panel; logs to `notification_logs`
 - **Receipt Book improvements** — CSV/PDF export, multi-year fiscal views, approval workflow
 - **About page** — add Sponsors & Partners section once those pages stabilize
+- **Run DB migrations on prod** — `bash backend/run_migrations.sh` includes `add_slideshow_photos.sql`; run locally too if not already done
 
 ### Done
 
@@ -484,3 +485,4 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - ✅ Discord button layout — icon pinned left via `absolute left-4`, text centered; full-width on Login + Registration pages matching Google button style
 - ✅ Change / Set Password — Profile tab Security section; credential users enter current + new password; OAuth users (no password) can set one for the first time; 30-min email confirmation link required to apply; `GET /auth/password-status`, `POST /auth/change-password/request`, `POST /auth/change-password/confirm` routes in `credentials.py`
 - ✅ Integration test schema setup — `tests/conftest.py::app` now applies `db-init/001_auth.sql` + auth migrations to the fresh Docker DB; `db_session` fixture no longer calls `create_all()` (was a no-op); login route fixed to SELECT and return actual `role` + `onboarding_completed_at`; `_build_auth_response` returns HTTP 200 (was 201); `tests/integration/test_auth.py` covers register, login, verify-email, refresh, logout, resend-verification, forgot-password
+- ✅ Admin-managed slideshows — `slideshow_photos` table (`page`, `url`, `object_position`, `caption`, `is_active`, `display_order`); 5 admin routes at `/admin/slideshow-photos` (GET public, POST/PATCH/DELETE/reorder @require_admin); `AdminSlideshowTab` with 3×3 focal-point picker, active toggle, inline captions, drag-to-reorder, file upload, "Seed from defaults" button; Home + About pages fetch from DB with hardcoded fallback arrays; Swiper pagination dots added; `add_slideshow_photos.sql` in `run_migrations.sh` and `tests/conftest.py` schema_files; 12 integration tests in `test_slideshow.py`

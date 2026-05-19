@@ -1,4 +1,4 @@
-.swiper { 
+.swiper {
     position: relative;
     margin-bottom: 0;
     height: 100%;
@@ -11,10 +11,28 @@
 }
 
 .swiper-button-prev,
-.swiper-button-next {  
+.swiper-button-next {
     top: 50%;
     transform: translateY(-50%);
     color: red;
     width: 40px;
     height: 40px;
+}
+
+/* Pagination dots */
+.swiper-pagination {
+    bottom: 10px !important;
+}
+
+.swiper-pagination-bullet {
+    width: 8px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.35);
+    opacity: 1;
+    transition: background .2s, transform .2s;
+}
+
+.swiper-pagination-bullet-active {
+    background: #b91c1c;
+    transform: scale(1.25);
 }

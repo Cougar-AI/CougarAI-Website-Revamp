@@ -1,6 +1,48 @@
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import logo from '../assets/logo.png';
-import Slideshow from '../components/Slideshow';
+import Slideshow, { type SlideImage } from '../components/Slideshow';
+
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+
+const HP_FALLBACK: SlideImage[] = [
+  { src: '/hp_gm.JPG',    objectPosition: 'center' },
+  { src: '/hp_nasa.jpg',  objectPosition: 'center' },
+  { src: '/hp_intro.jpg', objectPosition: 'center' },
+  { src: '/hp_mlai.jpg',  objectPosition: 'center' },
+];
+
+interface PublicSponsor {
+  sponsor_id: number;
+  name: string;
+  logo_url: string | null;
+  website: string | null;
+  tier: string;
+}
+
+interface PublicPartner {
+  partner_id: number;
+  name: string;
+  type: string;
+  logo_url: string | null;
+  website: string | null;
+}
+
+interface SlideshowPhoto {
+  photo_id: number;
+  url: string;
+  object_position: string;
+  caption: string | null;
+}
+
+function resolveLogoUrl(logo_url: string | null): string | null {
+  if (!logo_url) return null;
+  return logo_url.startsWith('/admin/uploads/') ? `${BACKEND}${logo_url}` : logo_url;
+}
+
+function resolveSlideUrl(url: string): string {
+  return url.startsWith('/admin/uploads/') ? `${BACKEND}${url}` : url;
+}
 
 const features = [
   {
@@ -32,7 +74,54 @@ const features = [
   },
 ];
 
+function LogoPill({ name, logo_url, website }: { name: string; logo_url: string | null; website: string | null }) {
+  const logo = resolveLogoUrl(logo_url);
+  const letter = name.trim().charAt(0).toUpperCase();
+  const inner = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(185,28,28,.2)', padding: '10px 14px' }}>
+      {logo
+        ? <img src={logo} alt={name} style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6, background: 'rgba(255,255,255,.06)', flexShrink: 0 }} />
+        : <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(185,28,28,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'Oxanium,sans-serif', fontWeight: 800, fontSize: 14, color: 'rgba(248,113,113,.9)' }}>{letter}</div>
+      }
+      <span style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 13, color: '#fff', whiteSpace: 'nowrap' }}>{name}</span>
+    </div>
+  );
+  return website
+    ? <a href={website} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>{inner}</a>
+    : inner;
+}
+
 export default function Home() {
+  const { data: sponsorsData } = useQuery<{ sponsors: PublicSponsor[] }>({
+    queryKey: ['public-sponsors'],
+    queryFn: () => fetch(`${BACKEND}/sponsors/`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: partnersData } = useQuery<{ partners: PublicPartner[] }>({
+    queryKey: ['public-partners'],
+    queryFn: () => fetch(`${BACKEND}/partners/public`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: slideshowData } = useQuery<{ photos: SlideshowPhoto[] }>({
+    queryKey: ['slideshow-home'],
+    queryFn: () => fetch(`${BACKEND}/admin/slideshow-photos?page=home`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const sponsors = sponsorsData?.sponsors ?? [];
+  const partners = partnersData?.partners ?? [];
+  const hasCommunity = sponsors.length > 0 || partners.length > 0;
+
+  const slideImages: SlideImage[] = slideshowData?.photos?.length
+    ? slideshowData.photos.map((p) => ({
+        src: resolveSlideUrl(p.url),
+        objectPosition: p.object_position,
+        caption: p.caption ?? undefined,
+      }))
+    : HP_FALLBACK;
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 text-center">
       {/* Hero */}
@@ -48,7 +137,7 @@ export default function Home() {
           Welcome to CougarAI
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-balance text-base text-white/80 md:text-lg">
-          University of Houston’s hub for AI & ML—workshops, research, and a supportive community.
+          University of Houston's hub for AI & ML—workshops, research, and a supportive community.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -93,13 +182,30 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Partners & Sponsors strip */}
+      {hasCommunity && (
+        <section className="mx-auto mt-8 max-w-5xl">
+          <p style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(248,113,113,.6)', textTransform: 'uppercase', marginBottom: 12 }}>
+            Supported by
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+            {sponsors.map((s) => (
+              <LogoPill key={`s-${s.sponsor_id}`} name={s.name} logo_url={s.logo_url} website={s.website} />
+            ))}
+            {partners.map((p) => (
+              <LogoPill key={`p-${p.partner_id}`} name={p.name} logo_url={p.logo_url} website={p.website} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Slideshow */}
       <section className="mx-auto mt-12 max-w-5xl text-left">
         <h2 className="mb-4 text-center font-['Oxanium'] text-2xl font-bold md:text-3xl">
-          What we’ve been up to
+          What we've been up to
         </h2>
         <div className="overflow-hidden rounded-2xl" style={{ border: '1px solid rgba(255,255,255,.08)', boxShadow: '0 8px 40px rgba(0,0,0,.5)' }}>
-          <Slideshow />
+          <Slideshow images={slideImages} />
         </div>
       </section>
 

@@ -1,7 +1,35 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
+import { GraduationCap, FlaskConical, Users, Crown, BookOpen, BookMarked, Megaphone, CalendarDays, Wrench, Globe, Briefcase, type LucideIcon } from "lucide-react";
+
+const DEPT_ICONS: Record<string, LucideIcon> = {
+  executive: Crown,
+  advisors: BookOpen,
+  historians: BookMarked,
+  marketing: Megaphone,
+  events: CalendarDays,
+  workshops: Wrench,
+  webmasters: Globe,
+  corporate: Briefcase,
+};
 import { useQuery } from "@tanstack/react-query";
 import { departments, type Department, type Officer } from "@/data/officers";
+import Slideshow, { type SlideImage } from "@/components/Slideshow";
+
+const AU_FALLBACK: SlideImage[] = [
+  { src: '/au_nasav2.jpg',   objectPosition: 'top' },
+  { src: '/au_officer.jpeg', objectPosition: 'center' },
+  { src: '/au_nasav1.jpg',   objectPosition: 'center' },
+  { src: '/au_hctra.jpg',    objectPosition: 'center' },
+  { src: '/au_group.png',    objectPosition: 'top' },
+];
+
+interface SlideshowPhoto {
+  photo_id: number;
+  url: string;
+  object_position: string;
+  caption: string | null;
+}
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
 
@@ -63,6 +91,7 @@ function OfficerCard({ officer }: { officer: Officer }) {
 
 function DeptCard({ dept, onClick }: { dept: Department; onClick: () => void }) {
   const [hov, setHov] = useState(false);
+  const Icon = DEPT_ICONS[dept.id];
   return (
     <button
       onClick={onClick}
@@ -78,9 +107,16 @@ function DeptCard({ dept, onClick }: { dept: Department; onClick: () => void }) 
         cursor: "pointer",
       }}
     >
-      <div>
-        <div style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 15, marginBottom: 5, color: "#fff" }}>{dept.name}</div>
-        <div style={{ fontSize: 12, color: "rgba(255,255,255,.45)" }}>{dept.officers.length} officer{dept.officers.length !== 1 ? "s" : ""}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {Icon && (
+          <div style={{ width: 34, height: 34, borderRadius: 9, background: `rgba(185,28,28,${hov ? .22 : .12})`, border: "1px solid rgba(185,28,28,.25)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}>
+            <Icon size={16} color="rgba(248,113,113,.9)" />
+          </div>
+        )}
+        <div>
+          <div style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 15, marginBottom: 5, color: "#fff" }}>{dept.name}</div>
+          <div style={{ fontSize: 12, color: "rgba(255,255,255,.45)" }}>{dept.officers.length} officer{dept.officers.length !== 1 ? "s" : ""}</div>
+        </div>
       </div>
       <div style={{ width: 32, height: 32, borderRadius: 8, background: `rgba(185,28,28,${hov ? .25 : .1})`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all .2s" }}>
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -94,6 +130,20 @@ export default function About() {
   const initialDept = searchParams.get("dept");
   const [selectedDeptId, setSelectedDeptId] = useState<string | null>(initialDept);
   const [query, setQuery] = useState("");
+
+  const { data: slideshowData } = useQuery<{ photos: SlideshowPhoto[] }>({
+    queryKey: ["slideshow-about"],
+    queryFn: () => fetch(`${BACKEND}/admin/slideshow-photos?page=about`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const slideImages: SlideImage[] = slideshowData?.photos?.length
+    ? slideshowData.photos.map((p) => ({
+        src: p.url.startsWith("/admin/uploads/") ? `${BACKEND}${p.url}` : p.url,
+        objectPosition: p.object_position,
+        caption: p.caption ?? undefined,
+      }))
+    : AU_FALLBACK;
 
   const { data: sponsorsData } = useQuery<{ sponsors: PublicSponsor[] }>({
     queryKey: ["public-sponsors"],
@@ -156,12 +206,35 @@ export default function About() {
       {/* Landing state */}
       {!selectedDept && (
         <>
-          {/* Group photo */}
-          <div style={{ margin: "0 auto 40px", maxWidth: 800 }}>
+          {/* Photo slideshow */}
+          <div style={{ margin: "0 auto 28px", maxWidth: 800 }}>
             <div style={{ borderRadius: 20, border: "7px solid rgba(185,28,28,.85)", overflow: "hidden", boxShadow: "0 0 50px rgba(185,28,28,.25), 0 8px 40px rgba(0,0,0,.5)" }}>
-              <img src="/mockAboutPhoto.webp" alt="CougarAI team" style={{ width: "100%", height: "auto", display: "block" }} loading="lazy" />
+              <Slideshow images={slideImages} />
             </div>
           </div>
+
+          {/* Mission statement */}
+          <section style={{ ...glass, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 28, alignItems: "center" }}>
+            <div style={{ flex: "1 1 300px", minWidth: 0 }}>
+              <p style={{ fontFamily: "Oxanium,sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(248,113,113,.7)", textTransform: "uppercase", marginBottom: 10 }}>Our Mission</p>
+              <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 20, color: "#fff", marginBottom: 12 }}>Building the next generation of AI practitioners</h2>
+              <p style={{ color: "rgba(255,255,255,.62)", fontSize: 14.5, lineHeight: 1.75 }}>
+                CougarAI is the University of Houston's community for artificial intelligence and data science. We bring together students of all majors to learn, collaborate on real-world projects, and connect with industry partners — no experience required.
+              </p>
+            </div>
+            <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 10 }}>
+              {[
+                { label: "All Majors Welcome", icon: <GraduationCap size={16} color="rgba(248,113,113,.9)" /> },
+                { label: "Workshops & Research", icon: <FlaskConical size={16} color="rgba(248,113,113,.9)" /> },
+                { label: "Active Community", icon: <Users size={16} color="rgba(248,113,113,.9)" /> },
+              ].map(({ label, icon }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, borderRadius: 10, background: "rgba(185,28,28,.12)", border: "1px solid rgba(185,28,28,.28)", padding: "10px 16px" }}>
+                  {icon}
+                  <span style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 600, fontSize: 13.5, color: "rgba(255,255,255,.85)" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Departments grid */}
           <section style={glass}>

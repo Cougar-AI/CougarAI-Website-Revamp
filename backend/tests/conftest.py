@@ -63,6 +63,7 @@ def app(_postgres_url):
         os.path.join(root, "db-init", "001_auth.sql"),
         os.path.join(root, "migrations", "add_users_dashboard_fields.sql"),
         os.path.join(root, "migrations", "add_non_member_default_role.sql"),
+        os.path.join(root, "migrations", "add_slideshow_photos.sql"),
     ]
     with application.app_context():
         with db.engine.begin() as conn:

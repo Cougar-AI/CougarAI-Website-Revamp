@@ -61,6 +61,7 @@ MIGRATIONS=(
   add_notifications_tables.sql
   fix_events_event_name_nullable.sql
   add_user_notifications_table.sql
+  add_slideshow_photos.sql
 )
 
 FAILED=0
