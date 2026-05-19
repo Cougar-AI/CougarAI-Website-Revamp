@@ -1,10 +1,20 @@
 # app/__init__.py - Flask application factory
+import datetime as _dt
 from flask import Flask, request
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
+
+class _ISODateProvider(DefaultJSONProvider):
+    """Override Flask 3.x default which serialises datetime as RFC 2822."""
+    def default(self, obj):
+        if isinstance(obj, (_dt.datetime, _dt.date)):
+            return obj.isoformat()
+        return super().default(obj)
 
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -12,6 +22,8 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["300/day", "60/ho
 
 def create_app(config_class='config.DevelopmentConfig'):
     app = Flask(__name__)
+    app.json_provider_class = _ISODateProvider
+    app.json = _ISODateProvider(app)
     app.config.from_object(config_class)
     allowed_origins = app.config.get("FRONTEND_URLS") or [app.config.get("FRONTEND_URL", "http://localhost:5173")]
     CORS(

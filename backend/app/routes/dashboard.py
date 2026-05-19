@@ -14,7 +14,7 @@ MAX_AVATAR_BYTES = 2 * 1024 * 1024  # 2 MB
 
 _ALLOWED_PROFILE_FIELDS = [
     "first_name", "last_name", "preferred_email", "is_public",
-    "notification_settings", "shirt_size", "major", "discord_id", "grade_level",
+    "notification_settings", "shirt_size", "major", "discord_id", "discord_username", "grade_level",
 ]
 
 

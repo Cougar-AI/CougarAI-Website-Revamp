@@ -28,9 +28,27 @@ def createDiscordConfig(guild_id):
             log_channel = request.json.get("log_channel", "")
             executive_role = request.json.get("executive_role", "")
             member_role = request.json.get("member_role", "")
+            officer_role = request.json.get("officer_role", "")
+            auto_role = request.json.get("auto_role", "")
 
-            cur.execute("INSERT INTO discord_config (guild_id, announcement_channel, welcome_channel, log_channel, executive_role, member_role) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (guild_id) DO UPDATE SET announcement_channel = EXCLUDED.announcement_channel, welcome_channel = EXCLUDED.welcome_channel, log_channel = EXCLUDED.log_channel, executive_role = EXCLUDED.executive_role, member_role = EXCLUDED.member_role",
-                        (guild_id, announcement_channel, welcome_channel, log_channel, executive_role, member_role))
+            cur.execute(
+                """
+                INSERT INTO discord_config
+                    (guild_id, announcement_channel, welcome_channel, log_channel,
+                     executive_role, member_role, officer_role, auto_role)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (guild_id) DO UPDATE SET
+                    announcement_channel = EXCLUDED.announcement_channel,
+                    welcome_channel = EXCLUDED.welcome_channel,
+                    log_channel = EXCLUDED.log_channel,
+                    executive_role = EXCLUDED.executive_role,
+                    member_role = EXCLUDED.member_role,
+                    officer_role = EXCLUDED.officer_role,
+                    auto_role = EXCLUDED.auto_role
+                """,
+                (guild_id, announcement_channel, welcome_channel, log_channel,
+                 executive_role, member_role, officer_role, auto_role),
+            )
 
             connection.commit()
             return jsonify({"message": "Discord config created/updated successfully"}), 201
@@ -53,7 +71,9 @@ def updatediscordConfig(guild_id):
                 "welcome_channel": request.json.get("welcome_channel"),
                 "log_channel": request.json.get("log_channel"),
                 "executive_role": request.json.get("executive_role"),
-                "member_role": request.json.get("member_role")
+                "member_role": request.json.get("member_role"),
+                "officer_role": request.json.get("officer_role"),
+                "auto_role": request.json.get("auto_role"),
             }
 
             query, params = build_sql_querys("UPDATE discord_config", filter_dict, mode="SET")

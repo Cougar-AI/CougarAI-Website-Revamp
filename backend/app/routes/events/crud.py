@@ -52,7 +52,8 @@ def getEvents():
             "SELECT event_id, name, event_type, description, location, location_url, starts_at, ends_at, "
             "capacity, check_in_code, check_in_enabled, check_in_expires_at, points_value, google_event_id, "
             "rsvp_enabled, require_location, latitude, longitude, checkin_radius_m, "
-            "(SELECT COUNT(*) FROM event_rsvps WHERE event_rsvps.event_id = events.event_id) AS rsvp_count "
+            "(SELECT COUNT(*) FROM event_rsvps WHERE event_rsvps.event_id = events.event_id) AS rsvp_count, "
+            "(SELECT color FROM event_types WHERE LOWER(TRIM(name)) = LOWER(TRIM(events.event_type)) LIMIT 1) AS type_color "
             "FROM events",
             filter_dict, date_column="starts_at"
         )

@@ -8,4 +8,4 @@ ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp"}
 MAX_UPLOAD_BYTES = 5 * 1024 * 1024  # 5 MB
 ALLOWED_CATEGORIES = {"sponsors", "partners"}
 
-from app.routes.admin import users, events, officers, sponsors, partners, points, misc  # noqa: E402, F401
+from app.routes.admin import users, events, officers, sponsors, partners, points, misc, bulk_email  # noqa: E402, F401

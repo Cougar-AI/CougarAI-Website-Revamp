@@ -28,7 +28,7 @@ class DashboardService(BaseService):
             cur.execute(
                 """
                 SELECT student_id, first_name, last_name, grade_level, major,
-                       shirt_size, discord_id, avatar_url, is_public, preferred_email,
+                       shirt_size, discord_id, discord_username, avatar_url, is_public, preferred_email,
                        notification_settings, current_streak, max_streak, last_event_month
                 FROM profile WHERE user_id = %s
                 """,
@@ -112,6 +112,7 @@ class DashboardService(BaseService):
                 "major": profile["major"] if profile else None,
                 "shirt_size": profile["shirt_size"] if profile else None,
                 "discord_id": profile["discord_id"] if profile else None,
+                "discord_username": profile["discord_username"] if profile else None,
                 "notification_settings": notif or {
                     "email_events": True,
                     "email_newsletter": True,

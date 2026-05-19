@@ -226,6 +226,27 @@ def stripe_webhook():
                         (int(user_id_str),),
                     )
 
+                    # Assign Discord member_role if user has connected Discord
+                    cur.execute(
+                        "SELECT discord_id FROM profile WHERE user_id = %s",
+                        (int(user_id_str),),
+                    )
+                    discord_row = cur.fetchone()
+                    if discord_row and discord_row.get("discord_id"):
+                        try:
+                            from app.services.discord_service import assign_guild_role, get_guild_config
+                            cfg = get_guild_config(conn)
+                            bot_token = current_app.config.get("DISCORD_BOT_TOKEN", "")
+                            if cfg and cfg.get("member_role") and cfg.get("guild_id") and bot_token:
+                                assign_guild_role(
+                                    cfg["guild_id"],
+                                    discord_row["discord_id"],
+                                    cfg["member_role"],
+                                    bot_token,
+                                )
+                        except Exception as _disc_err:
+                            current_app.logger.warning("Discord member_role assignment failed: %s", _disc_err)
+
                 conn.commit()
         except Exception as e:
             current_app.logger.error("webhook handler error: %s", e)
