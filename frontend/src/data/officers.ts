@@ -54,7 +54,7 @@ export const departments: Department[] = [
     id: 'corporate-relations',
     name: 'Corporate Relations',
     officers: [
-      { id: 'reyna', name: 'Reyna Obregon', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/reyna-obregon-8779322a8/ },
+      { id: 'reyna', name: 'Reyna Obregon', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/reyna-obregon-8779322a8/' },
       { id: 'gideon', name: 'Gideon Amoah', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/gideonamoah74/' },
       { id: 'anitra', name: 'Anitra', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
     ],
