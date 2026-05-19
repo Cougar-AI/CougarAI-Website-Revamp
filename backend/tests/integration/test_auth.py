@@ -20,7 +20,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
-PATCH_SEND = "app.services.mailer.send_email"
+PATCH_SEND = "app.routes.auth._helpers.send_email"
 STRONG_PW  = "TestPass1!"
 
 

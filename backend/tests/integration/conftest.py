@@ -3,6 +3,12 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from sqlalchemy import event
 
 
+@pytest.fixture
+def client(app):
+    """Function-scoped — each test gets a fresh cookie jar so tests don't share auth state."""
+    return app.test_client()
+
+
 @pytest.fixture(autouse=True)
 def db_session(app):
     """
