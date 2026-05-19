@@ -1,7 +1,5 @@
 import re
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 # Small denylist (extend as needed)
 _COMMON_DENYLIST = {
@@ -34,11 +32,19 @@ def validate_password(password: str):
         errors.append("Password is too common; choose something more unique.")
     return errors
 
+_BCRYPT_ROUNDS = 12
+_BCRYPT_MAX_BYTES = 72  # bcrypt silently truncates at 72 bytes
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) > _BCRYPT_MAX_BYTES:
+        raise ValueError(f"Password must be {_BCRYPT_MAX_BYTES} bytes or fewer.")
+    return bcrypt.hashpw(pw_bytes, bcrypt.gensalt(rounds=_BCRYPT_ROUNDS)).decode()
+
 
 def verify_password(plain: str, hashed: str) -> bool:
     try:
-        return pwd_context.verify(plain, hashed)
+        return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False

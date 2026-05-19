@@ -7,6 +7,7 @@ _SAFE_COLUMN_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 _SQL_KEYWORDS = frozenset({
     "select", "insert", "update", "delete", "drop", "create", "alter",
     "from", "where", "join", "union", "into", "table", "index",
+    "grant", "revoke", "truncate", "execute", "call",
 })
 
 def _validate_col(name: str) -> str:
@@ -107,14 +108,14 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
             except ValueError:
                 raise ValueError("Limit must be a non-negative integer.")
 
-    if offset is not None:
-        try:
-            offset = int(offset)
-            if offset < 0:
+        if offset is not None:
+            try:
+                offset = int(offset)
+                if offset < 0:
+                    raise ValueError("Offset must be a non-negative integer.")
+                query += " OFFSET %s"
+                params.append(offset)
+            except ValueError:
                 raise ValueError("Offset must be a non-negative integer.")
-            query += " OFFSET %s"
-            params.append(offset)
-        except ValueError:
-            raise ValueError("Offset must be a non-negative integer.")
 
     return query, params

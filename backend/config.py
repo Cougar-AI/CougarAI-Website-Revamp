@@ -69,6 +69,8 @@ class BaseConfig:
     )
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
+    DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+
     MAILER_BACKEND = os.getenv("MAILER_BACKEND", "smtp")
     SMTP_HOST = os.getenv("SMTP_HOST", "localhost")
     SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))

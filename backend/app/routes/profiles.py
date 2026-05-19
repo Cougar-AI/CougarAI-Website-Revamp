@@ -1,22 +1,14 @@
-from app.imports import *
-from flask_jwt_extended import jwt_required, get_jwt
+from flask import Blueprint, request, jsonify
+from app.raw_db import get_db
+from app.utils.query_handler import build_sql_querys
+from app.utils.auth_decorators import require_officer
 
 profile_bp = Blueprint('profile', __name__)
 
-_OFFICER_ROLES = {"admin", "officer"}
-
-def _require_officer():
-    claims = get_jwt()
-    if claims.get("role") not in _OFFICER_ROLES:
-        return jsonify({"error": "Officer or admin access required"}), 403
-    return None
-
-@profile_bp.route("/", methods=["GET"])
-@jwt_required()
+@profile_bp.route("/", methods=["GET", "OPTIONS"])
+@require_officer
 def getProfile():
-    err = _require_officer()
-    if err: return err
-    connection = connect()
+    connection = get_db()
     with connection.cursor() as cur:
 
         filter_dict = {
@@ -33,19 +25,17 @@ def getProfile():
         }
 
         query, params = build_sql_querys("SELECT * FROM profile", filter_dict)
-        
+
         cur.execute(query, tuple(params))
         results = cur.fetchall()
         return (jsonify(results), 200) if results else (jsonify({"error": "No profile found"}), 404)
 
 
-@profile_bp.route("/<int:student_id>", methods=["DELETE"])
-@jwt_required()
+@profile_bp.route("/<int:student_id>", methods=["DELETE", "OPTIONS"])
+@require_officer
 def deleteProfile(student_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             cur.execute(f"DELETE FROM profile WHERE student_id = %s", (student_id,))
             connection.commit()
@@ -54,13 +44,11 @@ def deleteProfile(student_id):
         connection.rollback()
         return jsonify({"error": str(e)}), 500
 
-@profile_bp.route("/", methods=["POST"])
-@jwt_required()
+@profile_bp.route("/", methods=["POST", "OPTIONS"])
+@require_officer
 def addProfile():
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             student_id = request.json.get("student_id")
             first_name = request.json.get("first_name")
@@ -75,7 +63,7 @@ def addProfile():
 
             if not all([first_name, last_name, student_id]):
                 return jsonify({"error": "first_name, last_name, and student_id are required"}), 400
-            
+
             allowed_sizes = {"XS", "S", "M", "L", "XL", "XXL"}
             if shirt_size and shirt_size not in allowed_sizes:
                 return jsonify({"error": f"shirt_size must be one of: {', '.join(sorted(allowed_sizes))}"}), 400
@@ -95,14 +83,12 @@ def addProfile():
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
-    
-@profile_bp.route("/<string:student_id>", methods=["PATCH"])
-@jwt_required()
+
+@profile_bp.route("/<string:student_id>", methods=["PATCH", "OPTIONS"])
+@require_officer
 def updateProfile(student_id):
-    err = _require_officer()
-    if err: return err
     try:
-        connection = connect()
+        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = {
                 "first_name": request.json.get("first_name"),
@@ -130,4 +116,3 @@ def updateProfile(student_id):
     except Exception as e:
         connection.rollback()
         return jsonify({"error": str(e)}), 500
-

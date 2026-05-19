@@ -1,0 +1,1 @@
+ALTER TABLE profile ADD COLUMN IF NOT EXISTS discord_username VARCHAR(50);

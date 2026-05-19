@@ -1,9 +1,8 @@
 import os
 import uuid
 import pytest
-from sqlalchemy import create_engine, text, event
+from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import scoped_session, sessionmaker
 
 
 @pytest.fixture(scope="session")
@@ -17,7 +16,7 @@ def docker_compose_file(pytestconfig):
 def _postgres_url(docker_services):
     port = docker_services.port_for("postgres_test", 5432)
     base_url = f"postgresql://test_user:test_pass@localhost:{port}/postgres"
-    
+
     def _ready() -> bool:
         try:
             eng = create_engine(base_url, isolation_level="AUTOCOMMIT")
@@ -52,68 +51,28 @@ def _postgres_url(docker_services):
 
 @pytest.fixture(scope="session")
 def app(_postgres_url):
-    from app import create_app
-    return create_app("config.TestConfig")
+    import os
+    from sqlalchemy import text as sqlt
+    from app import create_app, db
+
+    application = create_app("config.TestConfig")
+
+    # Apply schema once — db-init tables then core migrations (same order as run_migrations.sh)
+    root = os.path.join(os.path.dirname(__file__), "..")
+    schema_files = [
+        os.path.join(root, "db-init", "001_auth.sql"),
+        os.path.join(root, "migrations", "add_users_dashboard_fields.sql"),
+        os.path.join(root, "migrations", "add_non_member_default_role.sql"),
+    ]
+    with application.app_context():
+        with db.engine.begin() as conn:
+            for path in schema_files:
+                with open(path) as f:
+                    conn.execute(sqlt(f.read()))
+
+    return application
 
 
 @pytest.fixture(scope="session")
 def client(app):
     return app.test_client()
-
-
-@pytest.fixture(autouse=True)
-def db_session(app):
-    """
-    For each test:
-      - open a connection + outer transaction
-      - bind a Session to that connection
-      - start a *nested* transaction (SAVEPOINT)
-      - whenever code calls session.commit(), the SAVEPOINT is released -> we
-        auto-start a new SAVEPOINT so tests stay isolated
-    """
-    from app import db as _db
-
-    with app.app_context():
-        _db.create_all()
-
-        # 1) One connection + outer transaction for the test
-        connection = _db.engine.connect()
-        outer_tx = connection.begin()
-
-        # 2) Bind a session to this connection
-        SessionFactory = sessionmaker(bind=connection)
-        TestingSession = scoped_session(SessionFactory)
-        _db.session = TestingSession  # make your app use this session
-
-        # 3) Begin the first SAVEPOINT using the *session* (important)
-        TestingSession.begin_nested()
-
-        # 4) If the nested transaction ends (because app code called commit),
-        #    immediately start a new SAVEPOINT so the test remains isolated.
-        @event.listens_for(TestingSession(), "after_transaction_end")
-        def _restart_savepoint(sess, trans):
-            # if the transaction that just ended was nested, and its parent
-            # is the outer transaction (not nested), reopen a new SAVEPOINT
-            if trans.nested and not trans._parent.nested:
-                try:
-                    sess.begin_nested()
-                except Exception:
-                    # If connection died mid-teardown, ignore to avoid noisy
-                    # errors masking the real failure.
-                    pass
-
-        try:
-            yield TestingSession
-        finally:
-            # Teardown in the right order
-            try:
-                TestingSession.remove()
-            finally:
-                try:
-                    if outer_tx.is_active:
-                        outer_tx.rollback()
-                finally:
-                    try:
-                        connection.close()
-                    except Exception:
-                        pass

@@ -8,6 +8,13 @@ import {
   formatWeekdayShort,
   todayKeyCT,
 } from "@/lib/dates";
+import { EventModal } from "@/components/admin/AdminEventsTab";
+import type {
+  Event as AdminEvent,
+  EventTypeOption,
+  PartnerOption,
+  SponsorOption,
+} from "@/components/admin/AdminEventsTab";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -19,19 +26,13 @@ const FALLBACK_COLOR = "#b91c1c";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface EventTypeConfig {
-  type_id: number;
-  name: string;
-  color: string;
-  default_points: number;
-}
-
 type TypeColorMap = Record<string, string>; // key: name.toLowerCase()
 
 interface MergedEvent {
   key: string;
   title: string;
-  type: string;       // normalized lowercase type name
+  type: string;       // raw DB type name, lowercased
+  typeColor: string | null;  // DB-resolved color (null for GCal-only events)
   dateKey: string;    // "YYYY-MM-DD"
   startDt: string | null;
   endDt: string | null;
@@ -45,6 +46,7 @@ interface MergedEvent {
   isPast: boolean;
 }
 
+// Full shape matching what the backend /events/ endpoint actually returns
 interface DbEvent {
   event_id: number;
   name: string;
@@ -58,22 +60,37 @@ interface DbEvent {
   rsvp_count: number;
   points_value: number;
   google_event_id: string | null;
+  type_color: string | null;   // resolved by backend JOIN with event_types
+  // Admin-visible fields
+  capacity: number | null;
+  check_in_code: string | null;
+  check_in_enabled: boolean;
+  check_in_expires_at: string | null;
+  require_location: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  checkin_radius_m: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getTypeColor(typeName: string, colorMap: TypeColorMap): string {
-  return colorMap[typeName.toLowerCase()] ?? FALLBACK_COLOR;
+function getTypeColor(typeName: string, colorMap: TypeColorMap, override?: string | null): string {
+  if (override) return override;
+  const key = typeName.toLowerCase().trim();
+  if (colorMap[key]) return colorMap[key];
+  // Fuzzy fallback: match if one key starts with the other (handles "workshop" → "workshops", etc.)
+  const fuzzy = Object.entries(colorMap).find(([k]) => k.startsWith(key) || key.startsWith(k));
+  return fuzzy ? fuzzy[1] : FALLBACK_COLOR;
 }
 
-function normalizeType(s: string): string {
-  const l = s.toLowerCase().trim();
-  // Map legacy names to their canonical DB form if needed
+// For GCal-only events where we must infer the type from the title
+function inferTypeFromTitle(title: string): string {
+  const l = title.toLowerCase();
   if (l.includes("workshop")) return "workshop";
   if (l.includes("meeting")) return "meeting";
   if (l.includes("social")) return "social";
   if (l.includes("hackathon")) return "hackathon";
-  return l || "other";
+  return "other";
 }
 
 function toDateKey(year: number, month0: number, day: number) {
@@ -119,7 +136,8 @@ function dbToMerged(db: DbEvent): MergedEvent {
   return {
     key: `db-${db.event_id}`,
     title: db.name,
-    type: normalizeType(db.event_type),
+    type: db.event_type.toLowerCase().trim(),
+    typeColor: db.type_color ?? null,
     dateKey,
     startDt,
     endDt,
@@ -159,7 +177,9 @@ function mergeEvents(gcalRaw: Record<string, unknown>[], dbEvents: DbEvent[]): M
     merged.push({
       key: `gcal-${g.id}`,
       title,
-      type: normalizeType(db ? db.event_type : title),
+      // DB type takes priority; fall back to title inference for GCal-only events
+      type: db ? db.event_type.toLowerCase().trim() : inferTypeFromTitle(title),
+      typeColor: db?.type_color ?? null,
       dateKey,
       startDt,
       endDt,
@@ -174,7 +194,6 @@ function mergeEvents(gcalRaw: Record<string, unknown>[], dbEvents: DbEvent[]): M
     });
   }
 
-  // DB events linked to GCal but GCal entry missing
   for (const [gcalId, db] of dbByGcalId) {
     if (!gcalIds.has(gcalId)) {
       if (db.starts_at.slice(0, 10).length >= 10) merged.push(dbToMerged(db));
@@ -245,7 +264,7 @@ function CalendarGrid({ year, month, events, onSelect, showRsvpCount, typeColorM
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 2.5 }}>
                 {dayEvs.slice(0, 3).map((ev) => {
-                  const color = getTypeColor(ev.type, typeColorMap);
+                  const color = getTypeColor(ev.type, typeColorMap, ev.typeColor);
                   return (
                     <button key={ev.key} onClick={() => onSelect(ev)} title={ev.title} style={{
                       fontSize: 9, fontWeight: 600, padding: "2px 5px", borderRadius: 4,
@@ -281,9 +300,10 @@ function CalendarGrid({ year, month, events, onSelect, showRsvpCount, typeColorM
 
 // ── AgendaView ────────────────────────────────────────────────────────────────
 
-function AgendaView({ events, onSelect, showRsvpCount, typeColorMap }: {
+function AgendaView({ events, onSelect, showRsvpCount, typeColorMap, emptyMessage }: {
   events: MergedEvent[]; onSelect: (ev: MergedEvent) => void;
   showRsvpCount: boolean; typeColorMap: TypeColorMap;
+  emptyMessage?: string;
 }) {
   const byMonth = useMemo(() => {
     const m = new Map<string, MergedEvent[]>();
@@ -299,7 +319,7 @@ function AgendaView({ events, onSelect, showRsvpCount, typeColorMap }: {
   if (events.length === 0) {
     return (
       <div style={{ textAlign: "center", padding: "28px 20px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.07)", color: "rgba(255,255,255,.4)", fontSize: 14, fontFamily: "Oxanium,sans-serif" }}>
-        No upcoming events found.
+        {emptyMessage ?? "No events found."}
       </div>
     );
   }
@@ -310,16 +330,21 @@ function AgendaView({ events, onSelect, showRsvpCount, typeColorMap }: {
         const [y, mo] = monthKey.split("-").map(Number);
         return (
           <div key={monthKey}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.38)", marginBottom: 10, letterSpacing: ".14em", textTransform: "uppercase", fontFamily: "Oxanium,sans-serif" }}>
-              {MONTHS[mo - 1]} {y}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.38)", letterSpacing: ".14em", textTransform: "uppercase", fontFamily: "Oxanium,sans-serif" }}>
+                {MONTHS[mo - 1]} {y}
+              </span>
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 7px", borderRadius: 10, background: "rgba(255,255,255,.06)", color: "rgba(255,255,255,.3)", fontFamily: "Oxanium,sans-serif" }}>
+                {evs.length} event{evs.length !== 1 ? "s" : ""}
+              </span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
               {evs.map((ev) => {
-                const dayNum = parseInt(ev.dateKey.split("-")[2], 10);
+                const dayNum = Number(ev.dateKey.slice(8, 10));
                 const weekday = ev.startDt
                   ? formatWeekdayShort(parseIso(ev.startDt))
                   : formatWeekdayShort(parseIso(`${ev.dateKey}T12:00:00`));
-                const color = getTypeColor(ev.type, typeColorMap);
+                const color = getTypeColor(ev.type, typeColorMap, ev.typeColor);
                 const typeLabel = ev.type.charAt(0).toUpperCase() + ev.type.slice(1);
                 const timeStr = formatTimeRange(ev.startDt, ev.endDt);
                 return (
@@ -345,20 +370,23 @@ function AgendaView({ events, onSelect, showRsvpCount, typeColorMap }: {
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0 }}>
                       {ev.pointsValue != null && ev.pointsValue > 0 && (
-                        <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.55)", fontFamily: "Oxanium,sans-serif" }}>
+                        <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.5)", fontFamily: "Oxanium,sans-serif" }}>
                           {ev.pointsValue}pt
                         </span>
                       )}
                       <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 4, background: color, color: "#fff", fontFamily: "Oxanium,sans-serif", textTransform: "uppercase", letterSpacing: ".06em" }}>
                         {typeLabel}
                       </span>
-                      {showRsvpCount && ev.rsvpEnabled && ev.rsvpCount > 0 && (
-                        <span style={{ fontSize: 10, padding: "2px 6px", borderRadius: 4, background: "rgba(255,255,255,.1)", color: "rgba(255,255,255,.65)", fontFamily: "Oxanium,sans-serif" }}>
-                          {ev.rsvpCount} RSVPs
+                      {ev.rsvpEnabled && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+                          background: `${color}22`, color, border: `1px solid ${color}55`,
+                          fontFamily: "Oxanium,sans-serif", letterSpacing: ".05em",
+                          display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0,
+                        }}>
+                          <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+                          {showRsvpCount && ev.rsvpCount > 0 ? `${ev.rsvpCount} RSVPs` : "RSVP"}
                         </span>
-                      )}
-                      {ev.rsvpEnabled && !showRsvpCount && (
-                        <span style={{ fontSize: 10, color: "rgba(248,113,113,.8)", fontFamily: "Oxanium,sans-serif" }}>RSVP</span>
                       )}
                     </div>
                   </button>
@@ -375,13 +403,14 @@ function AgendaView({ events, onSelect, showRsvpCount, typeColorMap }: {
 // ── EventDetailModal ──────────────────────────────────────────────────────────
 
 function EventDetailModal({
-  ev, onClose, user, typeColorMap, onRsvpChange,
+  ev, onClose, user, typeColorMap, onRsvpChange, onEdit,
 }: {
   ev: MergedEvent;
   onClose: () => void;
   user: { user_id: number; email: string; role?: string } | null;
   typeColorMap: TypeColorMap;
   onRsvpChange: (eventId: number, rsvped: boolean) => void;
+  onEdit: (ev: MergedEvent) => void;
 }) {
   const canRsvp = user && RSVP_ROLES.includes(user.role ?? "");
   const isOfficerAdmin = user && OFFICER_ROLES.includes(user.role ?? "");
@@ -421,7 +450,7 @@ function EventDetailModal({
     setRsvpBusy(false);
   };
 
-  const color = getTypeColor(ev.type, typeColorMap);
+  const color = getTypeColor(ev.type, typeColorMap, ev.typeColor);
   const typeLabel = ev.type.charAt(0).toUpperCase() + ev.type.slice(1);
 
   return (
@@ -430,7 +459,7 @@ function EventDetailModal({
       onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
       style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px", backdropFilter: "blur(5px)" }}
     >
-      <div style={{ maxWidth: 520, width: "100%", borderRadius: 20, background: "rgba(10,1,1,.97)", border: "1px solid rgba(185,28,28,.28)", boxShadow: "0 28px 70px rgba(0,0,0,.85)", overflow: "hidden" }}>
+      <div style={{ maxWidth: 520, width: "100%", borderRadius: 20, background: "rgba(10,1,1,.97)", border: `1px solid ${color}44`, boxShadow: "0 28px 70px rgba(0,0,0,.85)", overflow: "hidden" }}>
         {/* Type accent bar */}
         <div style={{ height: 4, background: color }} />
 
@@ -479,16 +508,11 @@ function EventDetailModal({
             </p>
           )}
 
-          {/* RSVP section */}
+          {/* RSVP section — button left, officer count right */}
           {ev.rsvpEnabled && (
             <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.07)", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              {isOfficerAdmin && (
-                <span style={{ fontSize: 12, color: "rgba(255,255,255,.42)", fontFamily: "Oxanium,sans-serif" }}>
-                  {ev.rsvpCount} RSVP{ev.rsvpCount !== 1 ? "s" : ""}
-                </span>
-              )}
               {!user ? (
-                <a href="/login" style={{ display: "inline-block", padding: "9px 22px", borderRadius: 10, background: "rgba(185,28,28,.65)", color: "#fff", fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13, textDecoration: "none", boxShadow: "0 0 20px rgba(185,28,28,.35)" }}>
+                <a href="/login" style={{ display: "inline-block", padding: "9px 22px", borderRadius: 10, background: `${color}a0`, color: "#fff", fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13, textDecoration: "none", boxShadow: `0 0 20px ${color}50` }}>
                   Log in to RSVP
                 </a>
               ) : !canRsvp ? (
@@ -498,9 +522,9 @@ function EventDetailModal({
               ) : (
                 <button onClick={toggleRsvp} disabled={rsvpBusy} style={{
                   padding: "9px 22px", borderRadius: 10, border: "none", cursor: rsvpBusy ? "default" : "pointer",
-                  background: rsvpStatus === "yes" ? "rgba(255,255,255,.1)" : "rgba(185,28,28,.65)",
+                  background: rsvpStatus === "yes" ? "rgba(255,255,255,.1)" : `${color}a0`,
                   color: "#fff", fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13,
-                  boxShadow: rsvpStatus === "yes" ? "none" : "0 0 20px rgba(185,28,28,.35)",
+                  boxShadow: rsvpStatus === "yes" ? "none" : `0 0 20px ${color}50`,
                   opacity: rsvpBusy ? 0.6 : 1, transition: "all .2s",
                 }}>
                   {rsvpStatus === "yes" ? "✓ Cancel RSVP" : "RSVP"}
@@ -509,11 +533,24 @@ function EventDetailModal({
               {rsvpStatus === "yes" && (
                 <span style={{ fontSize: 12, color: "rgba(134,239,172,.85)", fontFamily: "Oxanium,sans-serif" }}>You're going!</span>
               )}
+              {isOfficerAdmin && (
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,.38)", fontFamily: "Oxanium,sans-serif", marginLeft: "auto" }}>
+                  {ev.rsvpCount} RSVP{ev.rsvpCount !== 1 ? "s" : ""}
+                </span>
+              )}
             </div>
           )}
 
-          {/* Add to Google Calendar */}
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.07)", display: "flex", justifyContent: "flex-end" }}>
+          {/* Footer: Edit (officers/admins) + Add to Google Calendar */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.07)", display: "flex", justifyContent: isOfficerAdmin && ev.dbEventId ? "space-between" : "flex-end", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {isOfficerAdmin && ev.dbEventId && (
+              <button
+                onClick={() => { onClose(); onEdit(ev); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "rgba(248,113,113,.9)", fontFamily: "Oxanium,sans-serif", padding: "7px 14px", borderRadius: 8, border: `1px solid ${color}55`, background: `${color}1a`, cursor: "pointer", transition: "all .15s" }}
+              >
+                ✏️ Edit Event
+              </button>
+            )}
             <a href={buildGCalUrl(ev)} target="_blank" rel="noopener noreferrer"
               style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "rgba(255,255,255,.45)", fontFamily: "Oxanium,sans-serif", textDecoration: "none", padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", transition: "all .15s" }}>
               📅 Add to Google Calendar
@@ -532,7 +569,8 @@ const API_BASE = import.meta.env.VITE_BACKEND_API_URL ?? "";
 export default function Calendar() {
   const now = new Date();
   const { user } = useAuth();
-  const showRsvpCount = !!(user && OFFICER_ROLES.includes(user.role ?? ""));
+  const isOfficerAdmin = !!(user && OFFICER_ROLES.includes(user.role ?? ""));
+  const showRsvpCount = isOfficerAdmin;
 
   const [type, setType] = useState<string>("all");
   const [year, setYear] = useState(now.getFullYear());
@@ -540,13 +578,23 @@ export default function Calendar() {
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [selectedEvent, setSelectedEvent] = useState<MergedEvent | null>(null);
   const [showMyRsvpsOnly, setShowMyRsvpsOnly] = useState(false);
+  const [showPastInList, setShowPastInList] = useState(false);
+  const [listSearch, setListSearch] = useState("");
 
   const [gcalRaw, setGcalRaw] = useState<Record<string, unknown>[]>([]);
   const [dbEvents, setDbEvents] = useState<DbEvent[]>([]);
-  const [eventTypes, setEventTypes] = useState<EventTypeConfig[]>([]);
+  const [eventTypes, setEventTypes] = useState<EventTypeOption[]>([]);
   const [userRsvpIds, setUserRsvpIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [refetchKey, setRefetchKey] = useState(0);
+
+  // Edit modal state (officer/admin only)
+  const [editModalEvent, setEditModalEvent] = useState<AdminEvent | null>(null);
+  const [editModalKey, setEditModalKey] = useState(0);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [allPartners, setAllPartners] = useState<PartnerOption[]>([]);
+  const [allSponsors, setAllSponsors] = useState<SponsorOption[]>([]);
 
   // Load events + event types in parallel
   useEffect(() => {
@@ -558,19 +606,32 @@ export default function Calendar() {
       .then(([gcal, db, types]) => {
         setGcalRaw(Array.isArray(gcal) ? gcal : []);
         setDbEvents(Array.isArray(db) ? db : []);
-        setEventTypes(Array.isArray(types) ? types : []);
+        // Public endpoint only returns active types; mark them so EventModal's filter works
+        setEventTypes(Array.isArray(types) ? types.map((t: EventTypeOption) => ({ ...t, is_active: true })) : []);
       })
       .catch(() => setFetchError("Could not load events."))
       .finally(() => setLoading(false));
-  }, []);
+  }, [refetchKey]);
 
-  // Fetch user's RSVP list when authenticated
+  // Fetch user RSVPs when authenticated
   useEffect(() => {
     if (!user) { setUserRsvpIds(new Set()); return; }
     apiGet<{ rsvped_event_ids: number[] }>("/events/my-rsvps")
       .then((d) => setUserRsvpIds(new Set(d.rsvped_event_ids)))
       .catch(() => setUserRsvpIds(new Set()));
   }, [user]);
+
+  // Fetch partners/sponsors for the edit modal — officer/admin only
+  useEffect(() => {
+    if (!isOfficerAdmin) return;
+    Promise.all([
+      fetch(`${API_BASE}/partners/`).then((r) => r.json()).catch(() => ({ partners: [] })),
+      fetch(`${API_BASE}/sponsors/`).then((r) => r.json()).catch(() => ({ sponsors: [] })),
+    ]).then(([pd, sd]) => {
+      setAllPartners(pd.partners ?? []);
+      setAllSponsors(sd.sponsors ?? []);
+    });
+  }, [isOfficerAdmin]);
 
   const typeColorMap = useMemo<TypeColorMap>(() => {
     const m: TypeColorMap = {};
@@ -605,8 +666,15 @@ export default function Calendar() {
 
   const agendaEvents = useMemo(() => {
     const todayKey = todayKeyCT();
-    return [...filteredEvents].filter((e) => e.dateKey >= todayKey).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-  }, [filteredEvents]);
+    let evs = showPastInList
+      ? [...filteredEvents].sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+      : [...filteredEvents].filter((e) => e.dateKey >= todayKey).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+    if (listSearch.trim()) {
+      const q = listSearch.trim().toLowerCase();
+      evs = evs.filter((e) => e.title.toLowerCase().includes(q));
+    }
+    return evs;
+  }, [filteredEvents, showPastInList, listSearch]);
 
   const handleRsvpChange = (eventId: number, rsvped: boolean) => {
     setUserRsvpIds((prev) => {
@@ -617,9 +685,20 @@ export default function Calendar() {
     });
   };
 
+  function handleEditEvent(ev: MergedEvent) {
+    if (!ev.dbEventId) return;
+    const dbEv = dbEvents.find((d) => d.event_id === ev.dbEventId);
+    if (!dbEv) return;
+    // DbEvent is a superset of AdminEvent fields
+    setEditModalEvent(dbEv as unknown as AdminEvent);
+    setEditModalKey((k) => k + 1);
+    setShowEditModal(true);
+  }
+
+  const goToday = () => { const t = new Date(); setYear(t.getFullYear()); setMonth(t.getMonth()); };
   const goPrev = () => { if (month === 0) { setMonth(11); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
   const goNext = () => { if (month === 11) { setMonth(0); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
-  const reset = () => { setType("all"); setYear(now.getFullYear()); setMonth(now.getMonth()); setViewMode("calendar"); setShowMyRsvpsOnly(false); };
+  const reset = () => { setType("all"); setYear(now.getFullYear()); setMonth(now.getMonth()); setViewMode("calendar"); setShowMyRsvpsOnly(false); setShowPastInList(false); setListSearch(""); };
 
   // Shared styles
   const panel: React.CSSProperties = { borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(185,28,28,.2)", backdropFilter: "blur(10px)", padding: "20px" };
@@ -664,6 +743,19 @@ export default function Calendar() {
           user={user}
           typeColorMap={typeColorMap}
           onRsvpChange={handleRsvpChange}
+          onEdit={handleEditEvent}
+        />
+      )}
+
+      {showEditModal && editModalEvent && (
+        <EventModal
+          key={editModalKey}
+          event={editModalEvent}
+          types={eventTypes}
+          allPartners={allPartners}
+          allSponsors={allSponsors}
+          onClose={() => { setShowEditModal(false); setEditModalEvent(null); }}
+          onSaved={() => setRefetchKey((k) => k + 1)}
         />
       )}
 
@@ -689,7 +781,6 @@ export default function Calendar() {
                 </span>
               </button>
             )) : (
-              // Fallback while event types load
               <button style={filterBtn(true)}>All Events</button>
             )}
           </div>
@@ -730,38 +821,24 @@ export default function Calendar() {
                   ))}
                 </div>
               </div>
+
             </>
           )}
 
-          <button onClick={reset} style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid rgba(185,28,28,.3)", background: "rgba(185,28,28,.1)", color: "rgba(220,38,38,.85)", fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer", transition: "all .15s" }}>
-            Reset to Today
-          </button>
-
-          {/* Legend */}
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid rgba(255,255,255,.08)" }}>
-            <span style={sLabel}>Legend</span>
-            {eventTypes.length > 0 ? eventTypes.map((t) => (
-              <div key={t.type_id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7, fontSize: 12.5, color: "rgba(255,255,255,.65)", fontFamily: "Oxanium,sans-serif" }}>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: t.color, flexShrink: 0, display: "inline-block" }} />
-                {t.name.charAt(0).toUpperCase() + t.name.slice(1)}
-              </div>
-            )) : (
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,.3)", fontFamily: "Oxanium,sans-serif" }}>Loading…</div>
-            )}
-          </div>
         </aside>
 
         {/* Main panel */}
         <section style={panel}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
-            {/* Left: nav arrows (calendar mode only) */}
+            {/* Left: nav arrows (calendar mode) / search (list mode) */}
             <div style={{ display: "flex", gap: 8, minWidth: 120 }}>
-              {viewMode === "calendar" && (
+              {viewMode === "calendar" ? (
                 <>
                   <button style={navBtn} onClick={goPrev}>← Prev</button>
                   <button style={navBtn} onClick={goNext}>Next →</button>
+                  <button style={{ ...navBtn, padding: "8px 12px", fontSize: 12, color: "rgba(255,255,255,.6)" }} onClick={goToday} title="Jump to today">Today</button>
                 </>
-              )}
+              ) : null}
             </div>
 
             {/* Center: title */}
@@ -776,9 +853,37 @@ export default function Calendar() {
             </div>
           </div>
 
+          {/* List view controls */}
+          {viewMode === "list" && (
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
+                <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,.3)", fontSize: 14, pointerEvents: "none" }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="Search events…"
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 9, border: "1px solid rgba(185,28,28,.2)", background: "rgba(255,255,255,.05)", color: "#fff", fontFamily: "Oxanium,sans-serif", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <button
+                onClick={() => setShowPastInList((v) => !v)}
+                style={{
+                  padding: "8px 14px", borderRadius: 9, border: `1px solid ${showPastInList ? "rgba(185,28,28,.5)" : "rgba(255,255,255,.12)"}`,
+                  background: showPastInList ? "rgba(185,28,28,.2)" : "rgba(255,255,255,.05)",
+                  color: showPastInList ? "rgba(248,113,113,.9)" : "rgba(255,255,255,.5)",
+                  fontFamily: "Oxanium,sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all .15s", whiteSpace: "nowrap",
+                }}
+              >
+                {showPastInList ? "✓ " : ""}Past Events
+              </button>
+            </div>
+          )}
+
           <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.38)", fontFamily: "Oxanium,sans-serif", marginBottom: 16, textAlign: "right" }}>
             {displayCount} event{displayCount !== 1 ? "s" : ""}
             {showMyRsvpsOnly && " · My RSVPs only"}
+            {viewMode === "list" && showPastInList && " · Incl. past"}
           </div>
 
           {viewMode === "calendar" ? (
@@ -800,6 +905,7 @@ export default function Calendar() {
               onSelect={setSelectedEvent}
               showRsvpCount={showRsvpCount}
               typeColorMap={typeColorMap}
+              emptyMessage={listSearch ? "No events match your search." : showPastInList ? "No events found." : "No upcoming events. Toggle 'Past Events' to see older ones."}
             />
           )}
         </section>

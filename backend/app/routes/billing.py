@@ -1,7 +1,7 @@
 import stripe
 from datetime import date
 from flask import Blueprint, current_app, request, jsonify
-from app.raw_db import connect
+from app.raw_db import get_db
 from app import limiter
 
 members_bp = Blueprint("members", __name__)
@@ -38,7 +38,7 @@ def join_member():
 
     if student_id:
         try:
-            conn = connect()
+            conn = get_db()
             with conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM profile WHERE student_id = %s", (student_id,))
                 if not cur.fetchone():
@@ -82,7 +82,7 @@ def create_checkout_session():
     existing_customer_id = None
     if user_id and str(user_id).isdigit():
         try:
-            conn = connect()
+            conn = get_db()
             with conn.cursor() as cur:
                 cur.execute(
                     "SELECT stripe_customer_id FROM users WHERE user_id = %s",
@@ -163,7 +163,7 @@ def stripe_webhook():
             today = date.today()
             expires_at = _get_membership_expiry(plan_id, today) if plan_id else None
 
-            conn = connect()
+            conn = get_db()
             with conn.cursor() as cur:
                 # Persist Stripe customer ID on the users row
                 if user_id_str and user_id_str.isdigit() and stripe_customer_id:
@@ -225,6 +225,27 @@ def stripe_webhook():
                         "UPDATE users SET role = 'member' WHERE user_id = %s AND role = 'non-member'",
                         (int(user_id_str),),
                     )
+
+                    # Assign Discord member_role if user has connected Discord
+                    cur.execute(
+                        "SELECT discord_id FROM profile WHERE user_id = %s",
+                        (int(user_id_str),),
+                    )
+                    discord_row = cur.fetchone()
+                    if discord_row and discord_row.get("discord_id"):
+                        try:
+                            from app.services.discord_service import assign_guild_role, get_guild_config
+                            cfg = get_guild_config(conn)
+                            bot_token = current_app.config.get("DISCORD_BOT_TOKEN", "")
+                            if cfg and cfg.get("member_role") and cfg.get("guild_id") and bot_token:
+                                assign_guild_role(
+                                    cfg["guild_id"],
+                                    discord_row["discord_id"],
+                                    cfg["member_role"],
+                                    bot_token,
+                                )
+                        except Exception as _disc_err:
+                            current_app.logger.warning("Discord member_role assignment failed: %s", _disc_err)
 
                 conn.commit()
         except Exception as e:

@@ -43,6 +43,68 @@ pytest              # run tests (some require Docker)
 gunicorn wsgi:app   # production WSGI server
 ```
 
+### Testing
+
+Two tiers — unit tests require no infrastructure; integration tests require Docker.
+
+**Unit tests** (no Docker, runs in ~2s):
+```bash
+cd backend && source venv/bin/activate
+pytest tests/unit/ -v
+pytest tests/unit/ --cov=app --cov-report=term-missing   # with coverage
+```
+
+**Integration tests** (requires Docker):
+```bash
+cd backend && source venv/bin/activate
+pytest tests/integration/ -v
+```
+
+**Full suite** (unit + integration):
+```bash
+pytest --cov=app --cov-report=term-missing
+```
+
+Coverage HTML report → `backend/htmlcov/index.html`
+
+#### Test structure
+```
+backend/tests/
+  conftest.py         # Shared: docker/app/client session fixtures; applies DB schema on startup
+  docker-compose.yml  # PostgreSQL 17 for integration tests
+  integration/        # Requires Docker; db_session autouse=True scoped here
+    conftest.py       # db_session (autouse=True, function scope) — wraps each test in a transaction
+    test_app.py       # App factory sanity checks
+    test_auth.py      # /auth/* route integration tests (register, login, verify, refresh, logout)
+  unit/               # Pure Python; no DB, no Docker
+    conftest.py       # Minimal Flask+JWT fixture (no DB)
+    test_passwords.py
+    test_date_validation.py
+    test_query_handler.py
+    test_auth_decorators.py
+```
+
+#### Schema setup for integration tests
+`tests/conftest.py::app` (session scope) applies the schema to the fresh Docker DB right after creating the Flask app. When new tables are needed for new integration tests, add the corresponding SQL files to the `schema_files` list in that fixture (follow the order in `run_migrations.sh`):
+- `db-init/001_auth.sql` — users + refresh_tokens
+- `migrations/add_users_dashboard_fields.sql` — role, onboarding_completed_at, etc.
+- `migrations/add_non_member_default_role.sql` — sets role DEFAULT to 'non-member'
+
+#### Adding new tests
+- **New utility function** → add to corresponding `tests/unit/test_*.py`
+- **New route or service** → add to `tests/integration/test_<blueprint>.py`
+- **New integration test needs a new table** → add the migration SQL file to `schema_files` in `tests/conftest.py::app`
+
+#### Test coverage rule
+Every new backend route or service must ship with tests. No exceptions.
+- New auth/utility logic → unit test in `tests/unit/`
+- New Flask route (blueprint) → integration test in `tests/integration/`
+- New service class method → integration test covering the happy path + at least one error case
+- Run `pytest tests/unit/ -v` before committing; run the full suite (`pytest`) before merging to main
+
+#### Known limitation (Phase 1)
+`db_session` in `tests/integration/conftest.py` uses SQLAlchemy session nesting, but the app uses raw psycopg2 via `get_db()` — so service/route commits are NOT rolled back between tests. Tests must use unique data (e.g., uuid-suffix emails) to stay isolated. Phase 2 will replace this with psycopg2 savepoint isolation.
+
 ## Social Links
 
 All four are wired in `frontend/src/components/Footer.tsx`. LinkedIn text link + icon button, Discord, Instagram, GitHub icon buttons are all live.
@@ -91,6 +153,10 @@ STRIPE_WEBHOOK_SECRET=         # whsec_... from Stripe Dashboard → Developers 
 FRONTEND_URL=http://localhost:5173
 FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173,https://cougarai.org,https://www.cougarai.org
 GOOGLE_OAUTH_CLIENT_ID=
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_BOT_TOKEN=
+DISCORD_REDIRECT_URI=         # optional; defaults to {backend_url}/auth/discord/callback
 ```
 
 SMTP variables are also supported — see `backend/config.py` for the full list.
@@ -103,6 +169,7 @@ VITE_STRIPE_PUBLISHABLE_KEY=           # live publishable key
 VITE_STRIPE_TEST_PUBLISHABLE_KEY=      # test publishable key
 VITE_STRIPE_MODE=test                  # "test" or "live" — flip both files to switch modes
 VITE_SHOW_AUTH_LINKS=false             # set true to show Login/Register in navbar
+VITE_ENABLE_DISCORD_OAUTH=false        # set true to show Discord button on Login/Register
 ```
 
 Service account JSON key files live in `backend/google/` — never commit them.
@@ -132,12 +199,30 @@ frontend/src/
   main.tsx        # Entry point
 
 backend/app/
-  routes/         # Flask blueprints (auth, events, officers, payments, announcements, billing, ...)
-  services/       # Business logic
-  utils/          # Helpers
+  routes/         # Flask blueprints — thin route handlers only; no business logic
+    admin/        # admin_bp package: users, events, officers, sponsors, partners, points, misc
+    events/       # events_bp package: crud, checkin, rsvp, integrations
+    auth/         # auth_bp package: credentials, oauth, _helpers
+    partners/     # partners_bp package: dashboard, members, resources
+    (other single-file blueprints: billing, dashboard, forms, notifications, officers, payments, points, profiles, receipts, progress_reports, sponsors, announcements, discord)
+  services/       # Business logic — OOP service classes (BaseService pattern)
+    base_service.py           # BaseService(conn) base class
+    user_service.py           # UserService
+    event_admin_service.py    # EventAdminService
+    officer_service.py        # OfficerService
+    partner_admin_service.py  # PartnerAdminService
+    points_service.py         # PointsService (admin)
+    sponsor_service.py        # SponsorService
+    dashboard_service.py      # DashboardService
+    receipt_service.py        # ReceiptService
+    notification_service.py   # NotificationService
+    progress_report_service.py # ProgressReportService
+    mailer.py                 # send_email utility
+    notification_scheduler.py # APScheduler jobs
+  utils/          # Helpers (auth_decorators, date_validation, query_handler, passwords)
   imports/        # Aggregated imports (libraries.py, routes_import.py, utilities.py)
   __init__.py     # App factory — blueprint registration & CORS config lives here
-  raw_db.py       # Raw DB connection utilities
+  raw_db.py       # Raw DB connection utilities — get_db() returns g-scoped psycopg2 RealDictCursor conn
 
 backend/
   config.py       # Environment configs (Base/Dev/Test/Production)
@@ -192,7 +277,9 @@ All pages share a warm dark-red aesthetic. Follow these conventions when buildin
 - **Frontend path alias:** `@/` resolves to `frontend/src/` — use it for all internal imports
 - **Adding shadcn components:** `npx shadcn@latest add <component>` from `frontend/` — do not manually edit files in `components/ui/`
 - **Backend blueprints:** register new blueprints in `backend/app/imports/routes_import.py`, then the factory in `__init__.py` picks them up automatically
-- **Backend imports:** aggregate shared imports via `backend/app/imports/` rather than importing directly in each route file
+- **Backend imports:** use explicit imports in route files — do NOT use `from app.imports import *`; that module is legacy and only used by the app factory
+- **Backend service pattern:** business logic lives in `app/services/` as `XxxService(BaseService)` classes instantiated per-request: `svc = XxxService(get_db())`. Route handlers validate input, call the service, and return `jsonify(...)`. No direct DB access in route handlers except for one-liner edge cases
+- **Backend auth decorators:** use `@require_admin`, `@require_officer`, `@require_authenticated` from `app.utils.auth_decorators` — never use `@jwt_required()` directly. OPTIONS is handled automatically by these decorators
 - **Auth tokens:** access (15 min), refresh (7 days), email verify (24 hr), password reset (30 min) — configured in `config.py`
 - **CORS:** allowed origin is `FRONTEND_URL` env var; enforced via flask-cors + an `after_request` hook in `__init__.py` that covers error responses too. New blueprints must explicitly handle `OPTIONS` in their routes (add `"OPTIONS"` to `methods` and return `"", 200`) — flask-cors 6.x + Flask 3.x does not auto-handle preflight for blueprint routes reliably
 - **API calls from frontend:** use `const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001"` — do not use relative `/api/...` paths (no Vite proxy configured)
@@ -311,9 +398,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Todo
 
-- **Run DB migrations on prod** — `bash backend/run_migrations.sh` (safe to re-run; all migrations use `IF NOT EXISTS`)
-- **Google OAuth frontend** — backend done; set `VITE_SHOW_AUTH_LINKS=true` + flip button enabled once tested. Needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env`.
-- **Enable Login/Register in navbar** — flip `VITE_SHOW_AUTH_LINKS=true` in `frontend/.env` once Google OAuth is tested end-to-end
+- **Run DB migrations on prod** — `bash backend/run_migrations.sh` (safe to re-run; all migrations use `IF NOT EXISTS`); includes new `normalize_event_type_names.sql`
+- **Google OAuth frontend** — backend done; navbar auth link already visible; needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env` for full end-to-end test.
 - **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
 - **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
 - **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
@@ -322,8 +408,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - **Officer Task Board** — To Do / In Progress / Done kanban; `officer_tasks` table
 - **Meeting Notes** — per-meeting notes (title, date, attendees, agenda, action items); `meeting_notes` table
 - **Microsoft / Outlook OAuth** — `POST /auth/microsoft` via `msal`; auto-verify `@cougarnet.uh.edu` / `@uh.edu`
-- **Discord OAuth** — model after `POST /auth/google`; button on Login/Register/Profile
-- **Discord Webhook** — on event create/update, post to Discord incoming webhook; `club_settings` table for URL
+- **Discord OAuth follow-up** — integration tests for `/auth/discord/callback` (login + connect intents)
+- **Discord Webhook** — on event create/update, post to Discord incoming webhook; use `discord_config.announcement_channel`
 - **Discord Event Sync** — create Discord Guild Scheduled Events via API when admin creates/updates an event
 - **Event Archive** — searchable public page of past events
 - **Projects Archive** — officer/member project showcase; `projects` + `project_contributors` tables
@@ -340,6 +426,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ Phase 1 testing foundation — `tests/unit/` (104 tests, no Docker); `tests/integration/` (db_session autouse scoped to integration only); `.coveragerc`; pytest markers; passlib replaced with direct `bcrypt` in `passwords.py` (passlib 1.7.4 + bcrypt 5.x incompatibility fix); utils coverage: passwords 100%, date_validation 100%, query_handler 99%, auth_decorators 94%
+- ✅ Backend OOP refactor — all route files use explicit imports (no `from app.imports import *`); large blueprints split into sub-packages (`admin/`, `events/`, `auth/`, `partners/`); 11 service classes extracted (`BaseService` pattern); `@jwt_required()` replaced with `@require_authenticated`; `get_db()` returns g-scoped connection (no leaks)
 - ✅ User Dashboard (`/dashboard`) — Profile, Membership, Points, Leaderboard, Check-In tabs
 - ✅ Onboarding wizard (`/onboarding`) — 3-step first-login flow; student ID required
 - ✅ Event self-check-in — code entry + QR camera scan (`html5-qrcode`); `POST /events/checkin`
@@ -382,4 +470,17 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - ✅ Check-in expiry auto-prefill — start + 4h default; locks on manual edit
 - ✅ Security hardening — JWT secrets required in prod; SQL injection guard in query_handler; all blueprints auth-protected; webhook secret guard; timing attack fix on forgot-password
 - ✅ Calendar page overhaul — dynamic event types from admin panel; RSVP in event modal; "My RSVPs" filter; NaN fix; points badge on tiles; past event dimming; CT timezone display; auto-generates check-in code when enabling check-in with no code; `GET /events/event-types` + `GET /events/my-rsvps` endpoints
+- ✅ Calendar UX polish — Legend removed (redundant with Event Type filter); NaN day-number fix in list view (`Number(dateKey.slice(8,10))`); officer/admin "Edit Event" button in event modal (navigates to `/admin?tab=events`); event type colors updated to CougarAI red palette via `update_event_type_colors.sql` migration + frontend `TYPE_BRAND_COLORS` fallback
+- ✅ Calendar event type colors fix — events in both month and list view now use DB color from `event_types`; `normalize_event_type_names.sql` migration corrects legacy singular names (`Social`→`Socials`, `Workshop`→`Workshops`); fuzzy prefix fallback added to `getTypeColor` for future stragglers; AgendaView now passes `ev.typeColor` override
+- ✅ Calendar list view RSVP badge — replaced plain red text with a colored pill badge (dot + label) that uses the event's type color; shows count for officers/admins
 - ✅ Central Time (CT) — `frontend/src/lib/dates.ts` utility; all date display across frontend uses `America/Chicago`
+- ✅ Registration inline validation — validation errors now show inline under each field instead of a global banner; server errors still use the banner
+- ✅ Membership auth gate — Memberships pricing CTAs redirect unauthenticated users to `/register`; Join page shows "account required" view when not logged in
+- ✅ Post-auth redirect to `/join` — NotLoggedInView links use `state={{ from: '/join' }}` so Login/Registration redirect back after auth
+- ✅ Registration resend email UX — "Resend email" button on success screen with 60-second cooldown countdown
+- ✅ Login/Register in navbar — already live; `VITE_SHOW_AUTH_LINKS` was never implemented; navbar shows auth link when logged out automatically
+- ✅ Discord OAuth — `GET /auth/discord/start`, `POST /auth/discord/connect-start`, `GET /auth/discord/callback`; login/register buttons on Login + Registration pages (gated by `VITE_ENABLE_DISCORD_OAUTH=true`); Profile tab shows connect/connected/disconnect UI; `discord_username` column added to `profile`; `auto_role` assigned on connect; `member_role` assigned in Discord when Stripe payment completes; `discord_config` extended with `officer_role`/`auto_role` columns + pre-seeded with CougarAI server IDs; requires `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN` in backend `.env`
+- ✅ Discord OAuth account linking fix — callback looks up existing user by `discord_id` only (username excluded — usernames can change); falls back to email provisioning for new accounts
+- ✅ Discord button layout — icon pinned left via `absolute left-4`, text centered; full-width on Login + Registration pages matching Google button style
+- ✅ Change / Set Password — Profile tab Security section; credential users enter current + new password; OAuth users (no password) can set one for the first time; 30-min email confirmation link required to apply; `GET /auth/password-status`, `POST /auth/change-password/request`, `POST /auth/change-password/confirm` routes in `credentials.py`
+- ✅ Integration test schema setup — `tests/conftest.py::app` now applies `db-init/001_auth.sql` + auth migrations to the fresh Docker DB; `db_session` fixture no longer calls `create_all()` (was a no-op); login route fixed to SELECT and return actual `role` + `onboarding_completed_at`; `_build_auth_response` returns HTTP 200 (was 201); `tests/integration/test_auth.py` covers register, login, verify-email, refresh, logout, resend-verification, forgot-password
