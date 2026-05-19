@@ -1,47 +1,47 @@
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import logo from '../assets/logo.png';
+import Slideshow, { type SlideImage } from '../components/Slideshow';
 
-// Place image files in frontend/public/
-const HP_PHOTOS = [
-  '/hp_intro.jpg',
-  '/hp_gm.JPG',
-  '/hp_nasa.jpg',
-  '/hp_mlai.jpg',
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+
+const HP_FALLBACK: SlideImage[] = [
+  { src: '/hp_gm.JPG',    objectPosition: 'center' },
+  { src: '/hp_nasa.jpg',  objectPosition: 'center' },
+  { src: '/hp_intro.jpg', objectPosition: 'center' },
+  { src: '/hp_mlai.jpg',  objectPosition: 'center' },
 ];
 
+interface PublicSponsor {
+  sponsor_id: number;
+  name: string;
+  logo_url: string | null;
+  website: string | null;
+  tier: string;
+}
 
-const IMG_W = 480;
-const IMG_H = 320;
-const GAP   = 12;
-const STRIP  = HP_PHOTOS.length * (IMG_W + GAP); // px for one full set
-const DURATION = STRIP / 90;                       // seconds at 90 px/s
+interface PublicPartner {
+  partner_id: number;
+  name: string;
+  type: string;
+  logo_url: string | null;
+  website: string | null;
+}
 
-function HomePhotoCarousel() {
-  return (
-    <>
-      <style>{`
-        @keyframes hp-marquee {
-          from { transform: translateX(0); }
-          to   { transform: translateX(-${STRIP}px); }
-        }
-      `}</style>
-      {/* full-viewport-width breakout */}
-      <div style={{ overflow: 'hidden', width: '100vw', position: 'relative', left: '50%', transform: 'translateX(-50%)' }}>
-        <div style={{ display: 'flex', gap: GAP, animation: `hp-marquee ${DURATION}s linear infinite`, width: 'max-content' }}>
-          {/* doubled for seamless loop */}
-          {[...HP_PHOTOS, ...HP_PHOTOS].map((src, i) => (
-            <img
-              key={i}
-              src={src}
-              alt=""
-              style={{ width: IMG_W, height: IMG_H, objectFit: 'cover', objectPosition: 'center', flexShrink: 0, display: 'block' }}
-              draggable={false}
-            />
-          ))}
-        </div>
-      </div>
-    </>
-  );
+interface SlideshowPhoto {
+  photo_id: number;
+  url: string;
+  object_position: string;
+  caption: string | null;
+}
+
+function resolveLogoUrl(logo_url: string | null): string | null {
+  if (!logo_url) return null;
+  return logo_url.startsWith('/admin/uploads/') ? `${BACKEND}${logo_url}` : logo_url;
+}
+
+function resolveSlideUrl(url: string): string {
+  return url.startsWith('/admin/uploads/') ? `${BACKEND}${url}` : url;
 }
 
 const features = [
@@ -74,7 +74,54 @@ const features = [
   },
 ];
 
+function LogoPill({ name, logo_url, website }: { name: string; logo_url: string | null; website: string | null }) {
+  const logo = resolveLogoUrl(logo_url);
+  const letter = name.trim().charAt(0).toUpperCase();
+  const inner = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 12, background: 'rgba(255,255,255,.05)', border: '1px solid rgba(185,28,28,.2)', padding: '10px 14px' }}>
+      {logo
+        ? <img src={logo} alt={name} style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6, background: 'rgba(255,255,255,.06)', flexShrink: 0 }} />
+        : <div style={{ width: 28, height: 28, borderRadius: 6, background: 'rgba(185,28,28,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontFamily: 'Oxanium,sans-serif', fontWeight: 800, fontSize: 14, color: 'rgba(248,113,113,.9)' }}>{letter}</div>
+      }
+      <span style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 13, color: '#fff', whiteSpace: 'nowrap' }}>{name}</span>
+    </div>
+  );
+  return website
+    ? <a href={website} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', color: 'inherit' }}>{inner}</a>
+    : inner;
+}
+
 export default function Home() {
+  const { data: sponsorsData } = useQuery<{ sponsors: PublicSponsor[] }>({
+    queryKey: ['public-sponsors'],
+    queryFn: () => fetch(`${BACKEND}/sponsors/`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: partnersData } = useQuery<{ partners: PublicPartner[] }>({
+    queryKey: ['public-partners'],
+    queryFn: () => fetch(`${BACKEND}/partners/public`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: slideshowData } = useQuery<{ photos: SlideshowPhoto[] }>({
+    queryKey: ['slideshow-home'],
+    queryFn: () => fetch(`${BACKEND}/admin/slideshow-photos?page=home`).then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+
+  const sponsors = sponsorsData?.sponsors ?? [];
+  const partners = partnersData?.partners ?? [];
+  const hasCommunity = sponsors.length > 0 || partners.length > 0;
+
+  const slideImages: SlideImage[] = slideshowData?.photos?.length
+    ? slideshowData.photos.map((p) => ({
+        src: resolveSlideUrl(p.url),
+        objectPosition: p.object_position,
+        caption: p.caption ?? undefined,
+      }))
+    : HP_FALLBACK;
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-10 text-center" style={{ overflowX: 'hidden' }}>
       {/* Hero */}
@@ -154,6 +201,23 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      {/* Partners & Sponsors strip */}
+      {hasCommunity && (
+        <section className="mx-auto mt-8 max-w-5xl">
+          <p style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'rgba(248,113,113,.6)', textTransform: 'uppercase', marginBottom: 12 }}>
+            Supported by
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center' }}>
+            {sponsors.map((s) => (
+              <LogoPill key={`s-${s.sponsor_id}`} name={s.name} logo_url={s.logo_url} website={s.website} />
+            ))}
+            {partners.map((p) => (
+              <LogoPill key={`p-${p.partner_id}`} name={p.name} logo_url={p.logo_url} website={p.website} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Slideshow */}
       <section className="mx-auto mt-24 max-w-5xl text-left">

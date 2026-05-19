@@ -34,18 +34,29 @@ export const departments: Department[] = [
     ],
   },
   {
-    id: 'historians',
-    name: 'Historians',
+    id: 'webmaster',
+    name: 'Webmasters',
     officers: [
-      { id: 'leon', name: 'Leon Lu', position: 'Historian', photo: '/officerHeadshots/Leon_Professional_Headshot.png', linkedin: 'https://www.linkedin.com/in/leon-l-24794a329' },
+      { id: 'isa', name: 'Isabella', position: 'Webmaster Director', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/isabella-truong/' },
+      { id: 'tj', name: 'TJ Papillion', position: 'Webmaster', photo: '/officerHeadshots/Theron Papillion.png', linkedin: 'https://www.linkedin.com/in/tpapillionjr/' },
+      { id: 'liz', name: 'Lizzie Sauseo', position: 'Webmaster', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/lizzie-saucedo-747b08334/' },
     ],
   },
   {
     id: 'marketing',
     name: 'Marketing',
     officers: [
-      { id: 'fatima', name: 'Fatima Hussain', position: 'Marketing Director', photo: '/officerHeadshots/Fatima Hussain.png', linkedin: 'https://linkedin.com/in/fkhussai/' },
-      { id: 'parinaz', name: 'Parinaz Dargahi', position: 'Marketing Committee', photo: '/officerHeadshots/Parinaz Dargahi.jpeg', linkedin: 'https://linkedin.com/in/parinaz-dargahi/' },
+      { id: 'fatima', name: 'Fatima Hussain', position: 'Marketing Director', photo: '/officerHeadshots/Fatima Hussain.png', linkedin: 'https://linkedin.com' },
+      { id: 'parinaz', name: 'Parinaz Dargahi', position: 'Marketing Committee', photo: '/officerHeadshots/Parinaz Dargahi.jpeg', linkedin: 'https://linkedin.com' },
+    ],
+  },
+  {
+    id: 'corporate-relations',
+    name: 'Corporate Relations',
+    officers: [
+      { id: 'reyna', name: 'Reyna Obregon', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/reyna-obregon-8779322a8/ },
+      { id: 'gideon', name: 'Gideon Amoah', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/gideonamoah74/' },
+      { id: 'anitra', name: 'Anitra', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
     ],
   },
   {
@@ -53,7 +64,7 @@ export const departments: Department[] = [
     name: 'Events Directors',
     officers: [
       { id: 'zayna', name: 'Zainab Sohail', position: 'Event Director', photo: '/officerHeadshots/Zainab Sohail.png', linkedin: 'https://www.linkedin.com/in/zainab11' },
-      { id: 'chuck', name: 'Chuck', position: 'Event Director', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
+      { id: 'truc', name: 'Truc Le', position: 'Event Director', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/frankinstyle/' },
     ],
   },
   {
@@ -61,29 +72,18 @@ export const departments: Department[] = [
     name: 'Workshops / Projects',
     officers: [
       { id: 'isaac-gonzalez', name: 'Isaac Gonzalez', position: 'Technical Officer', photo: '/officerHeadshots/Isaac Gonzalez.png', linkedin: 'https://www.linkedin.com/in/isaac-gonzalez-234328337/' },
-      { id: 'ndahi', name: 'Ndähi', position: 'Workshop Committee', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
+      { id: 'ndahi', name: 'Ndähi Trejo', position: 'Workshop Committee', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/israel-trejo-2863a8226/' },
       { id: 'juzer', name: 'Juzer Abid', position: 'Workshop Committee', photo: '/officerHeadshots/Juzer Abid.png', linkedin: 'https://linkedin.com/in/juzer-abid-a37115348/' },
       { id: 'jemilu', name: 'Jemilu', position: 'Project Officer', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
-      { id: 'christbru', name: 'Christbru', position: 'Project Officer', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
-      { id: 'arham', name: 'Arham', position: 'Projects Officer', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
+      { id: 'christbru', name: 'Christian Brubaker', position: 'Project Officer', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/christbru/' },
+      { id: 'arham', name: 'Arham Faheem', position: 'Projects Officer', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
     ],
   },
   {
-    id: 'webmaster',
-    name: 'Webmasters',
+    id: 'historians',
+    name: 'Historians',
     officers: [
-      { id: 'isa', name: 'Isabella', position: 'Webmaster Director', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
-      { id: 'tj', name: 'Theron "TJ" Papillion', position: 'Webmaster', photo: '/officerHeadshots/Theron Papillion.png', linkedin: 'https://linkedin.com/in/tpapillionjr' },
-      { id: 'liz', name: 'Lizzie Sausedo', position: 'Webmaster', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com/in/lizzie-saucedo-747b08334/' },
-    ],
-  },
-  {
-    id: 'corporate-relations',
-    name: 'Corporate Relations',
-    officers: [
-      { id: 'reyna', name: 'Reyna Obregon', position: 'Corporate Relations', photo: '/officerHeadshots/Reyna Obregon.jpeg', linkedin: 'https://linkedin.com/in/reyna-obregon-8779322a8/' },
-      { id: 'gideon', name: 'Gideon', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
-      { id: 'anitra', name: 'Anitra', position: 'Corporate Relations', photo: '/officer_photo_blank.png', linkedin: 'https://linkedin.com' },
+      { id: 'leon', name: 'Leon Lu', position: 'Historian', photo: '/officerHeadshots/Leon_Professional_Headshot.png', linkedin: 'https://linkedin.com' },
     ],
   },
 ];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, ChevronDown, ChevronUp, Link2 } from "lucide-react";
+import { Camera, ChevronDown, ChevronUp, Link2, Upload, Move, X as XIcon, Link } from "lucide-react";
 import { apiPatch, apiPost, apiUpload } from "@/lib/api";
 import type { MeResponse } from "@/pages/Dashboard";
 
@@ -430,6 +430,13 @@ function ProfileEditor({ meData, onRefresh }: { meData: MeResponse; onRefresh: (
           )}
         </div>
 
+        {/* Officer Appearance — only for officer/admin */}
+        {(meData.role === "officer" || meData.role === "admin") && (
+          <div className="border-t border-white/8 pt-4">
+            <OfficerAppearanceSection onRefresh={onRefresh} />
+          </div>
+        )}
+
         {/* Change / Set Password */}
         <div className="border-t border-white/8 pt-4">
           {pwConfirmBanner === "success" && (
@@ -559,6 +566,292 @@ function ProfileEditor({ meData, onRefresh }: { meData: MeResponse; onRefresh: (
           {saving ? "Saving…" : "Save Changes"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function validateLinkedin(url: string): string {
+  if (!url) return "";
+  if (!url.startsWith("https://linkedin.com") && !url.startsWith("https://www.linkedin.com")) {
+    return "Must be a valid LinkedIn URL (https://linkedin.com/in/...)";
+  }
+  return "";
+}
+
+function resolveOfficerPhoto(url: string | null): string | null {
+  if (!url) return null;
+  if (url.startsWith("/admin/uploads/")) return `${BACKEND}${url}`;
+  return url;
+}
+
+function OfficerAppearanceSection({ onRefresh }: { onRefresh: () => void }) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoObjectPosition, setPhotoObjectPosition] = useState("50% 50%");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [cropMode, setCropMode] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [useAsAvatar, setUseAsAvatar] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const linkedinError = validateLinkedin(linkedinUrl);
+
+  async function loadCurrent() {
+    if (loaded) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${BACKEND}/admin/officers/self`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") ?? sessionStorage.getItem("access_token") ?? ""}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPhotoUrl(data.photo_url ?? null);
+        setPhotoObjectPosition(data.photo_object_position ?? "50% 50%");
+        setLinkedinUrl(data.linkedin_url ?? "");
+      }
+      setLoaded(true);
+    } catch {
+      setLoaded(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleToggle() {
+    setOpen((v) => {
+      if (!v) loadCurrent();
+      return !v;
+    });
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch(`${BACKEND}/admin/officers/self/photo`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token") ?? sessionStorage.getItem("access_token") ?? ""}` },
+        body: form,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Upload failed");
+      setPhotoUrl(json.url);
+      setPhotoObjectPosition("50% 50%");
+      setCropMode(true);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  function handleCropClick(e: React.MouseEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+    setPhotoObjectPosition(`${x}% ${y}%`);
+  }
+
+  const focalX = parseFloat(photoObjectPosition.split(" ")[0]);
+  const focalY = parseFloat(photoObjectPosition.split(" ")[1]);
+
+  async function handleSave() {
+    if (linkedinError) return;
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await fetch(`${BACKEND}/admin/officers/self`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("access_token") ?? sessionStorage.getItem("access_token") ?? ""}`,
+        },
+        body: JSON.stringify({
+          photo_url: photoUrl ?? null,
+          photo_object_position: photoObjectPosition,
+          linkedin_url: linkedinUrl || null,
+        }),
+      }).then((r) => { if (!r.ok) throw new Error("Save failed"); });
+
+      if (useAsAvatar && photoUrl) {
+        await apiPatch("/dashboard/profile", { avatar_url: photoUrl });
+        onRefresh();
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const resolvedPhoto = resolveOfficerPhoto(photoUrl);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={handleToggle}
+        className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium text-white transition hover:bg-white/5"
+        style={{ background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.08)" }}
+      >
+        <span>Officer Appearance</span>
+        {open ? <ChevronUp size={16} className="text-white/40" /> : <ChevronDown size={16} className="text-white/40" />}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-4">
+          {loading ? (
+            <p className="text-xs text-white/40">Loading…</p>
+          ) : (
+            <>
+              {/* Photo */}
+              <div>
+                <p className="mb-2 text-sm font-medium text-white/80">Headshot (shown on About page)</p>
+                {resolvedPhoto ? (
+                  <div className="flex gap-4 items-start">
+                    <div
+                      className="relative rounded-xl overflow-hidden shrink-0"
+                      style={{
+                        width: 100, height: 100,
+                        cursor: cropMode ? "crosshair" : "default",
+                        border: cropMode ? "2px solid rgba(248,113,113,.6)" : "1px solid rgba(185,28,28,.3)",
+                      }}
+                      onClick={cropMode ? handleCropClick : undefined}
+                    >
+                      <img
+                        src={resolvedPhoto}
+                        alt=""
+                        draggable={false}
+                        style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: photoObjectPosition }}
+                      />
+                      {cropMode && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: `${focalX}%`, top: `${focalY}%`,
+                            transform: "translate(-50%, -50%)",
+                            width: 10, height: 10,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            border: "2px solid rgba(0,0,0,.5)",
+                            pointerEvents: "none",
+                          }}
+                        />
+                      )}
+                      {cropMode && (
+                        <div style={{
+                          position: "absolute", inset: 0,
+                          background: "rgba(248,113,113,.08)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          pointerEvents: "none",
+                        }}>
+                          <span style={{ fontSize: 9, color: "rgba(255,255,255,.6)", fontFamily: "Oxanium,sans-serif" }}>
+                            Click to reposition
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-2 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => setCropMode((v) => !v)}
+                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+                        style={{
+                          background: cropMode ? "rgba(185,28,28,.3)" : "rgba(255,255,255,.07)",
+                          color: cropMode ? "rgba(248,113,113,.9)" : "rgba(255,255,255,.6)",
+                          border: "1px solid rgba(255,255,255,.08)",
+                        }}
+                      >
+                        <Move size={11} />
+                        {cropMode ? "Done Repositioning" : "Reposition Focal Point"}
+                      </button>
+                      <label className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs cursor-pointer"
+                        style={{ background: "rgba(255,255,255,.07)", color: "rgba(255,255,255,.6)", border: "1px solid rgba(255,255,255,.08)" }}>
+                        <Upload size={11} />
+                        {uploading ? "Uploading…" : "Replace Photo"}
+                        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleFileChange} />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoUrl(null); setPhotoObjectPosition("50% 50%"); setCropMode(false); }}
+                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs"
+                        style={{ background: "rgba(185,28,28,.1)", color: "rgba(248,113,113,.6)", border: "1px solid rgba(185,28,28,.2)" }}
+                      >
+                        <XIcon size={11} /> Remove Photo
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label
+                    className="flex items-center gap-2 rounded-xl px-4 py-3 cursor-pointer w-fit"
+                    style={{ background: "rgba(255,255,255,.05)", border: "1px dashed rgba(185,28,28,.3)", color: "rgba(255,255,255,.5)" }}
+                  >
+                    <Upload size={14} />
+                    <span className="text-sm">{uploading ? "Uploading…" : "Upload Headshot"}</span>
+                    <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={handleFileChange} />
+                  </label>
+                )}
+              </div>
+
+              {/* Use as avatar checkbox */}
+              {photoUrl && (
+                <label className="flex cursor-pointer items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={useAsAvatar}
+                    onChange={(e) => setUseAsAvatar(e.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-transparent text-red-600 focus:ring-red-600"
+                  />
+                  <span className="text-sm text-white/70">Also use this photo as my profile avatar</span>
+                </label>
+              )}
+
+              {/* LinkedIn */}
+              <div>
+                <label className="mb-1 flex items-center gap-1 text-sm font-medium text-white/80">
+                  <Link size={12} /> LinkedIn URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://linkedin.com/in/username"
+                  value={linkedinUrl}
+                  onChange={(e) => setLinkedinUrl(e.target.value)}
+                  className="w-full rounded-xl bg-white/5 px-3 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-red-600/60 placeholder:text-white/30"
+                />
+                {linkedinError && <p className="mt-1 text-xs text-rose-300">{linkedinError}</p>}
+              </div>
+
+              {error && <p className="text-sm text-rose-300">{error}</p>}
+              {saved && <p className="text-sm text-emerald-400">Officer profile saved!</p>}
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !!linkedinError}
+                className="w-full rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:opacity-50"
+                style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
+              >
+                {saving ? "Saving…" : "Save Officer Profile"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
