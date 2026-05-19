@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-cd /root/services/Backend/CougarAI-Website-Revamp/backend
+cd /home/cai/CAI_Website/CougarAI-Website-Revamp/backend
 
 # Load .env if present
 if [[ -f .env ]]; then
@@ -63,5 +63,5 @@ echo "STRIPE_WEBHOOK_SECRET_SET=$([[ -n "${STRIPE_WEBHOOK_SECRET:-}" ]] && echo 
 } > /tmp/cougarai-env.txt
 
 # Run
-source venv/bin/activate
-exec venv/bin/gunicorn wsgi:app --bind 0.0.0.0:5000 --workers 4
+source /home/cai/CAI_Website/.venv/bin/activate
+exec /home/cai/CAI_Website/.venv/bin/gunicorn wsgi:app --bind 127.0.0.1:5000 --workers 4 --timeout 60

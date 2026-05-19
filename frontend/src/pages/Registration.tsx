@@ -14,8 +14,11 @@ export type RegistrationProps = {
   onSubmit?: (payload: RegistrationPayload) => Promise<void> | void;
   loading?: boolean;
   error?: string | null;
+  embedded?: boolean;
+  headerSlot?: React.ReactNode;
   /** Optional slot for an OAuth section (e.g., Google button) */
   oauthSlot?: React.ReactNode;
+  footerSlot?: React.ReactNode;
 };
 
 type RegisterOk = { ok: true };
@@ -24,6 +27,18 @@ type GoogleAuthOk = { access_token: string; user: { user_id: number; email: stri
 
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
+const MICROSOFT_ENABLED = import.meta.env?.VITE_ENABLE_MICROSOFT_OAUTH === "true";
+
+function MicrosoftLogo() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5">
+      <path fill="#f25022" d="M2 2h9.5v9.5H2z" />
+      <path fill="#7fba00" d="M12.5 2H22v9.5h-9.5z" />
+      <path fill="#00a4ef" d="M2 12.5h9.5V22H2z" />
+      <path fill="#ffb900" d="M12.5 12.5H22V22h-9.5z" />
+    </svg>
+  );
+}
 
 declare global {
   interface Window {
@@ -68,7 +83,10 @@ export default function Registration({
   onSubmit,
   loading: loadingProp,
   error: errorProp,
+  embedded = false,
+  headerSlot,
   oauthSlot,
+  footerSlot,
 }: RegistrationProps) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,6 +167,10 @@ export default function Registration({
     pwChecks.typesCount <= 1 ? "bg-rose-600" :
     pwChecks.typesCount === 2 ? "bg-orange-500" :
     pwChecks.typesCount === 3 ? "bg-yellow-500" : "bg-emerald-500";
+
+  function handleMicrosoftRegister() {
+    window.location.href = `${API_BASE}/auth/microsoft/start?intent=register`;
+  }
 
   useEffect(() => {
     if (oauthSlot || !GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
@@ -311,17 +333,8 @@ export default function Registration({
     }
   }
 
-  return (
-    <div className="relative mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-center justify-center px-6 py-16 sm:py-20">
-      {/* Card */}
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl backdrop-blur"
-        style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}
-      >
-        {/* Accent bar */}
-        <div className="h-[3px] bg-gradient-to-r from-red-700 via-red-600 to-red-700" />
-
-        <div className="p-6 sm:p-8">
+  const content = (
+    <div className="p-6 sm:p-8">
           {/* Header */}
           <div className="text-center">
             <img
@@ -337,6 +350,8 @@ export default function Registration({
               Join to access member features and events.
             </p>
           </div>
+
+          {headerSlot ? <div className="mt-6">{headerSlot}</div> : null}
 
           {/* Success notice */}
           {verifySent && (
@@ -357,6 +372,16 @@ export default function Registration({
           ) : GOOGLE_CLIENT_ID ? (
             <div className="mt-6">
               <div ref={googleButtonRef} className="flex min-h-11 items-center justify-center" />
+              {MICROSOFT_ENABLED ? (
+                <button
+                  type="button"
+                  onClick={handleMicrosoftRegister}
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 text-[15px] font-medium text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]"
+                >
+                  <MicrosoftLogo />
+                  Continue with Microsoft
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="mt-6">
@@ -374,6 +399,16 @@ export default function Registration({
                 </svg>
                 Continue with Google
               </button>
+              {MICROSOFT_ENABLED ? (
+                <button
+                  type="button"
+                  onClick={handleMicrosoftRegister}
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 text-[15px] font-medium text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]"
+                >
+                  <MicrosoftLogo />
+                  Continue with Microsoft
+                </button>
+              ) : null}
             </div>
           )}
 
@@ -560,13 +595,29 @@ export default function Registration({
           </form>
 
           {/* Footer */}
-          <p className="mt-6 text-center text-sm text-neutral-300">
-            Already have an account?{" "}
-            <Link to="/login" className="font-medium text-red-400 hover:text-red-300">
-              Sign in
-            </Link>
-          </p>
-        </div>
+          {footerSlot ?? (
+            <p className="mt-6 text-center text-sm text-neutral-300">
+              Already have an account?{" "}
+              <Link to="/auth?mode=login" className="font-medium text-red-400 hover:text-red-300">
+                Sign in
+              </Link>
+            </p>
+          )}
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="relative mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-center justify-center px-6 py-16 sm:py-20">
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-2xl backdrop-blur"
+        style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}
+      >
+        <div className="h-[3px] bg-gradient-to-r from-red-700 via-red-600 to-red-700" />
+        {content}
       </div>
     </div>
   );

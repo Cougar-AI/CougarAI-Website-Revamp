@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+
+type Status = "loading" | "success" | "already_verified" | "error";
 
 export default function VerifyEmail() {
-  const [status, setStatus] = useState<"pending" | "success" | "error">("pending");
+  const [status, setStatus] = useState<Status>("loading");
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("token");
@@ -9,9 +14,23 @@ export default function VerifyEmail() {
       setStatus("error");
       return;
     }
-    // TODO: wire to POST /auth/verify-email with token
-    // For now, mark as pending until backend is wired
-    setStatus("pending");
+
+    fetch(`${BACKEND}/auth/verify-email`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        if (res.ok) {
+          setStatus("success");
+        } else if (data?.error === "already_verified") {
+          setStatus("already_verified");
+        } else {
+          setStatus("error");
+        }
+      })
+      .catch(() => setStatus("error"));
   }, []);
 
   return (
@@ -19,27 +38,53 @@ export default function VerifyEmail() {
       <div className="w-full max-w-md rounded-2xl bg-white/5 border border-white/10 p-8 backdrop-blur text-center">
         <h1 className="text-2xl font-semibold text-white mb-4">Verify Your Email</h1>
 
-        {status === "pending" && (
-          <p className="text-white/60">
-            We sent a verification link to your email address. Click the link to activate your account.
-          </p>
-        )}
-        {status === "success" && (
-          <p className="text-emerald-400 font-semibold">
-            Email verified! You can now log in.
-          </p>
-        )}
-        {status === "error" && (
-          <p className="text-rose-400">
-            Invalid or missing verification token. Please request a new link.
-          </p>
+        {status === "loading" && (
+          <p className="text-white/60">Verifying your email…</p>
         )}
 
-        <div className="mt-6">
-          <a href="/login" className="text-sm text-white/50 hover:text-white transition">
-            Go to Login
-          </a>
-        </div>
+        {status === "success" && (
+          <>
+            <p className="text-emerald-400 font-semibold mb-4">
+              Email verified! Your account is now active.
+            </p>
+            <Link
+              to="/login"
+              className="inline-block rounded-xl bg-red-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-red-800 transition"
+              style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
+            >
+              Go to Login
+            </Link>
+          </>
+        )}
+
+        {status === "already_verified" && (
+          <>
+            <p className="text-white/70 mb-4">
+              Your email is already verified. You can log in now.
+            </p>
+            <Link
+              to="/login"
+              className="inline-block rounded-xl bg-red-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-red-800 transition"
+              style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
+            >
+              Go to Login
+            </Link>
+          </>
+        )}
+
+        {status === "error" && (
+          <>
+            <p className="text-rose-400 mb-4">
+              This verification link is invalid or has expired. Please request a new one.
+            </p>
+            <Link
+              to="/login"
+              className="inline-block text-sm text-white/50 hover:text-white transition"
+            >
+              Back to Login
+            </Link>
+          </>
+        )}
       </div>
     </main>
   );

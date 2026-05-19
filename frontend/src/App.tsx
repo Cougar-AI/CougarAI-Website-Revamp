@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import { Suspense } from 'react';
 import RootLayout from './layouts/RootLayout.tsx';
 import AppLoading from './components/AppLoading.tsx';
@@ -11,19 +11,21 @@ import Memberships from './pages/Memberships.tsx';
 import Contact from './pages/contact.tsx';
 import Calendar from './pages/Calendar.tsx';
 import Sponsors from './pages/Sponsors.tsx';
-import Login from './pages/Login.tsx';
+import Auth from './pages/Auth.tsx';
 import NotFound from './pages/NotFound.tsx';
-import Registration from './pages/Registration.tsx';
 import AuthSuccess from './pages/AuthSuccess.tsx';
 import Join from './pages/Join.tsx';
 import ForgotPassword from './pages/ForgotPassword.tsx';
 import VerifyEmail from './pages/VerifyEmail.tsx';
+import ResetPassword from './pages/ResetPassword.tsx';
 import Terms from './pages/Terms.tsx';
 import Privacy from './pages/Privacy.tsx';
 import Sponsorships from './pages/Sponsorships.tsx';
 import Dashboard from './pages/Dashboard.tsx';
 import Onboarding from './pages/Onboarding.tsx';
-import OfficerPortal from './pages/OfficerPortal.tsx';
+import AdminDashboard from './pages/AdminDashboard.tsx';
+import CheckIn from './pages/CheckIn.tsx';
+import PartnerDashboard from './pages/PartnerDashboard.tsx';
 
 function ErrorBoundary({ children }: { children: React.ReactNode }) {
   try {
@@ -45,12 +47,14 @@ export default function App() {
             <Route path={'/contact'} element={<Contact />} />
             <Route path={'/calendar'} element={<Calendar />} />
             <Route path={'/sponsors'} element={<Sponsors />} />
-            <Route path={'/login'} element={<Login />} />
-            <Route path={'/register'} element={<Registration />} />
+            <Route path={'/auth'} element={<Auth />} />
+            <Route path={'/login'} element={<Navigate to="/auth?mode=login" replace />} />
+            <Route path={'/register'} element={<Navigate to="/auth?mode=register" replace />} />
             <Route path={'/auth/success'} element={<AuthSuccess />} />
             <Route path={'/join'} element={<Join />} />
             <Route path={'/forgot-password'} element={<ForgotPassword />} />
             <Route path={'/verify-email'} element={<VerifyEmail />} />
+            <Route path={'/reset-password'} element={<ResetPassword />} />
             <Route path={'/terms'} element={<Terms />} />
             <Route path={'/privacy'} element={<Privacy />} />
             <Route path={'/sponsorships'} element={<Sponsorships />} />
@@ -73,10 +77,26 @@ export default function App() {
               }
             />
             <Route
-              path={'/officer'}
+              path={'/admin'}
               element={
-                <ProtectedRoute requiredRole={["officer", "webmaster", "admin"]}>
-                  <OfficerPortal />
+                <ProtectedRoute requiredRole={["admin", "officer"]}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path={'/checkin'}
+              element={
+                <ProtectedRoute>
+                  <CheckIn />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path={'/partner'}
+              element={
+                <ProtectedRoute requiredRole={["partner", "admin"]}>
+                  <PartnerDashboard />
                 </ProtectedRoute>
               }
             />

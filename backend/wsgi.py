@@ -9,4 +9,5 @@ load_dotenv(BASE_DIR / ".env", override=False)
 from app import create_app
 from config import ProductionConfig
 
+ProductionConfig._validate_secrets()
 app = create_app(ProductionConfig)

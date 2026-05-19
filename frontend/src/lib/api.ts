@@ -31,10 +31,10 @@ async function request<T>(
 
   const res = await fetch(`${BACKEND}${path}`, { method, headers, body: bodyInit });
 
-  if (res.status === 401) {
+  if (res.status === 401 || res.status === 422) {
     clearAuthSession();
     window.location.replace("/login");
-    throw new ApiError(401, "Unauthorized");
+    throw new ApiError(res.status, "Unauthorized");
   }
 
   if (!res.ok) {

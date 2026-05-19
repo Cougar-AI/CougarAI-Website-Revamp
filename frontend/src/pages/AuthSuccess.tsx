@@ -1,18 +1,70 @@
-import { useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { getStoredUser } from "@/lib/auth";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { getStoredUser, persistAuthSession } from "@/lib/auth";
+
+const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? "";
+
+type RefreshOk = { access_token: string };
 
 export default function AuthSuccess() {
   const navigate = useNavigate();
-  const user = getStoredUser();
+  const [searchParams] = useSearchParams();
+  const storedUser = getStoredUser();
+  const [error, setError] = useState<string | null>(null);
+
+  const queryUser = useMemo(() => {
+    const email = (searchParams.get("email") || "").trim();
+    const userId = Number(searchParams.get("user_id") || 0);
+    const role = (searchParams.get("role") || "").trim() || undefined;
+    const onboardingCompleted = (searchParams.get("onboarding_completed") || "").trim() === "true";
+    return email && userId ? { email, user_id: userId, role, onboarding_completed: onboardingCompleted } : null;
+  }, [searchParams]);
+
+  const user = storedUser ?? queryUser;
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      navigate("/", { replace: true });
-    }, 1800);
+    const provider = (searchParams.get("provider") || "").trim();
+    const accessToken = (searchParams.get("access_token") || "").trim();
 
-    return () => window.clearTimeout(timeout);
-  }, [navigate]);
+    if (provider !== "microsoft" || !queryUser || storedUser) {
+      const timeout = window.setTimeout(() => {
+        navigate("/", { replace: true });
+      }, 1800);
+      return () => window.clearTimeout(timeout);
+    }
+
+    let cancelled = false;
+    const timeout = window.setTimeout(async () => {
+      try {
+        let token = accessToken;
+        if (!token) {
+          const res = await fetch(`${API_BASE}/auth/refresh`, {
+            method: "POST",
+            credentials: "include",
+          });
+          const data = (await res.json().catch(() => ({}))) as Partial<RefreshOk>;
+          if (!res.ok || !data.access_token) {
+            throw new Error("We couldn't finish Microsoft sign-in.");
+          }
+          token = data.access_token;
+        }
+
+        if (!cancelled) {
+          persistAuthSession(token, queryUser, true);
+          navigate("/", { replace: true });
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || "We couldn't finish Microsoft sign-in.");
+        }
+      }
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [navigate, queryUser, searchParams, storedUser]);
 
   return (
     <div className="relative mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-4xl items-center justify-center px-6 py-16 sm:py-20">
@@ -31,7 +83,7 @@ export default function AuthSuccess() {
         <p className="mt-3 text-sm text-neutral-300 sm:text-base">
           {user ? `You are signed in as ${user.email}.` : "Your account is ready to go."}
         </p>
-        <p className="mt-2 text-sm text-white/50">Taking you back to the site now.</p>
+        <p className="mt-2 text-sm text-white/50">{error ? error : "Taking you back to the site now."}</p>
 
         <div className="mt-8 flex justify-center">
           <Link

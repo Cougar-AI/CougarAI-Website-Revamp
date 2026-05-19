@@ -48,18 +48,16 @@ export default function Onboarding() {
     setSaving(true);
     setError(null);
     try {
-      const payload: Record<string, unknown> = {
+      await apiPost("/dashboard/profile/link", { student_id: profile.student_id.trim() });
+
+      await apiPatch("/dashboard/profile", {
         first_name: profile.first_name.trim() || undefined,
         last_name: profile.last_name.trim() || undefined,
         grade_level: profile.grade_level || undefined,
         is_public: prefs.is_public,
         notification_settings: prefs.notification_settings,
-      };
-      if (profile.student_id.trim()) {
-        payload.student_id = profile.student_id.trim();
-      }
-
-      await apiPatch("/dashboard/profile", payload);
+        preferred_email: getStoredUser()?.email || undefined,
+      });
       await apiPost("/dashboard/onboarding/complete", {});
 
       const token = getAccessToken();
@@ -141,6 +139,8 @@ function StepOne({
   onChange: (p: ProfileData) => void;
   onNext: () => void;
 }) {
+  const canProceed = profile.student_id.trim().length > 0;
+
   return (
     <div className="space-y-4">
       <h2 className="font-['Oxanium'] text-lg font-semibold text-white">Profile Setup</h2>
@@ -167,16 +167,14 @@ function StepOne({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-white/80">
-          UH Student ID <span className="text-white/40">(optional)</span>
-        </label>
+        <label className="mb-1 block text-sm font-medium text-white/80">UH Student ID</label>
         <input
           className="w-full rounded-xl bg-white/5 px-3 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-red-600/60 placeholder:text-white/30"
           placeholder="1234567"
           value={profile.student_id}
           onChange={(e) => onChange({ ...profile, student_id: e.target.value })}
         />
-        <p className="mt-1 text-xs text-white/30">Links your profile for event points tracking.</p>
+        <p className="mt-1 text-xs text-white/30">Required for event points tracking.</p>
       </div>
 
       <div>
@@ -199,7 +197,8 @@ function StepOne({
 
       <button
         onClick={onNext}
-        className="mt-2 w-full rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800"
+        disabled={!canProceed}
+        className="mt-2 w-full rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white transition hover:bg-red-800 disabled:opacity-40 disabled:cursor-not-allowed"
         style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
       >
         Next →
@@ -241,13 +240,13 @@ function StepTwo({
         </div>
         <button
           onClick={() => onChange({ ...prefs, is_public: !prefs.is_public })}
-          className="relative mt-0.5 h-6 w-11 flex-shrink-0 rounded-full transition-colors"
+          className="relative mt-0.5 h-6 w-11 flex-shrink-0 overflow-hidden rounded-full transition-colors"
           style={{ background: prefs.is_public ? "#b91c1c" : "rgba(255,255,255,.15)" }}
           aria-checked={prefs.is_public}
           role="switch"
         >
           <span
-            className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
+            className="absolute left-0 top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
             style={{ transform: prefs.is_public ? "translateX(22px)" : "translateX(2px)" }}
           />
         </button>

@@ -7,8 +7,11 @@ export type LoginProps = {
   onSubmit?: (payload: { email: string; password: string; remember: boolean }) => Promise<void> | void;
   loading?: boolean;
   error?: string | null;
+  embedded?: boolean;
+  headerSlot?: React.ReactNode;
   /** Optional slot for an OAuth section (e.g., Google button) */
   oauthSlot?: React.ReactNode;
+  footerSlot?: React.ReactNode;
 };
 
 type LoginOk = { access_token: string; user: { user_id: number; email: string; role?: string; onboarding_completed?: boolean } };
@@ -17,6 +20,18 @@ type GoogleLoginPayload = LoginOk;
 
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
+const MICROSOFT_ENABLED = import.meta.env?.VITE_ENABLE_MICROSOFT_OAUTH === "true";
+
+function MicrosoftLogo() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5">
+      <path fill="#f25022" d="M2 2h9.5v9.5H2z" />
+      <path fill="#7fba00" d="M12.5 2H22v9.5h-9.5z" />
+      <path fill="#00a4ef" d="M2 12.5h9.5V22H2z" />
+      <path fill="#ffb900" d="M12.5 12.5H22V22h-9.5z" />
+    </svg>
+  );
+}
 
 declare global {
   interface Window {
@@ -57,7 +72,15 @@ async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise
   return data as T;
 }
 
-export default function Login({ onSubmit, loading: loadingProp, error: errorProp, oauthSlot }: LoginProps) {
+export default function Login({
+  onSubmit,
+  loading: loadingProp,
+  error: errorProp,
+  embedded = false,
+  headerSlot,
+  oauthSlot,
+  footerSlot,
+}: LoginProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -79,8 +102,7 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
 
   const emailError = useMemo(() => {
     if (!email) return null;
-    // Simple RFC5322-ish check; adjust to your needs
-    const ok = /\S+@\S+\.\S+/.test(email);
+    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
     return ok ? null : "Enter a valid email";
   }, [email]);
 
@@ -88,6 +110,10 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
     if (!password) return null;
     return password.length >= 6 ? null : "Password must be at least 6 characters";
   }, [password]);
+
+  function handleMicrosoftLogin() {
+    window.location.href = `${API_BASE}/auth/microsoft/start?intent=login`;
+  }
 
   useEffect(() => {
     if (oauthSlot || !GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
@@ -249,17 +275,8 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
     }
   }
 
-  return (
-    <div className="relative mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-center justify-center px-6 py-16 sm:py-20">
-      {/* Card */}
-      <div
-        className="relative w-full max-w-md overflow-hidden rounded-2xl backdrop-blur"
-        style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}
-      >
-        {/* Accent bar */}
-        <div className="h-[3px] bg-gradient-to-r from-red-700 via-red-600 to-red-700" />
-
-        <div className="p-6 sm:p-8">
+  const content = (
+    <div className="p-6 sm:p-8">
           {/* Header */}
           <div className="text-center">
             <img
@@ -274,12 +291,24 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
             <p className="mt-1.5 text-sm text-white/50">Sign in to access member features and events.</p>
           </div>
 
+          {headerSlot ? <div className="mt-6">{headerSlot}</div> : null}
+
           {/* OAuth (optional) */}
           {oauthSlot ? (
             <div className="mt-6">{oauthSlot}</div>
           ) : GOOGLE_CLIENT_ID ? (
             <div className="mt-6">
               <div ref={googleButtonRef} className="flex min-h-11 items-center justify-center" />
+              {MICROSOFT_ENABLED ? (
+                <button
+                  type="button"
+                  onClick={handleMicrosoftLogin}
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 text-[15px] font-medium text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]"
+                >
+                  <MicrosoftLogo />
+                  Continue with Microsoft
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="mt-6">
@@ -299,6 +328,16 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
                 </svg>
                 Continue with Google
               </button>
+              {MICROSOFT_ENABLED ? (
+                <button
+                  type="button"
+                  onClick={handleMicrosoftLogin}
+                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 text-[15px] font-medium text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]"
+                >
+                  <MicrosoftLogo />
+                  Continue with Microsoft
+                </button>
+              ) : null}
             </div>
           )}
 
@@ -427,13 +466,29 @@ export default function Login({ onSubmit, loading: loadingProp, error: errorProp
           </form>
 
           {/* Footer */}
-          <p className="mt-6 text-center text-sm text-neutral-300">
-            Don&apos;t have an account?{" "}
-            <Link to="/join" className="font-medium text-red-400 hover:text-red-300">
-              Join now
-            </Link>
-          </p>
-        </div>
+          {footerSlot ?? (
+            <p className="mt-6 text-center text-sm text-neutral-300">
+              Need an account?{" "}
+              <Link to="/auth?mode=register" className="font-medium text-red-400 hover:text-red-300">
+                Create one
+              </Link>
+            </p>
+          )}
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <div className="relative mx-auto flex min-h-[calc(100vh-96px)] w-full max-w-7xl items-center justify-center px-6 py-16 sm:py-20">
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-2xl backdrop-blur"
+        style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}
+      >
+        <div className="h-[3px] bg-gradient-to-r from-red-700 via-red-600 to-red-700" />
+        {content}
       </div>
     </div>
   );

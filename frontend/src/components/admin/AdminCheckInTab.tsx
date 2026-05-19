@@ -17,7 +17,7 @@ interface CheckInRecord {
   timestamp: string;
 }
 
-export default function OfficerPortal() {
+export default function AdminCheckInTab() {
   const [selectedEventId, setSelectedEventId] = useState<number | "">("");
   const [studentId, setStudentId] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,7 +61,7 @@ export default function OfficerPortal() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8 sm:px-6">
+    <div className="flex flex-col gap-4">
       <div
         className="rounded-2xl p-6"
         style={{
@@ -70,17 +70,15 @@ export default function OfficerPortal() {
           backdropFilter: "blur(10px)",
         }}
       >
-        {/* Header */}
         <div className="mb-6 flex items-center gap-3">
           <UserCheck size={22} className="text-red-400" />
           <div>
-            <h1 className="font-['Oxanium'] text-xl font-bold text-white">Officer Check-In Portal</h1>
+            <h2 className="font-['Oxanium'] text-xl font-bold text-white">Officer Check-In Portal</h2>
             <p className="text-xs text-white/40">Manually check in walk-in attendees</p>
           </div>
         </div>
 
         <form onSubmit={handleCheckIn} className="space-y-4">
-          {/* Event selector */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-white/80">Select event</label>
             <select
@@ -101,7 +99,6 @@ export default function OfficerPortal() {
             </select>
           </div>
 
-          {/* Student ID */}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-white/80">Student ID</label>
             <input
@@ -130,10 +127,9 @@ export default function OfficerPortal() {
         </form>
       </div>
 
-      {/* Recent check-ins */}
       {recentCheckIns.length > 0 && (
         <div
-          className="mt-4 rounded-2xl p-5"
+          className="rounded-2xl p-5"
           style={{
             background: "rgba(255,255,255,.04)",
             border: "1px solid rgba(185,28,28,.22)",

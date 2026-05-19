@@ -140,6 +140,10 @@ def stripe_webhook():
     sig_header = request.headers.get("Stripe-Signature", "")
     secret = current_app.config.get("STRIPE_WEBHOOK_SECRET", "")
 
+    if not secret:
+        current_app.logger.error("STRIPE_WEBHOOK_SECRET is not configured — rejecting all webhook requests")
+        return jsonify({"error": "Webhook not configured"}), 500
+
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, secret)
     except (stripe.errors.SignatureVerificationError, ValueError) as e:
@@ -214,6 +218,14 @@ def stripe_webhook():
                     """,
                     (student_id_val, email_val, amount, stripe_session_id, plan_id or None, expires_at),
                 )
+
+                # Upgrade non-member → member on successful payment (never downgrade officers/admins)
+                if user_id_str and user_id_str.isdigit():
+                    cur.execute(
+                        "UPDATE users SET role = 'member' WHERE user_id = %s AND role = 'non-member'",
+                        (int(user_id_str),),
+                    )
+
                 conn.commit()
         except Exception as e:
             current_app.logger.error("webhook handler error: %s", e)

@@ -1,0 +1,2 @@
+ALTER TABLE points ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE points ADD COLUMN IF NOT EXISTS officer_user_id INTEGER REFERENCES users(user_id);

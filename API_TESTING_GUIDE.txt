@@ -1,0 +1,878 @@
+================================================================================
+                    COUGARAI API TESTING GUIDE
+                     CRUD Operations & Endpoints
+================================================================================
+
+BASE URL: http://127.0.0.1:5000/api
+
+================================================================================
+                            1. AUTHENTICATION
+================================================================================
+
+** REGISTER USER **
+POST /auth/register
+Content-Type: application/json
+
+{
+  "email": "test@university.edu",
+  "password": "SecurePass123!",
+  "first_name": "John",
+  "last_name": "Doe"
+}
+
+Expected Response: 201
+{
+  "user_id": 1,
+  "email": "test@university.edu",
+  "message": "User registered successfully"
+}
+
+---
+
+** LOGIN **
+POST /auth/login
+Content-Type: application/json
+
+{
+  "email": "test@university.edu",
+  "password": "SecurePass123!"
+}
+
+Expected Response: 200
+{
+  "access_token": "eyJhbGc...",
+  "refresh_token": "eyJhbGc...",
+  "user_id": 1
+}
+
+---
+
+** VERIFY EMAIL **
+POST /auth/verify-email
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "token": "verification_token_from_email"
+}
+
+Expected Response: 200
+{
+  "message": "Email verified successfully"
+}
+
+---
+
+** LOGOUT **
+POST /auth/logout
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{}
+
+Expected Response: 200
+{
+  "message": "Logged out successfully"
+}
+
+---
+
+** REFRESH TOKEN **
+POST /auth/refresh
+Content-Type: application/json
+
+{
+  "refresh_token": "eyJhbGc..."
+}
+
+Expected Response: 200
+{
+  "access_token": "eyJhbGc...",
+  "refresh_token": "eyJhbGc..."
+}
+
+================================================================================
+                            2. PROFILES
+================================================================================
+
+** GET ALL PROFILES **
+GET /profiles
+Authorization: Bearer {access_token}
+
+Query Parameters (optional):
+  ?student_id=STU001
+  ?first_name=John
+  ?major=Computer%20Science
+
+Expected Response: 200
+{
+  "profiles": [
+    {
+      "student_id": "STU001",
+      "user_id": 1,
+      "first_name": "John",
+      "last_name": "Doe",
+      "email": "john@university.edu",
+      "discord_id": "johndoe#1234",
+      "shirt_size": "M",
+      "grade_level": "Senior",
+      "gender": 1,
+      "phone": "555-0001",
+      "major": "Computer Science",
+      "created_at": "2026-05-15T10:00:00"
+    }
+  ]
+}
+
+---
+
+** GET PROFILE BY STUDENT ID **
+GET /profiles/{student_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "student_id": "STU001",
+  "user_id": 1,
+  "first_name": "John",
+  "last_name": "Doe",
+  "phone": "555-0001",
+  "major": "Computer Science"
+}
+
+---
+
+** CREATE PROFILE **
+POST /profiles
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "student_id": "STU999",
+  "first_name": "Jane",
+  "last_name": "Smith",
+  "email": "jane@university.edu",
+  "phone": "555-9999",
+  "major": "Electrical Engineering",
+  "grade_level": "Junior",
+  "shirt_size": "S",
+  "join_source": "Online"
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "student_id": "STU999",
+  "message": "Profile created successfully"
+}
+
+---
+
+** UPDATE PROFILE **
+PUT /profiles/{student_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "phone": "555-1234",
+  "major": "Data Science",
+  "shirt_size": "M"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Profile updated successfully"
+}
+
+---
+
+** DELETE PROFILE **
+DELETE /profiles/{student_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Profile deleted successfully"
+}
+
+================================================================================
+                            3. ANNOUNCEMENTS
+================================================================================
+
+** GET ALL ANNOUNCEMENTS **
+GET /announcements
+Authorization: Bearer {access_token}
+
+Query Parameters (optional):
+  ?announcement_id=1
+  ?title=Welcome
+  ?limit=10
+  ?offset=0
+
+Expected Response: 200
+[
+  {
+    "announcement_id": 1,
+    "title": "Welcome to CougarAI",
+    "content": "We are excited to have you join our community",
+    "author_id": 3,
+    "published_at": "2026-05-15T10:00:00",
+    "created_at": "2026-05-15T10:00:00"
+  }
+]
+
+---
+
+** CREATE ANNOUNCEMENT **
+POST /announcements
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "title": "New Event Coming Soon",
+  "content": "Join us for our upcoming Hackathon 2026",
+  "author_id": 3
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "announcement_id": 4,
+  "message": "Announcement created successfully"
+}
+
+---
+
+** UPDATE ANNOUNCEMENT **
+PATCH /announcements/{announcement_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "title": "UPDATED: Hackathon 2026",
+  "content": "Join us on June 1st for our Hackathon"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Announcement updated successfully"
+}
+
+---
+
+** DELETE ANNOUNCEMENT **
+DELETE /announcements/{announcement_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Announcement deleted successfully"
+}
+
+================================================================================
+                            4. EVENTS
+================================================================================
+
+** GET ALL EVENTS **
+GET /events
+Authorization: Bearer {access_token}
+
+Query Parameters (optional):
+  ?event_id=1
+  ?event_name=Hackathon
+  ?event_type=Competition
+  ?limit=20
+
+Expected Response: 200
+{
+  "events": [
+    {
+      "event_id": 1,
+      "event_name": "Monthly Kickoff Meeting",
+      "event_type": "Meeting",
+      "starts_at": "2026-05-15T18:00:00",
+      "ends_at": "2026-05-15T19:30:00",
+      "location": "Room 101",
+      "description": "Main monthly meeting",
+      "capacity": 50,
+      "created_at": "2026-05-15T10:00:00"
+    }
+  ]
+}
+
+---
+
+** GET EVENT BY ID **
+GET /events/{event_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "event_id": 1,
+  "event_name": "Monthly Kickoff Meeting",
+  "starts_at": "2026-05-15T18:00:00",
+  "ends_at": "2026-05-15T19:30:00",
+  "capacity": 50
+}
+
+---
+
+** CREATE EVENT **
+POST /events
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "event_name": "AI Workshop",
+  "event_type": "Workshop",
+  "starts_at": "2026-06-10T15:00:00",
+  "ends_at": "2026-06-10T17:00:00",
+  "location": "Computer Lab",
+  "description": "Learn basics of machine learning",
+  "capacity": 30
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "event_id": 5,
+  "message": "Event created successfully"
+}
+
+---
+
+** UPDATE EVENT **
+PUT /events/{event_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "event_name": "Advanced AI Workshop",
+  "capacity": 35,
+  "location": "Computer Lab 2"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Event updated successfully"
+}
+
+---
+
+** DELETE EVENT **
+DELETE /events/{event_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Event deleted successfully"
+}
+
+================================================================================
+                            5. POINTS
+================================================================================
+
+** GET LEADERBOARD **
+GET /points/leaderboard
+Authorization: Bearer {access_token}
+
+Query Parameters (optional):
+  ?limit=50
+  ?offset=0
+
+Expected Response: 200
+{
+  "leaderboard": [
+    {
+      "rank": 1,
+      "student_id": "STU001",
+      "first_name": "John",
+      "last_name": "Doe",
+      "total_points": 150,
+      "event_count": 10
+    }
+  ]
+}
+
+---
+
+** GET USER POINTS **
+GET /points/{student_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "student_id": "STU001",
+  "total_points": 150,
+  "point_history": [
+    {
+      "points_id": 1,
+      "event_id": 1,
+      "points": 10,
+      "date": "2026-05-15"
+    }
+  ]
+}
+
+---
+
+** ADD POINTS **
+POST /points
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "student_id": "STU001",
+  "event_id": 1,
+  "points": 10
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "points_id": 6,
+  "message": "Points awarded successfully"
+}
+
+---
+
+** UPDATE POINTS **
+PUT /points/{points_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "points": 15
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Points updated successfully"
+}
+
+---
+
+** DELETE POINTS RECORD **
+DELETE /points/{points_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Points record deleted successfully"
+}
+
+================================================================================
+                            6. OFFICERS
+================================================================================
+
+** GET ALL OFFICERS **
+GET /officers
+Authorization: Bearer {access_token}
+
+Query Parameters (optional):
+  ?role=President
+  ?limit=20
+
+Expected Response: 200
+{
+  "officers": [
+    {
+      "officer_id": 1,
+      "student_id": "STU001",
+      "first_name": "John",
+      "last_name": "Doe",
+      "role": "President",
+      "position": "President",
+      "department": "Leadership",
+      "join_date": "2024-09-01",
+      "end_date": null,
+      "bio": "Passionate about AI leadership"
+    }
+  ]
+}
+
+---
+
+** GET OFFICER BY ID **
+GET /officers/{officer_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "officer_id": 1,
+  "student_id": "STU001",
+  "role": "President",
+  "department": "Leadership"
+}
+
+---
+
+** CREATE OFFICER **
+POST /officers
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "student_id": "STU002",
+  "role": "Vice President",
+  "position": "VP of Events",
+  "department": "Events",
+  "join_date": "2024-09-01",
+  "bio": "Event planning specialist"
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "officer_id": 4,
+  "message": "Officer record created successfully"
+}
+
+---
+
+** UPDATE OFFICER **
+PUT /officers/{officer_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "role": "Senior Vice President",
+  "department": "Strategic Planning"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Officer record updated successfully"
+}
+
+---
+
+** DELETE OFFICER **
+DELETE /officers/{officer_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Officer record deleted successfully"
+}
+
+================================================================================
+                            7. PAYMENTS
+================================================================================
+
+** GET ALL PAYMENTS **
+GET /payments
+Authorization: Bearer {access_token}
+
+Query Parameters (optional):
+  ?student_id=STU001
+  ?status=completed
+  ?limit=20
+
+Expected Response: 200
+{
+  "payments": [
+    {
+      "payment_id": 1,
+      "student_id": "STU001",
+      "amount": 25.00,
+      "date": "2026-05-10",
+      "status": "completed",
+      "description": "Membership fee - Spring 2026",
+      "created_at": "2026-05-10T10:00:00"
+    }
+  ]
+}
+
+---
+
+** GET STUDENT PAYMENTS **
+GET /payments/{student_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "student_id": "STU001",
+  "payments": [
+    {
+      "payment_id": 1,
+      "amount": 25.00,
+      "date": "2026-05-10",
+      "status": "completed"
+    }
+  ]
+}
+
+---
+
+** CREATE PAYMENT **
+POST /payments
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "student_id": "STU005",
+  "amount": 25.00,
+  "status": "pending",
+  "description": "Membership fee - Spring 2026"
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "payment_id": 5,
+  "message": "Payment record created successfully"
+}
+
+---
+
+** UPDATE PAYMENT STATUS **
+PUT /payments/{payment_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "status": "completed"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Payment updated successfully"
+}
+
+---
+
+** DELETE PAYMENT **
+DELETE /payments/{payment_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Payment deleted successfully"
+}
+
+================================================================================
+                            8. DISCORD
+================================================================================
+
+** GET DISCORD USER **
+GET /discord/{discord_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "discord_id": "123456789",
+  "user_id": 4,
+  "discord_username": "discorduser",
+  "created_at": "2026-05-15T10:00:00"
+}
+
+---
+
+** LINK DISCORD ACCOUNT **
+POST /discord/link
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "user_id": 4,
+  "discord_id": "123456789",
+  "discord_username": "discorduser"
+}
+
+Expected Response: 201
+{
+  "success": true,
+  "message": "Discord account linked successfully"
+}
+
+---
+
+** UPDATE DISCORD CONFIG **
+PUT /discord/config/{guild_id}
+Content-Type: application/json
+Authorization: Bearer {access_token}
+
+{
+  "announcement_channel": "111111111",
+  "welcome_channel": "222222222",
+  "log_channel": "333333333",
+  "executive_role": "role_executive",
+  "member_role": "role_member"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Discord config updated successfully"
+}
+
+---
+
+** GET DISCORD CONFIG **
+GET /discord/config/{guild_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "guild_id": "987654321",
+  "announcement_channel": "111111111",
+  "welcome_channel": "222222222",
+  "log_channel": "333333333",
+  "executive_role": "role_executive",
+  "member_role": "role_member"
+}
+
+---
+
+** UNLINK DISCORD **
+DELETE /discord/{discord_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "success": true,
+  "message": "Discord account unlinked successfully"
+}
+
+================================================================================
+                            9. BILLING / MEMBERSHIP
+================================================================================
+
+** JOIN MEMBERSHIP **
+POST /join
+Content-Type: application/json
+
+{
+  "first_name": "Test",
+  "last_name": "User",
+  "email": "test@university.edu",
+  "student_id": "STU999",
+  "grade_level": "Senior"
+}
+
+Expected Response: 200
+{
+  "success": true,
+  "student_id": "STU999",
+  "message": "Member joined successfully"
+}
+
+---
+
+** GET MEMBERSHIP STATUS **
+GET /billing/membership/{student_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "student_id": "STU001",
+  "is_member": true,
+  "membership_level": "active",
+  "join_date": "2026-05-10",
+  "next_renewal": "2027-01-10"
+}
+
+---
+
+** CREATE STRIPE CHECKOUT SESSION **
+POST /billing/checkout
+Content-Type: application/json
+
+{
+  "price_id": "price_1S4sVLH2XIQuLIalBvif5rrs",
+  "student_id": "STU001",
+  "success_url": "http://localhost:5173/payment-success",
+  "cancel_url": "http://localhost:5173/payment-cancel"
+}
+
+Expected Response: 200
+{
+  "session_id": "cs_test_...",
+  "url": "https://checkout.stripe.com/..."
+}
+
+---
+
+** GET BILLING HISTORY **
+GET /billing/history/{student_id}
+Authorization: Bearer {access_token}
+
+Expected Response: 200
+{
+  "student_id": "STU001",
+  "billing_history": [
+    {
+      "payment_id": 1,
+      "amount": 25.00,
+      "date": "2026-05-10",
+      "status": "completed",
+      "type": "semester"
+    }
+  ]
+}
+
+================================================================================
+                            TESTING NOTES
+================================================================================
+
+1. AUTHENTICATION FLOW:
+   - Register first with email/password
+   - Login to get access_token and refresh_token
+   - Use access_token in "Authorization: Bearer {token}" header for protected routes
+   - Tokens expire, use refresh endpoint to get new ones
+
+2. ERROR RESPONSES:
+   - 400: Bad Request (missing/invalid parameters)
+   - 401: Unauthorized (missing/invalid token)
+   - 403: Forbidden (insufficient permissions)
+   - 404: Not Found (resource doesn't exist)
+   - 500: Internal Server Error
+
+3. COMMON 404 ERRORS:
+   - Student ID doesn't exist in profile table
+   - Announcement/Event/Officer IDs don't match
+   - Discord account not linked
+
+4. TESTING TOOLS:
+   - cURL: curl -X GET http://127.0.0.1:5000/api/profiles
+   - Postman: Import endpoints and organize into folders
+   - VS Code REST Client: Use .http files for quick testing
+   - Thunder Client: VS Code extension for API testing
+
+5. PAYMENTS NOTE:
+   - Only allowed price IDs work (server-side validation)
+   - Test IDs: price_1RPA0wQdq5f9y5dILdnU8jkY, price_1RPA1MQdq5f9y5dIX6qzElLY
+   - Live IDs: price_1S4sVLH2XIQuLIalBvif5rrs, price_1S0ylVH2XIQuLIalbpMXxrV9
+
+6. DATABASE CONSTRAINTS:
+   - student_id: VARCHAR(50), PRIMARY KEY
+   - user_id: INTEGER, UNIQUE per profile
+   - email: UNIQUE
+   - All timestamps are UTC
+
+================================================================================
+                            KNOWN ISSUES TO FIX
+================================================================================
+
+1. ❌ announcements.py - Route collision on /announcements/<int:announcement_id>
+2. ❌ billing.py - Semester calculation bug (fall semester returns past date)
+3. ❌ forms.py - Traceback exposure in error responses
+4. ❌ auth.py - logout() function incomplete
+5. ❌ Multiple routes missing request.json validation
+
+See BACKEND_ROUTE_ANALYSIS.md for detailed fix recommendations.
+
+================================================================================

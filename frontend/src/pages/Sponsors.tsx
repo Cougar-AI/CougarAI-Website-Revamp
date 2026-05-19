@@ -1,30 +1,39 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
-type Sponsor = {
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+
+interface Sponsor {
+  sponsor_id: number;
   name: string;
-  url: string;
-  desc?: string;
-};
+  logo_url: string | null;
+  website: string | null;
+  tier: string;
+  description: string | null;
+}
 
-const SPONSORS: Sponsor[] = [
-  { name: 'Ferguson Control Systems', url: 'https://www.fergusoncontrolsystems.com', desc: 'Industrial automation & control solutions' },
-  { name: 'Hewlett Packard Enterprise', url: 'https://www.hpe.com', desc: 'Global edge-to-cloud technology company' },
-];
+interface SponsorsResponse { sponsors: Sponsor[] }
 
-function SponsorCard({ name, url, desc }: Sponsor) {
+async function fetchSponsors(): Promise<SponsorsResponse> {
+  const res = await fetch(`${BACKEND}/sponsors/`);
+  if (!res.ok) throw new Error('Failed to load sponsors');
+  return res.json();
+}
+
+function SponsorCard({ name, logo_url, website, description }: Sponsor) {
   const [hov, setHov] = useState(false);
   const letter = name.trim().charAt(0).toUpperCase();
 
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
+  const logoSrc = logo_url
+    ? logo_url.startsWith('/admin/uploads/') ? `${BACKEND}${logo_url}` : logo_url
+    : null;
+
+  const inner = (
+    <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: 'block',
         borderRadius: 20,
         overflow: 'hidden',
         border: `1px solid rgba(185,28,28,${hov ? .45 : .18})`,
@@ -35,9 +44,10 @@ function SponsorCard({ name, url, desc }: Sponsor) {
         transition: 'all .25s ease',
         textDecoration: 'none',
         color: 'inherit',
+        cursor: website ? 'pointer' : 'default',
       }}
     >
-      {/* Monogram header */}
+      {/* Logo / monogram header */}
       <div style={{
         width: '100%', aspectRatio: '16/9',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -55,40 +65,67 @@ function SponsorCard({ name, url, desc }: Sponsor) {
           background: `radial-gradient(circle at 50% 60%,rgba(185,28,28,${hov ? .2 : .08}),transparent 65%)`,
           transition: 'all .3s',
         }} />
-        <span style={{
-          fontFamily: 'Oxanium,sans-serif', fontWeight: 800, fontSize: 96,
-          color: 'rgba(255,255,255,.8)', letterSpacing: '-.02em', lineHeight: 1,
-          position: 'relative', zIndex: 1, textShadow: '0 0 40px rgba(185,28,28,.6)',
-        }}>
-          {letter}
-        </span>
+        {logoSrc ? (
+          <img
+            src={logoSrc}
+            alt={name}
+            style={{ position: 'relative', zIndex: 1, maxHeight: '60%', maxWidth: '70%', objectFit: 'contain' }}
+          />
+        ) : (
+          <span style={{
+            fontFamily: 'Oxanium,sans-serif', fontWeight: 800, fontSize: 96,
+            color: 'rgba(255,255,255,.8)', letterSpacing: '-.02em', lineHeight: 1,
+            position: 'relative', zIndex: 1, textShadow: '0 0 40px rgba(185,28,28,.6)',
+          }}>
+            {letter}
+          </span>
+        )}
       </div>
 
       {/* Details row */}
       <div style={{ padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <div style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 16, color: 'rgba(255,255,255,.92)', marginBottom: desc ? 4 : 0 }}>
+          <div style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 16, color: 'rgba(255,255,255,.92)', marginBottom: description ? 4 : 0 }}>
             {name}
           </div>
-          {desc && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', lineHeight: 1.4 }}>{desc}</div>}
+          {description && <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)', lineHeight: 1.4 }}>{description}</div>}
         </div>
-        <div style={{
-          flexShrink: 0, width: 32, height: 32, borderRadius: 8,
-          background: `rgba(185,28,28,${hov ? .25 : .12})`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all .2s',
-          border: `1px solid rgba(185,28,28,${hov ? .4 : .15})`,
-        }}>
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: hov ? 'translate(1px,-1px)' : 'none', transition: 'transform .2s' }}>
-            <path d="M2 12L12 2M12 2H5M12 2V9" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+        {website && (
+          <div style={{
+            flexShrink: 0, width: 32, height: 32, borderRadius: 8,
+            background: `rgba(185,28,28,${hov ? .25 : .12})`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all .2s',
+            border: `1px solid rgba(185,28,28,${hov ? .4 : .15})`,
+          }}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: hov ? 'translate(1px,-1px)' : 'none', transition: 'transform .2s' }}>
+              <path d="M2 12L12 2M12 2H5M12 2V9" stroke="#dc2626" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        )}
       </div>
-    </a>
+    </div>
   );
+
+  if (website) {
+    return (
+      <a href={website} target="_blank" rel="noopener noreferrer" style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}>
+        {inner}
+      </a>
+    );
+  }
+  return <div>{inner}</div>;
 }
 
 export default function SponsorPage() {
+  const { data, isLoading } = useQuery<SponsorsResponse>({
+    queryKey: ['public-sponsors'],
+    queryFn: fetchSponsors,
+    staleTime: 5 * 60_000,
+  });
+
+  const sponsors = data?.sponsors ?? [];
+
   return (
     <main className="relative font-['Oxanium']" style={{ maxWidth: 860, margin: '0 auto', padding: '64px 24px 90px', textAlign: 'center' }}>
 
@@ -126,9 +163,15 @@ export default function SponsorPage() {
       </header>
 
       {/* Sponsor cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 24, maxWidth: 720, margin: '0 auto 64px' }}>
-        {SPONSORS.map((s) => <SponsorCard key={s.name} {...s} />)}
-      </div>
+      {isLoading ? (
+        <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 14, marginBottom: 64 }}>Loading sponsors…</div>
+      ) : sponsors.length === 0 ? (
+        <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 14, marginBottom: 64 }}>No sponsors yet.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 24, maxWidth: 720, margin: '0 auto 64px' }}>
+          {sponsors.map((s) => <SponsorCard key={s.sponsor_id} {...s} />)}
+        </div>
+      )}
 
       {/* CTA strip */}
       <div style={{

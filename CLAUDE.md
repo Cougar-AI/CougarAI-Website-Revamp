@@ -4,8 +4,8 @@ Full-stack SPA for the CougarAI club website. React frontend + Flask backend.
 
 ## Stack
 
-**Frontend:** React 19 + TypeScript + Vite + Tailwind CSS 4 + shadcn/ui + React Router v7  
-**Backend:** Python + Flask + SQLAlchemy + PostgreSQL + Flask-JWT-Extended  
+**Frontend:** React 19 + TypeScript + Vite + Tailwind CSS 4 + shadcn/ui + React Router v7 + react-leaflet (map picker)  
+**Backend:** Python + Flask + SQLAlchemy + PostgreSQL + Flask-JWT-Extended + Flask-APScheduler (notification jobs)  
 **Payments:** Stripe | **Icons:** Lucide React | **Carousel:** Swiper
 
 ## Running Dev Servers
@@ -49,7 +49,7 @@ All four are wired in `frontend/src/components/Footer.tsx`. LinkedIn text link +
 
 | Platform | URL |
 |---|---|
-| Discord | https://discord.com/invite/5Jhw67yQDH |
+| Discord | https://discord.gg/ucd5ZnDDnf |
 | Instagram | https://www.instagram.com/cougar_ai/ |
 | GitHub | https://github.com/Cougar-AI |
 | LinkedIn | https://www.linkedin.com/company/cougar-ai |
@@ -150,12 +150,27 @@ backend/
 
 ## User Roles
 
-Four roles are defined on the `users` table: `member` (default), `officer`, `webmaster`, `admin`.
+Five roles defined on the `users` table (in descending permission order). **`webmaster` has been eliminated** — all former webmaster users were migrated to `admin`.
 
-- Migration: `backend/migrations/add_user_role.sql` — run once against the DB to add the `role` column
-- The `role` field is returned by `POST /auth/login` in the `user` object and embedded in the access JWT claims
-- `POST /auth/refresh` also includes the updated role in the new access token
-- Admin → full access; Webmaster → most things; Officer → some things; Member → public access
+| Role | Default? | Access |
+|---|---|---|
+| `admin` | No | Full access — user mgmt, all CRUD, unified dashboard (all tabs) |
+| `officer` | No | Event management, officer tools in `/admin` |
+| `partner` | No | Partner org member; set automatically when assigned to a partner org |
+| `member` | No | Full member dashboard; set automatically when Stripe payment completes |
+| `non-member` | **Yes** | Registered but hasn't purchased membership; limited dashboard |
+
+**Key behaviors:**
+- New registrations default to `non-member`
+- Stripe `checkout.session.completed` webhook upgrades `non-member` → `member` (never downgrades officer/admin)
+- `member` status in UI = role is `member` OR active payment in `payments` table (expires_at ≥ today)
+- Admins can also manually grant membership via `PATCH /admin/users/<id>/membership` (creates a `payments` row with `is_manual=TRUE`)
+- Expiry does not auto-downgrade role — membership *status* is checked separately from `payments.expires_at`
+- Officer assignment (via `/admin` → Officers) updates both `officers` table AND `users.role`
+- Removing an officer sets `end_date = today` and downgrades role back to `member`/`non-member`
+- Partner assignment (via `/admin` → Partners) sets `users.role = 'partner'` if currently `member`/`non-member`; removing from all partner orgs reverts the role
+- Migrations: `add_user_role.sql`, `add_non_member_default_role.sql`, `merge_webmaster_to_admin.sql`
+- The `role` field is embedded in JWT access token claims; `POST /auth/refresh` returns updated role
 - Login/Register navbar links are hidden by default (`VITE_SHOW_AUTH_LINKS=false`) — flip to `true` in frontend `.env` when the post-login flow is ready
 
 ## Visual Design System
@@ -182,7 +197,8 @@ All pages share a warm dark-red aesthetic. Follow these conventions when buildin
 - **CORS:** allowed origin is `FRONTEND_URL` env var; enforced via flask-cors + an `after_request` hook in `__init__.py` that covers error responses too. New blueprints must explicitly handle `OPTIONS` in their routes (add `"OPTIONS"` to `methods` and return `"", 200`) — flask-cors 6.x + Flask 3.x does not auto-handle preflight for blueprint routes reliably
 - **API calls from frontend:** use `const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001"` — do not use relative `/api/...` paths (no Vite proxy configured)
 - **Officer roster:** edit `frontend/src/data/officers.ts` — add LinkedIn URLs and swap `/officer_photo_blank.png` for real photos when available
-- **Sponsors:** edit the `SPONSORS` array in `frontend/src/pages/Sponsors.tsx`
+- **Sponsors:** managed via `/admin?tab=sponsors` (DB-driven). Public page at `/sponsors` fetches from `GET /sponsors/`. The old static `SPONSORS` array is gone.
+- **Uploaded images:** stored in `backend/uploads/sponsors/` and `backend/uploads/partners/`. Served by `GET /admin/uploads/<category>/<filename>`. The `backend/uploads/` directory is gitignored (except `.gitkeep` files).
 
 ## Pages & Routes
 
@@ -198,12 +214,14 @@ All pages share a warm dark-red aesthetic. Follow these conventions when buildin
 | `/contact` | `Contact` | |
 | `/login` | `Login` | Google OAuth button wired; set `VITE_SHOW_AUTH_LINKS=true` in frontend `.env` to show in navbar |
 | `/register` | `Registration` | Google OAuth button wired; set `VITE_SHOW_AUTH_LINKS=true` in frontend `.env` to show in navbar |
-| `/dashboard` | `Dashboard` | Protected (JWT required + onboarding). Tabs: Profile, Membership, Check In, Points, Leaderboard |
+| `/dashboard` | `Dashboard` | Protected (JWT required + onboarding). Tabs: Profile, Membership, Check In, Points, Leaderboard. Pinned announcement banner shown at top if active. |
 | `/onboarding` | `Onboarding` | Protected (JWT, skips onboarding check). 3-step first-login wizard |
-| `/officer` | `OfficerPortal` | Protected (role: officer/webmaster/admin). Manual student check-in portal |
-| `/forgot-password` | `ForgotPassword` | Stub — backend `POST /auth/forgot-password` fully implemented |
-| `/verify-email` | `VerifyEmail` | Stub — backend `POST /auth/verify-email` fully implemented |
-| `/reset-password` | *(missing)* | Needs React component — backend `POST /auth/reset-password` sends links to `/reset-password?token=<jwt>` |
+| `/admin` | `AdminDashboard` | Protected (role: admin/officer). Unified dashboard with collapsible sidebar. Admin Tools: Overview (+ pinned announcements), Users, Officers (+ position titles), Sponsors, Partners, Event Types. Officer Tools: Events (+ location URL, live stats, QR download), Event Stats (date filter), Points (multi-user), Members, Progress Reports |
+| `/checkin` | `CheckIn` | Protected (any role). Auto-submits check-in from QR code URL (`?code=`). Shows "Acquiring location…" phase; includes lat/lon if available. |
+| `/forgot-password` | `ForgotPassword` | Wired to `POST /auth/forgot-password` |
+| `/verify-email` | `VerifyEmail` | Auto-triggers `POST /auth/verify-email` on mount with URL token |
+| `/reset-password` | `ResetPassword` | Wired to `POST /auth/reset-password`; Login card style; redirects to `/login` on success |
+| `/partner` | `PartnerDashboard` | Protected (partner/admin). Profile, Members, Events, Stats, Resources tabs |
 | `/auth/success` | `AuthSuccess` | OAuth success landing; auto-redirects to home after 1.8s |
 | `/terms` | `Terms` | Static content |
 | `/privacy` | `Privacy` | Static content |
@@ -287,50 +305,81 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 | `POST /auth/refresh` | ✅ Full | Rotating refresh token; reuse detection; returns new access JWT with updated role |
 | `DELETE /auth/logout` | ✅ Full | Clears refresh token and cookie |
 
-## Known TODOs
+## Tracking
 
-### In Progress / Short-term
+> **Instruction for Claude:** After finishing any task in this project, update this section — move completed items to **Done** and add new items to **Todo**. Keep entries as single bullet lines. No summaries, no paragraphs, no date headers.
 
-- **`/reset-password` frontend page** — no React component yet; backend `POST /auth/reset-password` fully implemented, sends links to `/reset-password?token=<jwt>`.
-- **Forgot password / verify email frontend pages** — backend routes fully implemented; frontend components are stubs only.
-- **Google OAuth frontend** — backend `POST /auth/google` fully implemented. Login/Register pages have the button wired; set `VITE_SHOW_AUTH_LINKS=true` and flip the button enabled once tested end-to-end. Requires `GOOGLE_OAUTH_CLIENT_ID` in backend `.env`.
-- **Run DB migrations** — `add_users_dashboard_fields.sql`, `add_profile_dashboard_fields.sql`, `add_payments_membership_fields.sql`, `add_events_checkin_fields.sql` must be applied to prod DB before dashboard goes live.
-- **Enable Login/Register in navbar** — flip `VITE_SHOW_AUTH_LINKS=true` in frontend `.env` once dashboard is production-ready.
+### Todo
 
-### Completed (Dashboard System — May 2026)
+- **Run DB migrations on prod** — `bash backend/run_migrations.sh` (safe to re-run; all migrations use `IF NOT EXISTS`)
+- **Google OAuth frontend** — backend done; set `VITE_SHOW_AUTH_LINKS=true` + flip button enabled once tested. Needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env`.
+- **Enable Login/Register in navbar** — flip `VITE_SHOW_AUTH_LINKS=true` in `frontend/.env` once Google OAuth is tested end-to-end
+- **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
+- **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
+- **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
+- **Event RSVP enhancements** — email reminder 24h before (wire through notification scheduler), RSVP list drawer in admin Events tab
+- **Admin Audit Log** — `audit_log` table; searchable log tab in Admin Tools
+- **Officer Task Board** — To Do / In Progress / Done kanban; `officer_tasks` table
+- **Meeting Notes** — per-meeting notes (title, date, attendees, agenda, action items); `meeting_notes` table
+- **Microsoft / Outlook OAuth** — `POST /auth/microsoft` via `msal`; auto-verify `@cougarnet.uh.edu` / `@uh.edu`
+- **Discord OAuth** — model after `POST /auth/google`; button on Login/Register/Profile
+- **Discord Webhook** — on event create/update, post to Discord incoming webhook; `club_settings` table for URL
+- **Discord Event Sync** — create Discord Guild Scheduled Events via API when admin creates/updates an event
+- **Event Archive** — searchable public page of past events
+- **Projects Archive** — officer/member project showcase; `projects` + `project_contributors` tables
+- **Club Resource Library** — members-only slides/repos linked to events via `resource_url`
+- **Weekly Email Digest** — Sunday cron; points earned, rank change, upcoming events per member
+- **PWA Support** — `manifest.json` + service worker; useful for mobile QR check-in
+- **Achievement Badges** — `GET /dashboard/badges`; milestone badges from points/attendance queries
+- **Points Redemption / Merch Shop** — spend points on merch; inventory table + officer fulfillment
+- **Member Engagement Score** — check-in frequency + streak + points; surface in member directory
+- **Email Notification improvements** — HTML templates, unsubscribe links, per-member opt-out (`notification_prefs` table)
+- **Bulk Email Composer** — one-off blast from admin panel; logs to `notification_logs`
+- **Receipt Book improvements** — CSV/PDF export, multi-year fiscal views, approval workflow
+- **About page** — add Sponsors & Partners section once those pages stabilize
 
-The full dashboard system has been implemented. See `.claude/plans/read-the-claude-md-here-warm-sunset.md` for the original spec.
+### Done
 
-- ✅ **User Dashboard** (`/dashboard`) — Profile editor, membership status, points history, leaderboard (points + streaks), event check-in tab
-- ✅ **Onboarding wizard** (`/onboarding`) — 3-step first-login flow; `onboarding_completed_at` tracked in DB
-- ✅ **Event self-check-in** — Members check in via `check_in_code` from the dashboard; `POST /events/checkin`. Google Sheets no longer needed as primary flow
-- ✅ **Officer check-in portal** (`/officer`) — Role-gated; manual walk-in check-in by student ID; `POST /events/officer-checkin`
-- ✅ **Attendance streak** — Monthly streak tracking (`current_streak`, `max_streak`, `last_event_month` on profile). Updated on every check-in
-- ✅ **Stripe webhook overhaul** — `stripe_customer_id` stored on users; `expires_at`/`plan_id`/`stripe_session_id` on payments; academic-calendar-aligned expiry
-- ✅ **Rate limiting** — `flask-limiter` on auth, check-in, billing, and avatar endpoints
-- ✅ **React Query** — All dashboard data fetches use `@tanstack/react-query`
-- ✅ **Role-based UI gating** — `ProtectedRoute` checks `role`; officer portal restricted to officer/webmaster/admin
-- ✅ **Leaderboard privacy** — `is_public` toggle on profile; non-public users hidden from leaderboard table (own rank always shown)
-
-### Future / Deferred
-
-- **Event RSVP** — Members mark "I'm going" on calendar events; officers see headcount; email reminder 24h before. Needs `event_rsvp` table `(user_id, event_id, created_at)`.
-- **Geolocation check-in (TopHat-style)** — Per-event optional setting. Add `latitude`, `longitude`, `checkin_radius_m` (default 400m), `require_location BOOLEAN` to events table. `POST /events/checkin` accepts optional `{ lat, lon }` and validates proximity via Haversine formula. Requires HTTPS. 400m radius appropriate for UH campus buildings. Make it a toggle officers can enable/disable per event.
-- **Partner Role & Portal** — 5th user role (`partner`) for external orgs collaborating on events. Event-scoped access via `event_partners` junction table `(event_id, user_id)`. Partner portal: assigned events list, live attendee list, check-in tool, post-event attendance stats. Partners see no member billing or internal data.
-- **Admin Dashboard** — User search, manual point adjustment, membership management. Build after role-gated UI foundation is in place.
-- **Microsoft / Outlook OAuth (CougarNet)** — UH students use `@cougarnet.uh.edu` (Microsoft). Add `POST /auth/microsoft` using `msal` Python library (Azure AD / Microsoft Entra ID). Bonus: auto-verify `email_verified_at` for `@cougarnet.uh.edu` / `@uh.edu` domains.
-- **Discord OAuth** — Model after `POST /auth/google`. Add Discord OAuth button to Login/Register/Profile tab.
-- **Event Archive** — Searchable public archive of past events (filterable by type/semester/date). Each entry: name, description, date, attendance count, attached resources.
-- **Projects Archive** — Officer/member project showcase. Fields: title, description, contributors, semester, tech stack tags, GitHub/demo link, cover image. Officers submit; webmaster/admin approves. Public-facing page. Needs `projects` table + `project_contributors` junction.
-- **Club Resource Library** — Members-only library of workshop slides, code repos, and notes linked to past events. Add `resource_url` to events; integrate with Projects Archive.
-- **Weekly Email Digest** — Cron job (Sunday) sends each member: points earned this week, rank change, upcoming events. Uses existing SMTP mailer.
-- **PWA Support** — `manifest.json` + service worker in Vite build. Enables "Add to Home Screen" on mobile, especially useful for event check-in.
-- **Achievement Badges** — Milestone badges derived from points/attendance queries (no new DB table). `GET /dashboard/badges` endpoint. Examples: First Check-in, Workshop Regular (5 workshops), Top 10 Leaderboard, Semester Veteran.
-- **Points Redemption / Merch Shop** — Spend points on club merchandise. Needs inventory table and officer fulfillment flow.
-- **Event Attendance Certificate** — Auto-generate PDF/image for attending milestone number of workshops. Good for member resumes.
-- **CougarAI Analytics Platform** — Separate side project: nightly export from Postgres → DuckDB/BigQuery, dbt models, Metabase/Grafana dashboard for officers. Good club project showcase item.
-
-### Housekeeping
-
-- **Officer photos** — Most officers in `officers.ts` reference real photos in `frontend/public/officerHeadshots/`. A few still fall back to `/officer_photo_blank.png`. LinkedIn URLs partially filled in; remaining ones use placeholder `https://linkedin.com`.
-- **LinkedIn URL** — Confirm final LinkedIn URL; currently `https://www.linkedin.com/company/cougar-ai`.
+- ✅ User Dashboard (`/dashboard`) — Profile, Membership, Points, Leaderboard, Check-In tabs
+- ✅ Onboarding wizard (`/onboarding`) — 3-step first-login flow; student ID required
+- ✅ Event self-check-in — code entry + QR camera scan (`html5-qrcode`); `POST /events/checkin`
+- ✅ Attendance streak — monthly streak tracking on profile; updated on every check-in
+- ✅ Stripe webhook overhaul — `expires_at`/`plan_id`/`stripe_session_id` on payments; academic-calendar expiry
+- ✅ Rate limiting — `flask-limiter` on auth, check-in, billing, avatar endpoints
+- ✅ React Query — all dashboard fetches use `@tanstack/react-query`
+- ✅ Leaderboard privacy — `is_public` toggle; non-public users hidden from table
+- ✅ Admin Dashboard (`/admin`) — Overview, Users, Officers, Events tabs; role-gated (admin/officer)
+- ✅ Role hierarchy — `admin > officer > partner > member > non-member`; `webmaster` merged into `admin`
+- ✅ Event CRUD — officer+ can create/edit; admin can delete; `POST /admin/events/<id>/regenerate-code`
+- ✅ Billing webhook sets member role — upgrades `non-member` → `member` on `checkout.session.completed`
+- ✅ Officer position titles — 16 pre-seeded titles; grouped `<select optgroup>` in officer modals
+- ✅ Event Types CRUD — `event_types` table (name, points, color); admin tab; events use dynamic dropdown
+- ✅ Sponsors CRUD — `sponsors` table; logo upload; tier management; `GET /sponsors/` public
+- ✅ Partners CRUD — `partners` + `partner_members`; role set to `partner` on assignment
+- ✅ Manual membership — admin grants via `PATCH /admin/users/<id>/membership`; `is_manual=TRUE` payment row
+- ✅ Point management — award/deduct with reason; `GET|POST /admin/points`; `GET /admin/points/summary`
+- ✅ Member directory — officer read-only view; paginated + searchable; CSV export
+- ✅ Progress reports — weekly officer reports; "My Report" + "Team Reports" views; auto-save draft
+- ✅ Event Duplicate — pre-fills create modal from existing event
+- ✅ QR code check-in — modal with CougarAI logo; copy/download PNG/SVG; `/checkin` page auto-submits
+- ✅ Image upload — `POST /admin/upload-image`; saved to `backend/uploads/`; served via `GET /admin/uploads/`
+- ✅ Navbar avatar dropdown — role-gated links; bell icon with unread count; initials fallback
+- ✅ In-app notifications — `user_notifications` table; bell dropdown; polls every 60s
+- ✅ Notification scheduler — Flask-APScheduler; Progress Report Reminder + Event Reminder; in-app + email channels
+- ✅ Geolocation check-in — per-event location gate; Haversine validation on backend; map pin picker in modal
+- ✅ Pinned announcements — `pinned_announcements` table; admin post/remove; dashboard amber banner
+- ✅ Live event stats — `LiveEventModal` polls every 5s; check-in count, capacity bar, recent check-ins
+- ✅ Receipt Book — admins log receipts with category/photo/fund; stats by category + monthly totals
+- ✅ Club Budget Tracker — `budget_funds` table; spending limits; utilization progress bars
+- ✅ Event RSVP — `rsvp_enabled` per event; `POST/DELETE /events/<id>/rsvp`; count shown to officers
+- ✅ Event partner/sponsor tagging — junction tables; multi-select dropdowns in event modal
+- ✅ Recurring events — weekly/monthly frequency picker; generates all occurrences on save
+- ✅ Partner Dashboard (`/partner`) — Profile, Members, Events, Stats, Resources tabs
+- ✅ Partner resource links — `GET|POST|DELETE /partners/<id>/resource-links`
+- ✅ Auth pages — `/forgot-password`, `/verify-email`, `/reset-password` all wired end-to-end
+- ✅ Google Calendar write — sync/remove events; `POST/DELETE /events/<id>/sync-to-google`
+- ✅ Events tab UX — labeled primary actions + icon check-in cluster; date range filter; sort by date; ConfirmModal
+- ✅ Check-in expiry auto-prefill — start + 4h default; locks on manual edit
+- ✅ Security hardening — JWT secrets required in prod; SQL injection guard in query_handler; all blueprints auth-protected; webhook secret guard; timing attack fix on forgot-password
+- ✅ Calendar page overhaul — dynamic event types from admin panel; RSVP in event modal; "My RSVPs" filter; NaN fix; points badge on tiles; past event dimming; CT timezone display; auto-generates check-in code when enabling check-in with no code; `GET /events/event-types` + `GET /events/my-rsvps` endpoints
+- ✅ Central Time (CT) — `frontend/src/lib/dates.ts` utility; all date display across frontend uses `America/Chicago`

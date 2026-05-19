@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { apiGet } from "@/lib/api";
 import type { MeResponse } from "@/pages/Dashboard";
+import { formatDate } from "@/lib/dates";
 
 interface Props {
   meData?: MeResponse;
@@ -53,7 +54,7 @@ function StatusCard({ current }: { current: MembershipsResponse["current"] }) {
           )}
           {current?.expires_at && (
             <p className="mt-1 text-xs text-white/40">
-              {status === "active" ? "Expires" : "Expired"}: {new Date(current.expires_at).toLocaleDateString()}
+              {status === "active" ? "Expires" : "Expired"}: {formatDate(current.expires_at)}
             </p>
           )}
         </div>
@@ -122,7 +123,7 @@ export default function MembershipTab({ meData }: Props) {
             <tbody>
               {history.map((row) => (
                 <tr key={row.payment_id} className="border-b border-white/5 text-white/70">
-                  <td className="py-2.5 pr-4">{new Date(row.date).toLocaleDateString()}</td>
+                  <td className="py-2.5 pr-4">{formatDate(row.date)}</td>
                   <td className="py-2.5 pr-4 capitalize">{row.plan_id ?? "—"}</td>
                   <td className="py-2.5 pr-4">${row.amount}</td>
                   <td className="py-2.5 font-mono text-xs text-white/40">

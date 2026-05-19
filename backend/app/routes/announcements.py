@@ -3,8 +3,20 @@ from app.utils.query_handler import build_sql_querys
 from app.db import connect"""
 
 from app.imports import *
+from app.raw_db import connect as raw_connect
+from flask_jwt_extended import jwt_required, get_jwt
+from datetime import datetime, timezone
 
 announcements_bp = Blueprint('announcements', __name__)
+
+_ADMIN_ROLES = {"admin"}
+_OFFICER_ROLES = {"admin", "officer"}
+
+def _require_officer():
+    claims = get_jwt()
+    if claims.get("role") not in _OFFICER_ROLES:
+        return jsonify({"error": "Officer or admin access required"}), 403
+    return None
 
 @announcements_bp.route("/announcements/", methods=["GET"])
 def getAnnouncements():
@@ -31,7 +43,10 @@ def getAnnouncements():
         return (jsonify(results),200) if results else (jsonify({"error": "No announcements found"}), 404)
     
 @announcements_bp.route("/announcements/<int:announcement_id>", methods=["DELETE"])
+@jwt_required()
 def deleteAnnouncement(announcement_id):
+    err = _require_officer()
+    if err: return err
     try:
         connections = connect()
         with connections.cursor() as cur:
@@ -45,7 +60,10 @@ def deleteAnnouncement(announcement_id):
         return jsonify({"error": str(e)}), 500
     
 @announcements_bp.route("/announcements/<string:guild_id>", methods=["POST"])
+@jwt_required()
 def createAnnouncement(guild_id):
+    err = _require_officer()
+    if err: return err
     try:
         connections = connect()
         with connections.cursor() as cur:
@@ -56,7 +74,8 @@ def createAnnouncement(guild_id):
                 "description": request.json.get("description"),
                 "event_id": request.json.get("event_id"),
                 "announcement_date": request.json.get("announcement_date"),
-                "created_at": request.json.get("created_at", "NOW()"),
+                # Use current UTC time if not provided — don't pass literal "NOW()" as a string value
+                "created_at": request.json.get("created_at") or datetime.now(timezone.utc).isoformat(),
                 "event_image": request.json.get("event_image"),
                 "message": request.json.get("message")
             }
@@ -80,7 +99,10 @@ def createAnnouncement(guild_id):
         return jsonify({"error": str(e)}), 500
     
 @announcements_bp.route("/announcements/<int:announcement_id>", methods=["PATCH"])
+@jwt_required()
 def updateAnnouncement(announcement_id):
+    err = _require_officer()
+    if err: return err
     try:
         connections = connect()
         with connections.cursor() as cur:
@@ -108,3 +130,36 @@ def updateAnnouncement(announcement_id):
     except Exception as e:
         connections.rollback()
         return jsonify({"error": str(e)}), 500
+
+
+# ---------------------------------------------------------------------------
+# GET /announcements/pinned  — public, no auth required
+# ---------------------------------------------------------------------------
+
+@announcements_bp.route("/announcements/pinned", methods=["GET", "OPTIONS"])
+def get_pinned_announcement_public():
+    if request.method == "OPTIONS":
+        return "", 200
+    conn = raw_connect()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, message, created_at, expires_at
+            FROM pinned_announcements
+            WHERE is_active = TRUE
+              AND (expires_at IS NULL OR expires_at > NOW())
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+    if not row:
+        return jsonify({"announcement": None}), 200
+    return jsonify({
+        "announcement": {
+            "id": row["id"],
+            "message": row["message"],
+            "created_at": row["created_at"].isoformat(),
+            "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
+        }
+    }), 200

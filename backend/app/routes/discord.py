@@ -1,5 +1,15 @@
 from app.imports import *
+from flask_jwt_extended import jwt_required, get_jwt
+
 discord_bp = Blueprint('discord', __name__)
+
+_ADMIN_ROLES = {"admin"}
+
+def _require_admin():
+    claims = get_jwt()
+    if claims.get("role") not in _ADMIN_ROLES:
+        return jsonify({"error": "Admin access required"}), 403
+    return None
 
 @discord_bp.route("/config/<string:guild_id>", methods=["GET"])
 def getDiscordConfig(guild_id):
@@ -11,7 +21,10 @@ def getDiscordConfig(guild_id):
         return (jsonify(result), 200) if result else (jsonify({"error": "No config found"}), 404)
     
 @discord_bp.route("/config/<string:guild_id>", methods=["POST"])
+@jwt_required()
 def createDiscordConfig(guild_id):
+    err = _require_admin()
+    if err: return err
     try:
         guild_id = (guild_id or "").strip()
         connection = connect()
@@ -34,7 +47,10 @@ def createDiscordConfig(guild_id):
         return jsonify({"error": str(e)}), 500
     
 @discord_bp.route("/config/<string:guild_id>", methods=["PATCH"])
+@jwt_required()
 def updatediscordConfig(guild_id):
+    err = _require_admin()
+    if err: return err
     try:
         guild_id = (guild_id or "").strip()
         connection = connect()
@@ -62,7 +78,10 @@ def updatediscordConfig(guild_id):
         return jsonify({"error": str(e)}), 400
     
 @discord_bp.route("/config/<string:guild_id>", methods=["DELETE"])
+@jwt_required()
 def deleteDiscordConfig(guild_id):
+    err = _require_admin()
+    if err: return err
     try:
         guild_id = (guild_id or "").strip()
         connection = connect()

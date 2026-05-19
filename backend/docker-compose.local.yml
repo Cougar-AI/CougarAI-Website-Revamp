@@ -1,0 +1,21 @@
+services:
+  postgres_local:
+    image: postgres:17.5-alpine
+    container_name: cougarai-postgres-local
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: cougarai_local
+      POSTGRES_PASSWORD: cougarai_local_pw
+      POSTGRES_DB: cougarai_local
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+      - ./db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cougarai_local -d cougarai_local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_local_data:

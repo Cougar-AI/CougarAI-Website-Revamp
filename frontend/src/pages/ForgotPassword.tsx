@@ -1,13 +1,34 @@
 import { useState } from "react";
 
+const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: wire to POST /auth/forgot-password
-    setSubmitted(true);
+    setError(null);
+    setSubmitting(true);
+    try {
+      const res = await fetch(`${BACKEND}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      if (res.status === 429) {
+        setError("Too many requests. Please wait a minute and try again.");
+        return;
+      }
+      // Always show success regardless of whether email exists (prevents enumeration)
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -32,11 +53,16 @@ export default function ForgotPassword() {
               placeholder="you@example.com"
               className="w-full rounded-xl bg-white/10 border border-white/10 px-4 py-2.5 text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-rose-600"
             />
+            {error && (
+              <p className="text-sm text-rose-400">{error}</p>
+            )}
             <button
               type="submit"
-              className="w-full rounded-xl bg-rose-700 py-3 font-semibold text-white shadow hover:brightness-110 transition"
+              disabled={submitting}
+              className="w-full rounded-xl bg-red-700 py-3 font-semibold text-white shadow hover:bg-red-800 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
             >
-              Send Reset Link
+              {submitting ? "Sending…" : "Send Reset Link"}
             </button>
           </form>
         )}

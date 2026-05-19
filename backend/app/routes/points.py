@@ -1,9 +1,16 @@
 from app.imports import *
-from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
-import traceback  # at the top
-
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
+import traceback
 
 points_bp = Blueprint('points', __name__)
+
+_OFFICER_ROLES = {"admin", "officer"}
+
+def _require_officer():
+    claims = get_jwt()
+    if claims.get("role") not in _OFFICER_ROLES:
+        return jsonify({"error": "Officer or admin access required"}), 403
+    return None
 @points_bp.route("/", methods=["GET"])
 def getPoints():
     connection = connect()
@@ -27,16 +34,21 @@ def getPoints():
         return (jsonify(results), 200) if results else (jsonify({"error": "No points found"}), 404)
         
 @points_bp.route("/<int:points_id>", methods=["DELETE"])
+@jwt_required()
 def deletePoints(points_id):
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
             cur.execute("DELETE FROM points WHERE points_id = %s", (points_id,))
+            if cur.rowcount == 0:
+                return jsonify({"error": "Point not found"}), 404
             connection.commit()
             return jsonify({"message": "Point deleted successfully"}), 200
     except Exception as e:
         connection.rollback()
-        return jsonify({"error": "Failed to delete point", "error": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
     
 
 @points_bp.route("/leaderboard", methods=["GET", "OPTIONS"])
@@ -75,11 +87,14 @@ def getLeaderboard():
                    profile.first_name,
                    profile.last_name,
                    profile.avatar_url,
+                   profile.current_streak,
+                   profile.max_streak,
                    SUM(points.points) AS total_points
             FROM points
             JOIN profile ON profile.student_id = points.student_id
             WHERE profile.is_public = TRUE {date_filter}
-            GROUP BY profile.student_id, profile.first_name, profile.last_name, profile.avatar_url
+            GROUP BY profile.student_id, profile.first_name, profile.last_name,
+                     profile.avatar_url, profile.current_streak, profile.max_streak
             ORDER BY total_points DESC
             LIMIT %s OFFSET %s
             """,
@@ -122,14 +137,17 @@ def getLeaderboard():
                 my_rank = rank_row["rank"] if rank_row else None
 
     return jsonify({
-        "leaderboard": results,
-        "my_rank": my_rank,
-        "my_total": my_total,
+        "entries": results,
+        "caller_rank": my_rank,
+        "caller_total": my_total,
     }), 200
 
 
 @points_bp.route("/add/<int:student_id>", methods=["POST"])
+@jwt_required()
 def addPoints(student_id):
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
@@ -167,7 +185,10 @@ def addPoints(student_id):
         
     
 @points_bp.route("/<int:points_id>", methods=["PATCH"])
+@jwt_required()
 def updatePoints(points_id):
+    err = _require_officer()
+    if err: return err
     try:
         connection = connect()
         with connection.cursor() as cur:
