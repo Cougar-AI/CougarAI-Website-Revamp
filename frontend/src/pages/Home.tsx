@@ -224,7 +224,7 @@ export default function Home() {
         <h2 className="mb-6 text-center text-2xl font-extrabold tracking-tight md:text-3xl" style={{ fontFamily: "Oxanium, sans-serif" }}>
           What we&#39;ve been up to
         </h2>
-        <HomePhotoCarousel />
+        <Slideshow images={slideImages} />
       </section>
 
       {/* Meet our officers */}
