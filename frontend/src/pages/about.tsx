@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { GraduationCap, FlaskConical, Users, Crown, BookOpen, Megaphone, CalendarDays, Wrench, Globe, Briefcase, Camera, type LucideIcon } from "lucide-react";
 
@@ -32,6 +32,7 @@ interface SlideshowPhoto {
   caption: string | null;
 }
 
+// Add filenames for group photos here. Place image files in frontend/public/
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
 
 interface PublicSponsor {
@@ -348,14 +349,14 @@ export default function About() {
   };
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 20px 90px" }}>
+    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 20px 40px" }}>
 
       {/* Header */}
       <header style={{ textAlign: "center", marginBottom: selectedDept ? 28 : 36 }}>
         <h1 style={{ fontFamily: "Oxanium,sans-serif", fontSize: "clamp(28px,4.5vw,48px)", fontWeight: 800, letterSpacing: "-.025em", margin: "0 0 12px", color: "#fff" }}>About Us</h1>
         {!selectedDept && (
-          <p style={{ color: "rgba(255,255,255,.62)", fontSize: 16, lineHeight: 1.7, maxWidth: 560, margin: "0 auto" }}>
-            University of Houston's community for AI & Data Science. All majors welcome — learn, build, and ship projects with us.
+          <p style={{ color: "rgba(255,255,255,.62)", fontSize: 16, lineHeight: 1.7, maxWidth: 820, margin: "0 auto" }}>
+            CougarAI is the University of Houston's student organization dedicated to making artificial intelligence and data science accessible to everyone. Curiosity is the only prerequisite. Through hands-on workshops, research projects, and industry partnerships, we give members the tools to turn ideas into real solutions and build a community where every major belongs.
           </p>
         )}
       </header>

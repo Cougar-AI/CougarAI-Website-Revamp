@@ -30,8 +30,9 @@ Thumbs.db
 # Flask migrations cache
 /backend/migrations/__pycache__/
 /backend/migrations/*.pyc
-# local env file
+# local env files
 /backend/.env
+/backend/.env.*
 # coverage reports
 /backend/htmlcov/
 /backend/.coverage
@@ -56,3 +57,4 @@ __pycache__/
 *.iml
 
 /.claude
+frontend/env (6)
