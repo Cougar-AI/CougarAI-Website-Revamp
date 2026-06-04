@@ -101,7 +101,7 @@ export default function Sponsorships() {
 
           <button
             type="submit"
-            className="w-full rounded-xl bg-rose-700 py-3 font-semibold text-white shadow hover:brightness-110 transition"
+            className="w-full rounded-xl bg-red-700 py-3 font-semibold text-white shadow hover:brightness-110 transition"
           >
             Send Inquiry
           </button>

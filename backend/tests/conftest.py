@@ -57,6 +57,43 @@ def app(_postgres_url):
 
     application = create_app("config.TestConfig")
 
+    bootstrap_schema = """
+    CREATE TABLE IF NOT EXISTS profile (
+        user_id INTEGER PRIMARY KEY REFERENCES users(user_id) ON DELETE CASCADE,
+        student_id VARCHAR(32) NOT NULL UNIQUE,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        avatar_url TEXT,
+        preferred_email TEXT,
+        is_public BOOLEAN NOT NULL DEFAULT TRUE,
+        notification_settings JSONB,
+        current_streak INTEGER NOT NULL DEFAULT 0,
+        max_streak INTEGER NOT NULL DEFAULT 0,
+        last_event_month DATE,
+        grade_level VARCHAR(50),
+        major VARCHAR(120),
+        shirt_size VARCHAR(20),
+        discord_id VARCHAR(50),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS officers (
+        student_id VARCHAR(32) PRIMARY KEY,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        role VARCHAR(20) NOT NULL DEFAULT 'officer',
+        join_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        end_date DATE
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_schedules (
+        schedule_id SERIAL PRIMARY KEY,
+        title TEXT,
+        body TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE
+    );
+    """
+
     # Apply schema once — db-init tables then core migrations (same order as run_migrations.sh)
     root = os.path.join(os.path.dirname(__file__), "..")
     schema_files = [
@@ -64,14 +101,17 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_users_dashboard_fields.sql"),
         os.path.join(root, "migrations", "add_non_member_default_role.sql"),
         os.path.join(root, "migrations", "add_slideshow_photos.sql"),
+        os.path.join(root, "migrations", "add_officer_positions_table.sql"),
         os.path.join(root, "migrations", "add_officer_photos.sql"),
         os.path.join(root, "migrations", "add_officers_display_name.sql"),
     ]
     with application.app_context():
         with db.engine.begin() as conn:
-            for path in schema_files:
+            for idx, path in enumerate(schema_files):
                 with open(path) as f:
                     conn.execute(sqlt(f.read()))
+                if idx == 0:
+                    conn.execute(sqlt(bootstrap_schema))
 
     return application
 
