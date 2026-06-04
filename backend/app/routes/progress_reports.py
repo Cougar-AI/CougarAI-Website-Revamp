@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity

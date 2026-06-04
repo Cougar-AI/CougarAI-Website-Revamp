@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from flask import request, jsonify, current_app, redirect
+from flask import request, jsonify, current_app, redirect, make_response
 from flask_jwt_extended import get_jwt_identity
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
@@ -19,7 +19,7 @@ from app.routes.auth import auth_bp
 from app.routes.auth._helpers import (
     _jwt_encode, _jwt_decode,
     _build_auth_response, _build_oauth_redirect_response,
-    _provision_oauth_user,
+    _provision_oauth_user, _clear_refresh_cookie, _delete_refresh_by_jti,
 )
 from app.utils.auth_decorators import require_authenticated
 
@@ -43,6 +43,45 @@ def _microsoft_redirect_uri():
 
 def _microsoft_authority_base():
     return f"https://login.microsoftonline.com/{_microsoft_tenant()}/oauth2/v2.0"
+
+def _microsoft_post_logout_redirect_uri():
+    frontend_url = current_app.config["FRONTEND_URL"].rstrip("/")
+    return f"{frontend_url}/?logged_out=1"
+
+def _microsoft_frontend_auth_redirect(error: str, message: str | None = None):
+    frontend_url = current_app.config["FRONTEND_URL"].rstrip("/")
+    query = {"mode": "login", "error": error}
+    if message:
+        query["message"] = message
+    return _frontend_redirect_response(f"{frontend_url}/auth?{urlencode(query)}")
+
+def _frontend_redirect_response(url: str):
+    html = f"""<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="0;url={url}" />
+    <title>Redirecting...</title>
+    <script>
+      window.location.replace({json.dumps(url)});
+    </script>
+  </head>
+  <body style="font-family: Arial, sans-serif; padding: 24px;">
+    <p>Redirecting...</p>
+    <p><a href="{url}">Continue</a></p>
+  </body>
+</html>"""
+    resp = make_response(html, 200)
+    resp.headers["Content-Type"] = "text/html; charset=utf-8"
+    return resp
+
+def _microsoft_logout_url():
+    post_logout_redirect_uri = _microsoft_post_logout_redirect_uri()
+    query = urlencode({
+        "client_id": _microsoft_client_id(),
+        "post_logout_redirect_uri": post_logout_redirect_uri,
+    })
+    return f"{_microsoft_authority_base()}/logout?{query}"
 
 def _microsoft_fetch_json(url: str, *, method: str = "GET", headers: Optional[dict] = None, body: Optional[str] = None):
     request_obj = Request(
@@ -162,53 +201,80 @@ def microsoft_start():
 def microsoft_callback():
     error = (request.args.get("error") or "").strip()
     if error:
-        frontend_url = current_app.config["FRONTEND_URL"].rstrip("/")
-        query = urlencode({
-            "error": "microsoft_oauth_failed",
-            "message": request.args.get("error_description") or error,
-        })
-        return redirect(f"{frontend_url}/auth?mode=login&{query}")
+        return _microsoft_frontend_auth_redirect(
+            "microsoft_oauth_failed",
+            request.args.get("error_description") or error,
+        )
 
     code = (request.args.get("code") or "").strip()
     state = (request.args.get("state") or "").strip()
+    if not error and not code and not state:
+        return _microsoft_frontend_auth_redirect("logged_out")
     if not code or not state:
-        return jsonify({"error": "invalid_oauth_callback"}), 400
+        return _microsoft_frontend_auth_redirect("invalid_oauth_callback")
 
     try:
         claims = _jwt_decode(state, current_app.config["SECRET_KEY"])
     except Exception:
-        return jsonify({"error": "invalid_oauth_state"}), 401
+        return _microsoft_frontend_auth_redirect("invalid_oauth_state")
 
     if claims.get("typ") != "microsoft_oauth_state":
-        return jsonify({"error": "invalid_oauth_state"}), 401
+        return _microsoft_frontend_auth_redirect("invalid_oauth_state")
 
     try:
         token_payload = _microsoft_exchange_code(code)
         access_token = (token_payload.get("access_token") or "").strip()
         if not access_token:
-            return jsonify({"error": "invalid_credentials"}), 401
+            return _microsoft_frontend_auth_redirect("invalid_credentials")
 
         profile = _microsoft_get_profile(access_token)
         email = (profile.get("mail") or profile.get("userPrincipalName") or "").strip()
         if not email:
-            return jsonify({"error": "invalid_credentials"}), 401
+            return _microsoft_frontend_auth_redirect("invalid_credentials")
 
         user = _provision_oauth_user(email)
-        return _build_oauth_redirect_response(
+        oauth_redirect = _build_oauth_redirect_response(
             user["user_id"],
             user["email"],
             "microsoft",
             role=user["role"] or "member",
             onboarding_completed=user["onboarding_completed_at"] is not None,
         )
+        destination = oauth_redirect.headers.get("Location")
+        if not destination:
+            return _microsoft_frontend_auth_redirect("microsoft_oauth_failed")
+        resp = _frontend_redirect_response(destination)
+        cookie = oauth_redirect.headers.get("Set-Cookie")
+        if cookie:
+            resp.headers.add("Set-Cookie", cookie)
+        return resp
     except PermissionError:
-        return jsonify({"error": "invalid_credentials"}), 401
+        return _microsoft_frontend_auth_redirect("invalid_credentials")
     except SQLAlchemyError:
         current_app.logger.exception("Microsoft OAuth database failure")
-        return jsonify({"error": "database_unavailable"}), 503
+        return _microsoft_frontend_auth_redirect("database_unavailable")
+    except HTTPError as exc:
+        current_app.logger.exception("Microsoft OAuth HTTP failure")
+        return _microsoft_frontend_auth_redirect("microsoft_oauth_failed", str(exc))
     except Exception:
         current_app.logger.exception("Microsoft OAuth callback failed")
-        return jsonify({"error": "microsoft_oauth_failed"}), 500
+        return _microsoft_frontend_auth_redirect("microsoft_oauth_failed")
+
+
+@auth_bp.get("/microsoft/logout")
+def microsoft_logout():
+    token = request.cookies.get("refresh_token") or ""
+    if token:
+        try:
+            claims = _jwt_decode(token, current_app.config["JWT_REFRESH_SECRET"])
+            if claims.get("typ") == "refresh" and claims.get("jti"):
+                _delete_refresh_by_jti(claims["jti"])
+        except Exception:
+            pass
+
+    resp = _frontend_redirect_response(_microsoft_logout_url())
+    _clear_refresh_cookie(resp)
+    return resp
 
 
 # ── Discord OAuth helpers ─────────────────────────────────────────────────────

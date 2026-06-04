@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import string
 import secrets
 from app.services.base_service import BaseService

@@ -181,7 +181,7 @@ def _build_auth_response(user_id: int, email: str, role: str = "member", onboard
 
 
 def _build_oauth_redirect_response(user_id: int, email: str, provider: str, role: str = "member", onboarding_completed: bool = False):
-    access_jwt = _issue_access_jwt(user_id, email)
+    access_jwt = _issue_access_jwt(user_id, email, role)
     refresh_token, _, expires_at = _issue_refresh_jwt_and_persist(user_id)
 
     with db.engine.begin() as conn:

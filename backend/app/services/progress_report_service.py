@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import date, timedelta
 from app.services.base_service import BaseService
 

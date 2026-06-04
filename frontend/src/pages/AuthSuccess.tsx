@@ -17,7 +17,16 @@ export default function AuthSuccess() {
     const userId = Number(searchParams.get("user_id") || 0);
     const role = (searchParams.get("role") || "").trim() || undefined;
     const onboardingCompleted = (searchParams.get("onboarding_completed") || "").trim() === "true";
-    return email && userId ? { email, user_id: userId, role, onboarding_completed: onboardingCompleted } : null;
+    const provider = (searchParams.get("provider") || "").trim();
+    return email && userId
+      ? {
+          email,
+          user_id: userId,
+          role,
+          onboarding_completed: onboardingCompleted,
+          provider: provider === "microsoft" || provider === "discord" ? provider : undefined,
+        }
+      : null;
   }, [searchParams]);
 
   const user = storedUser ?? queryUser;

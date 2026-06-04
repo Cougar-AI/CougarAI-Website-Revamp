@@ -76,6 +76,11 @@ STRIPE_WEBHOOK_SECRET=
 FRONTEND_URL=http://localhost:5173
 FRONTEND_URLS=http://localhost:5173,http://127.0.0.1:5173,https://cougarai.org,https://www.cougarai.org
 GOOGLE_OAUTH_CLIENT_ID=
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT_ID=common
+# Optional override if your public backend URL differs from request.url_root
+MICROSOFT_REDIRECT_URI=
 ```
 
 ### Frontend — `frontend/.env`
@@ -86,9 +91,34 @@ VITE_STRIPE_PUBLISHABLE_KEY=
 VITE_STRIPE_TEST_PUBLISHABLE_KEY=
 VITE_STRIPE_MODE=test
 VITE_SHOW_AUTH_LINKS=false
+VITE_ENABLE_MICROSOFT_OAUTH=false
 ```
 
 Set `VITE_SHOW_AUTH_LINKS=true` once Google OAuth is tested end-to-end to show Login/Register in the navbar.
+
+### Microsoft OAuth Setup
+
+The repo already contains a Microsoft OAuth flow:
+
+- Backend start endpoint: `GET /auth/microsoft/start?intent=login|register`
+- Backend callback: `GET /auth/microsoft/callback`
+- Frontend buttons: `src/pages/Login.tsx` and `src/pages/Registration.tsx`
+
+In Azure App Registration:
+
+- Add a Web redirect URI for local dev:
+  `http://127.0.0.1:5001/auth/microsoft/callback`
+- Add a Web redirect URI for production that matches your backend origin:
+  `https://<your-backend-origin>/auth/microsoft/callback`
+- Create a client secret and place it in `MICROSOFT_CLIENT_SECRET`
+- Use `common` as the tenant for multi-tenant/member accounts, or set a specific tenant ID if you want to restrict sign-in
+- Grant the delegated Microsoft Graph permission `User.Read`
+
+Then enable the frontend button by setting:
+
+```bash
+VITE_ENABLE_MICROSOFT_OAUTH=true
+```
 
 ---
 

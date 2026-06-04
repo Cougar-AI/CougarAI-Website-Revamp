@@ -3,6 +3,7 @@ export type StoredUser = {
   email: string;
   role?: string;
   onboarding_completed?: boolean;
+  provider?: "google" | "microsoft" | "discord" | "credentials";
 };
 
 const AUTH_EVENT = "cougarai-auth-changed";

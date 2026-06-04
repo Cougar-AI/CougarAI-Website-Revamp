@@ -29,10 +29,23 @@ const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for sa
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
 const MICROSOFT_ENABLED = import.meta.env?.VITE_ENABLE_MICROSOFT_OAUTH === "true";
 const DISCORD_ENABLED = import.meta.env?.VITE_ENABLE_DISCORD_OAUTH === "true";
+const SOCIAL_BUTTON_CLASS =
+  "relative inline-flex h-11 w-[320px] items-center justify-center rounded-full border border-[#dadce0] bg-white px-4 text-[14px] font-medium leading-none text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]";
+
+function GoogleLogo() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="h-[18px] w-[18px]">
+      <path fill="#4285F4" d="M23.49 12.27c0-.82-.07-1.42-.22-2.04H12.24v3.71h6.43c-.13.92-.83 2.31-2.38 3.24l-.02.13 3.46 2.68.24.02c2.2-2.03 3.52-5.02 3.52-7.74Z" />
+      <path fill="#34A853" d="M12.24 24c3.19 0 5.87-1.05 7.83-2.85l-3.73-2.89c-1 .65-2.34 1.1-4.1 1.1-3.13 0-5.78-2.03-6.73-4.85l-.12.01-3.65 2.82-.05.1C2.68 21.63 7.1 24 12.24 24Z" />
+      <path fill="#FBBC05" d="M5.51 14.51a7.35 7.35 0 0 1-.39-2.35c0-.82.14-1.61.37-2.35l-.01-.16-3.7-2.87-.12.06A11.77 11.77 0 0 0 0 12.16c0 1.9.46 3.69 1.26 5.27l4.25-2.92Z" />
+      <path fill="#EA4335" d="M12.24 4.75c2.22 0 3.71.95 4.56 1.73l3.33-3.25C18.09 1.2 15.42 0 12.24 0 7.1 0 2.68 2.37 1.26 6.89l4.24 2.93c.95-2.82 3.6-4.86 6.74-4.86Z" />
+    </svg>
+  );
+}
 
 function MicrosoftLogo() {
   return (
-    <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5">
+    <svg aria-hidden viewBox="0 0 24 24" className="h-[18px] w-[18px]">
       <path fill="#f25022" d="M2 2h9.5v9.5H2z" />
       <path fill="#7fba00" d="M12.5 2H22v9.5h-9.5z" />
       <path fill="#00a4ef" d="M2 12.5h9.5V22H2z" />
@@ -214,7 +227,7 @@ export default function Registration({
           { credentials: "include" }
         );
 
-        persistAuthSession(data.access_token, data.user, true);
+        persistAuthSession(data.access_token, { ...data.user, provider: "google" }, true);
         const from = (location.state as any)?.from as string | undefined;
         navigate(from && from !== "/register" ? from : "/", { replace: true });
       } catch (err: any) {
@@ -408,16 +421,38 @@ export default function Registration({
             <div className="mt-6">{oauthSlot}</div>
           ) : GOOGLE_CLIENT_ID ? (
             <div className="mt-6">
-              <div ref={googleButtonRef} className="flex min-h-11 items-center justify-center" />
+              <div className="flex justify-center">
+                <div className="relative h-11 w-[320px]">
+                  <div
+                    className={`${SOCIAL_BUTTON_CLASS} pointer-events-none w-full`}
+                    style={{ fontFamily: "Roboto, Arial, sans-serif" }}
+                  >
+                    <span className="absolute left-[21px] top-1/2 -translate-y-1/2">
+                      <GoogleLogo />
+                    </span>
+                    Continue with Google
+                  </div>
+                  <div
+                    ref={googleButtonRef}
+                    className="absolute inset-0 overflow-hidden rounded-full opacity-0"
+                    aria-hidden="true"
+                  />
+                </div>
+              </div>
               {MICROSOFT_ENABLED ? (
-                <button
-                  type="button"
-                  onClick={handleMicrosoftRegister}
-                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 text-[15px] font-medium text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]"
-                >
-                  <MicrosoftLogo />
-                  Continue with Microsoft
-                </button>
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleMicrosoftRegister}
+                    className={SOCIAL_BUTTON_CLASS}
+                    style={{ fontFamily: "Roboto, Arial, sans-serif" }}
+                  >
+                    <span className="absolute left-[21px] top-1/2 -translate-y-1/2">
+                      <MicrosoftLogo />
+                    </span>
+                    Continue with Microsoft
+                  </button>
+                </div>
               ) : null}
               {DISCORD_ENABLED ? (
                 <div className="mt-3 flex justify-center">
@@ -438,25 +473,28 @@ export default function Registration({
                 type="button"
                 disabled
                 title="Wire this up to your OAuth route"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white text-black px-4 py-2.5 text-sm font-semibold ring-1 ring-black/10 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                className={`${SOCIAL_BUTTON_CLASS} w-full disabled:cursor-not-allowed disabled:opacity-60`}
+                style={{ fontFamily: "Roboto, Arial, sans-serif" }}
               >
-                <svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5">
-                  <path fill="#4285F4" d="M23.49 12.27c0-.82-.07-1.42-.22-2.04H12.24v3.71h6.43c-.13.92-.83 2.31-2.38 3.24l-.02.13 3.46 2.68.24.02c2.2-2.03 3.52-5.02 3.52-7.74Z" />
-                  <path fill="#34A853" d="M12.24 24c3.19 0 5.87-1.05 7.83-2.85l-3.73-2.89c-1 .65-2.34 1.1-4.1 1.1-3.13 0-5.78-2.03-6.73-4.85l-.12.01-3.65 2.82-.05.1C2.68 21.63 7.1 24 12.24 24Z" />
-                  <path fill="#FBBC05" d="M5.51 14.51a7.35 7.35 0 0 1-.39-2.35c0-.82.14-1.61.37-2.35l-.01-.16-3.7-2.87-.12.06A11.77 11.77 0 0 0 0 12.16c0 1.9.46 3.69 1.26 5.27l4.25-2.92Z" />
-                  <path fill="#EA4335" d="M12.24 4.75c2.22 0 3.71.95 4.56 1.73l3.33-3.25C18.09 1.2 15.42 0 12.24 0 7.1 0 2.68 2.37 1.26 6.89l4.24 2.93c.95-2.82 3.6-4.86 6.74-4.86Z" />
-                </svg>
+                <span className="absolute left-[21px] top-1/2 -translate-y-1/2">
+                  <GoogleLogo />
+                </span>
                 Continue with Google
               </button>
               {MICROSOFT_ENABLED ? (
-                <button
-                  type="button"
-                  onClick={handleMicrosoftRegister}
-                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white px-6 text-[15px] font-medium text-[#3c4043] shadow-[0_1px_2px_rgba(60,64,67,0.3),0_1px_3px_1px_rgba(60,64,67,0.15)] transition hover:bg-[#f8f9fa]"
-                >
-                  <MicrosoftLogo />
-                  Continue with Microsoft
-                </button>
+                <div className="mt-3 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleMicrosoftRegister}
+                    className={SOCIAL_BUTTON_CLASS}
+                    style={{ fontFamily: "Roboto, Arial, sans-serif" }}
+                  >
+                    <span className="absolute left-[21px] top-1/2 -translate-y-1/2">
+                      <MicrosoftLogo />
+                    </span>
+                    Continue with Microsoft
+                  </button>
+                </div>
               ) : null}
               {DISCORD_ENABLED ? (
                 <div className="mt-3 flex justify-center">
