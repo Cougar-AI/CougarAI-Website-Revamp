@@ -31,6 +31,7 @@ interface OfficerPosition {
   position_id: number;
   title: string;
   department: string;
+  sort_order?: number;
 }
 
 interface AdminUser {
@@ -49,6 +50,10 @@ const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin: { bg: 'rgba(185,28,28,.25)', text: 'rgba(248,113,113,.9)' },
   officer: { bg: 'rgba(29,78,216,.2)', text: 'rgba(96,165,250,.9)' },
 };
+
+function normalizeOfficerRole(role: string) {
+  return OFFICER_ROLES.includes(role) ? role : 'officer';
+}
 
 const cardStyle = {
   background: 'rgba(255,255,255,.04)',
@@ -343,7 +348,7 @@ function EditOfficerModal({
   positions: OfficerPosition[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [officerRole, setOfficerRole] = useState(officer.officer_role);
+  const [officerRole, setOfficerRole] = useState(normalizeOfficerRole(officer.officer_role));
   const [positionId, setPositionId] = useState(officer.position_id?.toString() ?? '');
   const [joinDate, setJoinDate] = useState(officer.join_date?.slice(0, 10) ?? '');
   const [endDate, setEndDate] = useState(officer.end_date?.slice(0, 10) ?? '');
@@ -425,7 +430,7 @@ function EditOfficerModal({
     setError('');
     try {
       await apiPatch(`/admin/officers/${officer.student_id}`, {
-        officer_role: officerRole,
+        officer_role: normalizeOfficerRole(officerRole),
         join_date: joinDate || null,
         end_date: endDate || null,
         position_id: positionId ? Number(positionId) : null,
@@ -770,7 +775,9 @@ export default function AdminOfficersTab() {
   }
 
   function OfficerRow({ o }: { o: Officer }) {
-    const roleColor = ROLE_COLORS[o.officer_role] ?? ROLE_COLORS.officer;
+    const normalizedRole = normalizeOfficerRole(o.officer_role);
+    const roleColor = ROLE_COLORS[normalizedRole] ?? ROLE_COLORS.officer;
+    const normalizedPositionTitle = o.position_title ?? (!OFFICER_ROLES.includes(o.officer_role) ? o.officer_role : null);
     const photoSrc = resolveOfficerPhoto(o.photo_url) ?? (o.avatar_url ? `${BACKEND}${o.avatar_url}` : null);
     const initials = [o.first_name, o.last_name].filter(Boolean).map((n) => n![0]).join('') || (o.student_id?.[0] ?? '?');
     return (
@@ -812,13 +819,13 @@ export default function AdminOfficersTab() {
         </td>
         <td className="px-4 py-3">
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: roleColor.bg, color: roleColor.text }}>
-            {o.officer_role}
+            {normalizedRole}
           </span>
         </td>
         <td className="px-4 py-3">
-          {o.position_title ? (
+          {normalizedPositionTitle ? (
             <div>
-              <p className="text-xs text-white/80">{o.position_title}</p>
+              <p className="text-xs text-white/80">{normalizedPositionTitle}</p>
               <p className="text-xs text-white/30">{o.position_department}</p>
             </div>
           ) : (

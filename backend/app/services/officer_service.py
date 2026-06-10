@@ -23,6 +23,7 @@ class OfficerService(BaseService):
         ]
 
     def list_officers(self) -> list:
+        valid_roles = {"officer", "admin"}
         with self.cursor() as cur:
             cur.execute(
                 """
@@ -31,6 +32,8 @@ class OfficerService(BaseService):
                     o.position_id, o.photo_url, o.photo_object_position, o.linkedin_url,
                     op.title as position_title, op.department as position_department,
                     op.sort_order as position_sort_order,
+                    lop.title as legacy_position_title, lop.department as legacy_position_department,
+                    lop.sort_order as legacy_position_sort_order,
                     COALESCE(p.first_name, o.first_name) AS first_name,
                     COALESCE(p.last_name,  o.last_name)  AS last_name,
                     p.avatar_url,
@@ -38,6 +41,7 @@ class OfficerService(BaseService):
                     o.student_id LIKE 'officer\\_%' AS is_unlinked
                 FROM officers o
                 LEFT JOIN officer_positions op ON op.position_id = o.position_id
+                LEFT JOIN officer_positions lop ON lop.title = o.role
                 LEFT JOIN profile p ON p.student_id::text = o.student_id::text
                 LEFT JOIN users u ON u.user_id = p.user_id
                 ORDER BY o.join_date DESC
@@ -48,13 +52,28 @@ class OfficerService(BaseService):
         return [
             {
                 "student_id": r["student_id"],
-                "officer_role": r["officer_role"],
+                "officer_role": (
+                    r["officer_role"]
+                    if r["officer_role"] in valid_roles
+                    else (r["user_role"] if r["user_role"] in valid_roles else "officer")
+                ),
                 "join_date": r["join_date"].isoformat() if r["join_date"] else None,
                 "end_date": r["end_date"].isoformat() if r["end_date"] else None,
                 "position_id": r["position_id"],
-                "position_title": r["position_title"],
-                "position_department": r["position_department"],
-                "position_sort_order": r["position_sort_order"],
+                "position_title": (
+                    r["position_title"]
+                    or (r["legacy_position_title"] if r["officer_role"] not in valid_roles else None)
+                    or (r["officer_role"] if r["officer_role"] not in valid_roles else None)
+                ),
+                "position_department": (
+                    r["position_department"]
+                    or (r["legacy_position_department"] if r["officer_role"] not in valid_roles else None)
+                ),
+                "position_sort_order": (
+                    r["position_sort_order"]
+                    if r["position_sort_order"] is not None
+                    else (r["legacy_position_sort_order"] if r["officer_role"] not in valid_roles else None)
+                ),
                 "photo_url": r["photo_url"],
                 "photo_object_position": r["photo_object_position"] or "50% 50%",
                 "linkedin_url": r["linkedin_url"],

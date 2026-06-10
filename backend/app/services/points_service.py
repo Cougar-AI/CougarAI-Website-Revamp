@@ -15,19 +15,33 @@ class PointsService(BaseService):
 
             cur.execute(
                 """
-                SELECT p.student_id, pr.first_name, pr.last_name, SUM(p.points) as total
+                SELECT
+                    u.user_id,
+                    p.student_id,
+                    pr.first_name,
+                    pr.last_name,
+                    u.email,
+                    SUM(p.points) as total
                 FROM points p
                 LEFT JOIN profile pr ON pr.student_id = p.student_id
-                GROUP BY p.student_id, pr.first_name, pr.last_name
+                LEFT JOIN users u ON u.user_id = pr.user_id
+                GROUP BY u.user_id, p.student_id, pr.first_name, pr.last_name, u.email
                 ORDER BY total DESC
                 LIMIT 5
                 """
             )
             top_earners = [
                 {
+                    "user_id": r["user_id"],
                     "student_id": r["student_id"],
+                    "name": (
+                        f'{(r["first_name"] or "").strip()} {(r["last_name"] or "").strip()}'.strip()
+                        or r["email"]
+                        or r["student_id"]
+                    ),
                     "first_name": r["first_name"],
                     "last_name": r["last_name"],
+                    "user_email": r["email"],
                     "total": int(r["total"]),
                 }
                 for r in cur.fetchall()
@@ -60,10 +74,13 @@ class PointsService(BaseService):
                 SELECT p.points_id, p.student_id, p.event_id, p.date, p.points,
                        COALESCE(p.reason, '') as reason,
                        p.officer_user_id,
+                       pr.user_id,
                        pr.first_name, pr.last_name,
+                       u.email as user_email,
                        ou.email as officer_email
                 FROM points p
                 LEFT JOIN profile pr ON pr.student_id = p.student_id
+                LEFT JOIN users u ON u.user_id = pr.user_id
                 LEFT JOIN users ou ON ou.user_id = p.officer_user_id
                 {cond}
                 ORDER BY p.date DESC, p.points_id DESC
@@ -76,14 +93,21 @@ class PointsService(BaseService):
         records = [
             {
                 "points_id": r["points_id"],
+                "user_id": r["user_id"],
                 "student_id": r["student_id"],
                 "event_id": r["event_id"],
                 "date": r["date"].isoformat() if r["date"] else None,
                 "points": r["points"],
                 "reason": r["reason"],
                 "officer_email": r["officer_email"],
+                "user_email": r["user_email"],
                 "first_name": r["first_name"],
                 "last_name": r["last_name"],
+                "user_name": (
+                    f'{(r["first_name"] or "").strip()} {(r["last_name"] or "").strip()}'.strip()
+                    or r["user_email"]
+                    or r["student_id"]
+                ),
             }
             for r in rows
         ]

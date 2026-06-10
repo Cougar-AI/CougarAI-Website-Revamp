@@ -88,6 +88,22 @@ class UserService(BaseService):
                        OR pay.email = u.email
                 ) mem ON TRUE
             """
+            points_join = """
+                LEFT JOIN LATERAL (
+                    SELECT
+                        COALESCE(SUM(pt.points), 0) as total_points,
+                        COUNT(*) as events_attended
+                    FROM points pt
+                    WHERE pt.student_id = p.student_id
+                ) pts ON TRUE
+            """
+            checkins_join = """
+                LEFT JOIN LATERAL (
+                    SELECT COUNT(*) as checkin_count
+                    FROM event_checkins ec
+                    WHERE ec.user_id = u.user_id
+                ) chk ON TRUE
+            """
 
             having_clause = ""
             if membership_filter == "active":
@@ -117,6 +133,9 @@ class UserService(BaseService):
                     u.user_id, u.email, u.role, u.is_active, u.created_at, u.last_login,
                     p.first_name, p.last_name, p.student_id, p.avatar_url,
                     mem.expires_at as membership_expires_at,
+                    pts.total_points as points_total,
+                    pts.events_attended,
+                    chk.checkin_count,
                     CASE
                         WHEN mem.expires_at >= CURRENT_DATE THEN 'active'
                         WHEN mem.expires_at < CURRENT_DATE THEN 'expired'
@@ -125,6 +144,8 @@ class UserService(BaseService):
                 FROM users u
                 LEFT JOIN profile p ON p.user_id = u.user_id
                 {membership_join}
+                {points_join}
+                {checkins_join}
                 {where_clause}
                 {"AND" if where_clause else "WHERE"} TRUE {having_clause}
                 ORDER BY u.created_at DESC
@@ -149,6 +170,9 @@ class UserService(BaseService):
                 "avatar_url": r["avatar_url"],
                 "membership_expires_at": r["membership_expires_at"].isoformat() if r["membership_expires_at"] else None,
                 "membership_status": r["membership_status"],
+                "points_total": int(r["points_total"] or 0),
+                "events_attended": int(r["events_attended"] or 0),
+                "checkin_count": int(r["checkin_count"] or 0),
                 "has_profile": r["student_id"] is not None,
             })
 

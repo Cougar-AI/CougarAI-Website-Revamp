@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost } from '@/lib/api';
 import { Star, TrendingUp, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { formatDate, formatDateTimeFull } from '@/lib/dates';
@@ -10,8 +10,12 @@ void BACKEND;
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface TopEarner {
-  user_id: number;
-  name: string;
+  user_id?: number | null;
+  student_id?: string;
+  name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  user_email?: string | null;
   total: number;
 }
 
@@ -23,14 +27,37 @@ interface PointsSummary {
 
 interface PointRecord {
   points_id?: number;
-  user_id: number;
+  user_id?: number | null;
+  student_id?: string;
   user_name?: string;
   user_email?: string;
+  first_name?: string | null;
+  last_name?: string | null;
   points: number;
   reason: string;
   event_id?: number | null;
   created_at?: string;
   timestamp?: string;
+}
+
+function displayName(value: {
+  name?: string;
+  user_name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  user_email?: string | null;
+  student_id?: string;
+  user_id?: number | null;
+}) {
+  const fullName = `${value.first_name ?? ''} ${value.last_name ?? ''}`.trim();
+  return (
+    value.name
+    ?? value.user_name
+    ?? (fullName || undefined)
+    ?? value.user_email
+    ?? value.student_id
+    ?? (value.user_id ? `User #${value.user_id}` : 'Unknown user')
+  );
 }
 
 interface PointsListResponse {
@@ -133,14 +160,14 @@ function SummarySection() {
           <p className="text-xs text-white/30">No data yet.</p>
         )}
         {data && (data.top_earners ?? []).slice(0, 5).map((u, i) => (
-          <div key={u.user_id} className="flex items-center gap-3">
+          <div key={u.user_id ?? u.student_id ?? `${i}-${u.total}`} className="flex items-center gap-3">
             <span
               className="text-xs font-bold w-5 text-center shrink-0"
               style={{ color: i === 0 ? 'rgba(250,204,21,.9)' : 'rgba(255,255,255,.3)' }}
             >
               {i + 1}
             </span>
-            <p className="text-sm text-white flex-1 truncate">{u.name}</p>
+            <p className="text-sm text-white flex-1 truncate">{displayName(u)}</p>
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium shrink-0"
               style={{ background: 'rgba(185,28,28,.2)', color: 'rgba(248,113,113,.9)' }}
@@ -239,7 +266,6 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
         }));
       setSelectedUsers(newUsers.slice(0, 20));
       if (ev) {
-        setPoints(String(ev.event_id)); // will be overwritten below
         setReason(`${ev.name} attendance`);
       }
     } catch {
@@ -532,7 +558,7 @@ function RecentAdjustments() {
                     style={{ borderBottom: '1px solid rgba(255,255,255,.04)' }}
                   >
                     <td className="px-4 py-3">
-                      <p className="text-white text-sm">{r.user_name ?? `User #${r.user_id}`}</p>
+                      <p className="text-white text-sm">{displayName(r)}</p>
                       {r.user_email && (
                         <p className="text-xs text-white/40">{r.user_email}</p>
                       )}
