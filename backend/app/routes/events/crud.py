@@ -5,20 +5,15 @@ from app.raw_db import get_db
 from app.utils.date_validation import is_valid_date
 from app.utils.query_handler import build_sql_querys
 from app.utils.auth_decorators import require_admin, require_officer
+from app.services.event_admin_service import EventAdminService
 
 
 @events_bp.route("/event-types", methods=["GET", "OPTIONS"])
 def get_public_event_types():
     if request.method == "OPTIONS":
         return "", 200
-    conn = get_db()
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT type_id, name, color, default_points "
-            "FROM event_types WHERE is_active = TRUE ORDER BY name ASC"
-        )
-        rows = cur.fetchall()
-    return jsonify({"event_types": [dict(r) for r in rows]}), 200
+    svc = EventAdminService(get_db())
+    return jsonify({"event_types": svc.list_event_types(active_only=True)}), 200
 
 
 @events_bp.route("/", methods=["GET"])

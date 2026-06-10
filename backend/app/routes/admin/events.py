@@ -3,7 +3,7 @@ from app.routes.admin import admin_bp
 from app.raw_db import get_db
 from app.utils.auth_decorators import require_admin, require_officer
 from app.services.user_service import UserService
-from app.services.event_admin_service import EventAdminService
+from app.services.event_admin_service import EventAdminService, normalize_event_type_name
 
 
 @admin_bp.route("/events/<int:event_id>/attendance", methods=["GET", "OPTIONS"])
@@ -50,7 +50,7 @@ def list_event_types():
 @require_admin
 def create_event_type():
     data = request.get_json(silent=True) or {}
-    name = (data.get("name") or "").strip()
+    name = normalize_event_type_name((data.get("name") or "").strip())
     if not name:
         return jsonify({"error": "name is required"}), 400
 
@@ -59,6 +59,8 @@ def create_event_type():
     description = data.get("description") or None
 
     svc = EventAdminService(get_db())
+    if svc.event_type_name_exists(name):
+        return jsonify({"error": f"An event type named '{name}' already exists"}), 409
     type_id = svc.create_event_type(name, default_points, color, description)
     return jsonify({"type_id": type_id, "message": "Event type created"}), 201
 
@@ -88,13 +90,15 @@ def update_event_type(type_id):
     update_dict = {}
     for field in ("name", "color", "description"):
         if field in data:
-            update_dict[field] = data[field]
+            update_dict[field] = normalize_event_type_name(data[field]) if field == "name" else data[field]
     if "default_points" in data:
         update_dict["default_points"] = int(data["default_points"])
     if "is_active" in data:
         update_dict["is_active"] = bool(data["is_active"])
 
     svc = EventAdminService(get_db())
+    if "name" in update_dict and svc.event_type_name_exists(update_dict["name"], exclude_type_id=type_id):
+        return jsonify({"error": f"An event type named '{update_dict['name']}' already exists"}), 409
     success = svc.update_event_type(type_id, update_dict)
     if not success:
         return jsonify({"error": "Event type not found"}), 404

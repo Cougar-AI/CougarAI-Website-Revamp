@@ -5,9 +5,42 @@ import secrets
 from app.services.base_service import BaseService
 
 
+_EVENT_TYPE_CANONICAL_NAMES = {
+    "hackathon": "Hackathons",
+    "hackathons": "Hackathons",
+    "other": "Other",
+    "social": "Socials",
+    "socials": "Socials",
+    "workshop": "Workshops",
+    "workshops": "Workshops",
+}
+
+
 def _gen_checkin_code(length: int = 12) -> str:
     alphabet = string.ascii_uppercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def normalize_event_type_name(name: str) -> str:
+    cleaned = " ".join((name or "").strip().split())
+    if not cleaned:
+        return ""
+    return _EVENT_TYPE_CANONICAL_NAMES.get(cleaned.lower(), cleaned)
+
+
+def event_type_dedupe_key(name: str) -> str:
+    return normalize_event_type_name(name).lower()
+
+
+def _event_type_choice_score(type_id: int, raw_name: str, is_active: bool) -> tuple[int, int, int]:
+    normalized_name = normalize_event_type_name(raw_name)
+    # Prefer rows already using the canonical display label, then active rows,
+    # then the older record for stable IDs.
+    return (
+        int(raw_name == normalized_name),
+        int(bool(is_active)),
+        -int(type_id),
+    )
 
 
 class EventAdminService(BaseService):
@@ -124,26 +157,55 @@ class EventAdminService(BaseService):
 
     def list_event_types(self, active_only: bool = False) -> list:
         with self.cursor() as cur:
+            where = "WHERE is_active = TRUE " if active_only else ""
             cur.execute(
                 "SELECT type_id, name, default_points, color, description, is_active, created_at "
-                "FROM event_types ORDER BY name ASC"
+                f"FROM event_types {where}ORDER BY name ASC"
             )
             rows = cur.fetchall()
 
-        return [
-            {
+        grouped: dict[str, dict] = {}
+        for r in rows:
+            normalized_name = normalize_event_type_name(r["name"])
+            item = {
                 "type_id": r["type_id"],
-                "name": r["name"],
+                "name": normalized_name,
                 "default_points": r["default_points"],
                 "color": r["color"],
                 "description": r["description"],
                 "is_active": r["is_active"],
                 "created_at": r["created_at"].isoformat() if r["created_at"] else None,
             }
-            for r in rows
-        ]
+            key = event_type_dedupe_key(r["name"])
+            existing = grouped.get(key)
+            if not existing:
+                grouped[key] = item
+                continue
+
+            existing_score = _event_type_choice_score(existing["type_id"], existing["name"], existing["is_active"])
+            current_score = _event_type_choice_score(r["type_id"], r["name"], r["is_active"])
+            if current_score > existing_score:
+                grouped[key] = item
+
+        return sorted(grouped.values(), key=lambda item: item["name"].lower())
+
+    def event_type_name_exists(self, name: str, exclude_type_id: int | None = None) -> bool:
+        normalized = event_type_dedupe_key(name)
+        with self.cursor() as cur:
+            cur.execute(
+                "SELECT type_id, name FROM event_types"
+            )
+            rows = cur.fetchall()
+
+        for row in rows:
+            if exclude_type_id is not None and row["type_id"] == exclude_type_id:
+                continue
+            if event_type_dedupe_key(row["name"]) == normalized:
+                return True
+        return False
 
     def create_event_type(self, name: str, default_points: int, color: str, description) -> int:
+        name = normalize_event_type_name(name)
         with self.cursor() as cur:
             cur.execute(
                 "INSERT INTO event_types (name, default_points, color, description) VALUES (%s, %s, %s, %s) RETURNING type_id",
@@ -154,6 +216,8 @@ class EventAdminService(BaseService):
         return type_id
 
     def update_event_type(self, type_id: int, updates: dict) -> bool:
+        if "name" in updates:
+            updates["name"] = normalize_event_type_name(updates["name"])
         set_parts = list(updates.keys())
         params = list(updates.values())
         params.append(type_id)
