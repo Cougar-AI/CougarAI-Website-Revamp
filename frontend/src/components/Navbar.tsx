@@ -149,11 +149,15 @@ const Navbar: React.FC = () => {
                 </button>
                 <ul className="flex items-center space-x-5">
                     <NavLink to="/" className={({isActive}) => cn(link, isActive && active)}>Home</NavLink>
-                    <NavLink to="/about" className={({isActive}) => cn(link, isActive && active)}>About Us</NavLink>
+                    {!isAuthenticated && (
+                        <NavLink to="/about" className={({isActive}) => cn(link, isActive && active)}>About Us</NavLink>
+                    )}
                     <NavLink to="/memberships" className={({isActive}) => cn(link, isActive && active)}>Memberships</NavLink>
                     <NavLink to="/contact" className={({isActive}) => cn(link, isActive && active)}>Contact</NavLink>
-                    <NavLink to="/calendar" className={({isActive}) => cn(link, isActive && active)}>Calendar</NavLink>
-                    <NavLink to="/sponsors" className={({isActive}) => cn(link, isActive && active)}>Sponsors</NavLink>
+                    <NavLink to="/calendar" className={({isActive}) => cn(link, isActive && active)}>Events</NavLink>
+                    {!isAuthenticated && (
+                        <NavLink to="/sponsors" className={({isActive}) => cn(link, isActive && active)}>Sponsors</NavLink>
+                    )}
 
                     {isAuthenticated ? (
                         <div className="flex items-center gap-3">
