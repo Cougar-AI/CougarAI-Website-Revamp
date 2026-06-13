@@ -118,6 +118,10 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
 
   const currentUser = getStoredUser();
   const isAdmin = currentUser?.role === 'admin';
+  const hasActiveMembership = user.payments.some((p) => {
+    if (!p.expires_at) return false;
+    return new Date(`${p.expires_at}T23:59:59`).getTime() >= Date.now();
+  });
 
   async function saveRole() {
     setSaving(true);
@@ -283,7 +287,7 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleRevokeMembership}
-                  disabled={revoking || user.membership_status !== 'active'}
+                  disabled={revoking || !hasActiveMembership}
                   className="text-xs px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
                   style={{ background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.8)', border: '1px solid rgba(255,255,255,.12)' }}
                 >
