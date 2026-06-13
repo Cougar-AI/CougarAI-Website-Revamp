@@ -122,6 +122,16 @@ class PointsService(BaseService):
 
             student_id = profile["student_id"]
 
+            if points < 0:
+                cur.execute(
+                    "SELECT COALESCE(SUM(points), 0) AS total FROM points WHERE student_id = %s",
+                    (student_id,),
+                )
+                balance_row = cur.fetchone()
+                current_total = int((balance_row or {}).get("total") or 0)
+                if current_total + points < 0:
+                    return None, f"Cannot deduct {abs(points)} points. This user only has {current_total} points available."
+
             cur.execute(
                 """
                 INSERT INTO points (student_id, event_id, date, points, reason, officer_user_id)

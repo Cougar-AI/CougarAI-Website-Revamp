@@ -200,10 +200,14 @@ class DashboardService(BaseService):
 
             cur.execute(
                 """
-                SELECT payment_id, date, amount, plan_id, stripe_session_id, expires_at
+                SELECT DISTINCT ON (COALESCE(stripe_session_id, CONCAT('payment:', payment_id::text)))
+                    payment_id, date, amount, plan_id, stripe_session_id, expires_at
                 FROM payments
                 WHERE student_id = %s OR email = %s
-                ORDER BY date DESC
+                ORDER BY
+                    COALESCE(stripe_session_id, CONCAT('payment:', payment_id::text)),
+                    date DESC,
+                    payment_id DESC
                 """,
                 (profile["student_id"] if profile else None, user["email"] if user else None),
             )
