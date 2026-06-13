@@ -409,7 +409,7 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
                     subject="Your CougarAI Membership is Confirmed!",
                     text_body=(
                         f"Your {plan_label} is now active.\n\n"
-                        f"Amount: ${amount}\n"
+                        f"Amount: ${amount:.2f}\n"
                         f"Expires: {exp_str}\n\n"
                         f"View your dashboard: {frontend_url}/dashboard\n"
                         f"Join our Discord: https://discord.gg/ucd5ZnDDnf"
@@ -422,7 +422,7 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
                         f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Plan</td>'
                         f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">{plan_label}</td></tr>'
                         f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Amount</td>'
-                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">${amount}</td></tr>'
+                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">${amount:.2f}</td></tr>'
                         f'<tr><td style="padding:8px 0;color:#888">Expires</td>'
                         f'<td style="padding:8px 0;font-weight:bold">{exp_str}</td></tr>'
                         f'</table>'
