@@ -4,6 +4,12 @@ import { apiPatch, apiPost, apiUpload } from "@/lib/api";
 import type { MeResponse } from "@/pages/Dashboard";
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+const GRADE_LEVEL_OPTIONS = ["freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"] as const;
+
+function normalizeGradeLevel(value?: string | null) {
+  const normalized = (value || "").trim().toLowerCase();
+  return GRADE_LEVEL_OPTIONS.includes(normalized as (typeof GRADE_LEVEL_OPTIONS)[number]) ? normalized : "";
+}
 
 function DiscordIcon() {
   return (
@@ -93,7 +99,7 @@ function ProfileEditor({ meData, onRefresh }: { meData: MeResponse; onRefresh: (
     first_name: profile.first_name ?? "",
     last_name: profile.last_name ?? "",
     preferred_email: profile.preferred_email ?? "",
-    grade_level: profile.grade_level ?? "",
+    grade_level: normalizeGradeLevel(profile.grade_level),
     major: profile.major ?? "",
     shirt_size: profile.shirt_size ?? "",
     is_public: profile.is_public,
@@ -247,7 +253,7 @@ function ProfileEditor({ meData, onRefresh }: { meData: MeResponse; onRefresh: (
         first_name: form.first_name.trim() || null,
         last_name: form.last_name.trim() || null,
         preferred_email: form.preferred_email.trim() || null,
-        grade_level: form.grade_level || null,
+        grade_level: normalizeGradeLevel(form.grade_level) || null,
         major: form.major.trim() || null,
         shirt_size: form.shirt_size || null,
         is_public: form.is_public,
@@ -365,7 +371,7 @@ function ProfileEditor({ meData, onRefresh }: { meData: MeResponse; onRefresh: (
               style={{ colorScheme: "dark" }}
             >
               <option value="">Select…</option>
-              {["freshman","sophomore","junior","senior","graduate","other"].map((g) => (
+              {GRADE_LEVEL_OPTIONS.map((g) => (
                 <option key={g} value={g}>{g.charAt(0).toUpperCase() + g.slice(1)}</option>
               ))}
             </select>

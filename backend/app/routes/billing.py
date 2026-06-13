@@ -17,10 +17,17 @@ _ALLOWED_PRICE_IDS = {
     "price_1RPA1MQdq5f9y5dIX6qzElLY",   # Yearly   (test)
 }
 
+_ALLOWED_GRADE_LEVELS = {"freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"}
+
 
 def _cors_preflight():
     """Return a 200 response for OPTIONS preflight; headers are added by app after_request hook."""
     return "", 200
+
+
+def _normalize_grade_level(value):
+    normalized = (value or "").strip().lower()
+    return normalized if normalized in _ALLOWED_GRADE_LEVELS else None
 
 
 @members_bp.route("/join", methods=["POST", "OPTIONS"])
@@ -31,7 +38,7 @@ def join_member():
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
     student_id = (data.get("student_id") or "").strip() or None
-    grade_level = (data.get("grade_level") or "").strip() or None
+    grade_level = _normalize_grade_level(data.get("grade_level"))
 
     if not first_name or not last_name:
         current_app.logger.warning("members/join rejected: missing name user_id=%s", user_id)
