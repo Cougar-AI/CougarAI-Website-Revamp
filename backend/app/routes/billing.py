@@ -164,17 +164,23 @@ def create_checkout_session():
             price_id,
             bool(existing_customer_id),
         )
+        plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
         session_kwargs = dict(
             mode="payment",
             line_items=[{"price": price_id, "quantity": 1}],
             metadata={"user_id": str(user_id), "plan_id": str(plan_id or "")},
             success_url=success_url,
             cancel_url=cancel_url,
+            # Stripe sends a branded payment receipt automatically
+            payment_intent_data={
+                "description": f"CougarAI {plan_label}",
+                "statement_descriptor_suffix": "COUGARAI",
+                **({"receipt_email": user_email} if user_email else {}),
+            },
         )
         if existing_customer_id:
             session_kwargs["customer"] = existing_customer_id
         elif user_email:
-            # Stripe will send its own payment receipt to this address automatically
             session_kwargs["customer_email"] = user_email
         session = stripe.checkout.Session.create(**session_kwargs)
         current_app.logger.warning(
