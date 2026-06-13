@@ -384,6 +384,47 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
             stripe_session_id,
             current_role,
         )
+
+        if email_val and expires_at:
+            try:
+                from app.services.mailer import send_email
+                plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
+                exp_str = expires_at.strftime("%B %d, %Y")
+                frontend_url = current_app.config.get("FRONTEND_URL", "https://cougarai.org")
+                send_email(
+                    to_email=email_val,
+                    subject="Your CougarAI Membership is Confirmed!",
+                    text_body=(
+                        f"Your {plan_label} is now active.\n\n"
+                        f"Amount: ${amount}\n"
+                        f"Expires: {exp_str}\n\n"
+                        f"View your dashboard: {frontend_url}/dashboard\n"
+                        f"Join our Discord: https://discord.gg/ucd5ZnDDnf"
+                    ),
+                    html_body=(
+                        f'<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">'
+                        f'<h2 style="color:#b91c1c;margin-bottom:8px">You\'re a CougarAI Member!</h2>'
+                        f'<p style="color:#555;margin-bottom:20px">Your <strong>{plan_label}</strong> is now active.</p>'
+                        f'<table style="width:100%;border-collapse:collapse;margin-bottom:24px">'
+                        f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Plan</td>'
+                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">{plan_label}</td></tr>'
+                        f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Amount</td>'
+                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">${amount}</td></tr>'
+                        f'<tr><td style="padding:8px 0;color:#888">Expires</td>'
+                        f'<td style="padding:8px 0;font-weight:bold">{exp_str}</td></tr>'
+                        f'</table>'
+                        f'<a href="{frontend_url}/dashboard" style="display:inline-block;background:#b91c1c;'
+                        f'color:white;padding:12px 24px;border-radius:8px;text-decoration:none;'
+                        f'font-weight:bold;margin-bottom:16px">View Dashboard</a>'
+                        f'<p style="color:#555;margin-top:16px">Join our '
+                        f'<a href="https://discord.gg/ucd5ZnDDnf" style="color:#b91c1c">Discord</a> '
+                        f'to get your member role and access all channels!</p>'
+                        f'</div>'
+                    ),
+                )
+            except Exception as _mail_err:
+                current_app.logger.warning("billing/finalize-checkout receipt email failed: %s", _mail_err)
+
         return {
             "processed": True,
             "already_processed": False,

@@ -142,7 +142,7 @@ export default function Home() {
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Link
-            to="/Memberships"
+            to="/join"
             className="rounded-xl bg-red-700 px-5 py-3 font-semibold text-white shadow-sm ring-1 ring-black/5 transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-400 font-['Oxanium']"
           >
             Become a member
