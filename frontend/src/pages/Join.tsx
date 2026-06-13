@@ -392,7 +392,7 @@ export default function JoinUs() {
         "/billing/create-checkout-session",
         {
           price_id: selectedPlan.priceId,
-          plan_id: selectedPlan.dbPlanId,
+          plan_id: selectedPlan.id,
           success_url: success,
           cancel_url: cancel,
         }

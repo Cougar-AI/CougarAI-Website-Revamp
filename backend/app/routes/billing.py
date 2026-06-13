@@ -139,17 +139,20 @@ def create_checkout_session():
         current_app.logger.error("billing/create-checkout-session stripe not configured user_id=%s", user_id)
         return jsonify({"error": "Stripe is not configured"}), 500
 
-    # Look up existing Stripe customer ID so returning members skip re-entering payment details
+    # Look up existing Stripe customer ID and email
     existing_customer_id = None
+    user_email = None
     try:
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT stripe_customer_id FROM users WHERE user_id = %s",
+                "SELECT stripe_customer_id, email FROM users WHERE user_id = %s",
                 (user_id,),
             )
             row = cur.fetchone()
-            existing_customer_id = row["stripe_customer_id"] if row else None
+            if row:
+                existing_customer_id = row["stripe_customer_id"]
+                user_email = row["email"]
     except Exception:
         current_app.logger.exception("billing/create-checkout-session failed looking up customer user_id=%s", user_id)
 
@@ -161,15 +164,24 @@ def create_checkout_session():
             price_id,
             bool(existing_customer_id),
         )
+        plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
         session_kwargs = dict(
             mode="payment",
             line_items=[{"price": price_id, "quantity": 1}],
             metadata={"user_id": str(user_id), "plan_id": str(plan_id or "")},
             success_url=success_url,
             cancel_url=cancel_url,
+            # Stripe sends a branded payment receipt automatically
+            payment_intent_data={
+                "description": f"CougarAI {plan_label}",
+                "statement_descriptor_suffix": "COUGARAI",
+                **({"receipt_email": user_email} if user_email else {}),
+            },
         )
         if existing_customer_id:
             session_kwargs["customer"] = existing_customer_id
+        elif user_email:
+            session_kwargs["customer_email"] = user_email
         session = stripe.checkout.Session.create(**session_kwargs)
         current_app.logger.warning(
             "billing/create-checkout-session success user_id=%s session_id=%s url=%s",
@@ -385,7 +397,8 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
             current_role,
         )
 
-        if email_val and expires_at:
+        smtp_configured = bool(current_app.config.get("SMTP_HOST", "").strip() not in ("", "localhost"))
+        if email_val and expires_at and smtp_configured:
             try:
                 from app.services.mailer import send_email
                 plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
@@ -396,7 +409,7 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
                     subject="Your CougarAI Membership is Confirmed!",
                     text_body=(
                         f"Your {plan_label} is now active.\n\n"
-                        f"Amount: ${amount}\n"
+                        f"Amount: ${amount:.2f}\n"
                         f"Expires: {exp_str}\n\n"
                         f"View your dashboard: {frontend_url}/dashboard\n"
                         f"Join our Discord: https://discord.gg/ucd5ZnDDnf"
@@ -409,7 +422,7 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
                         f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Plan</td>'
                         f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">{plan_label}</td></tr>'
                         f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Amount</td>'
-                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">${amount}</td></tr>'
+                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">${amount:.2f}</td></tr>'
                         f'<tr><td style="padding:8px 0;color:#888">Expires</td>'
                         f'<td style="padding:8px 0;font-weight:bold">{exp_str}</td></tr>'
                         f'</table>'
