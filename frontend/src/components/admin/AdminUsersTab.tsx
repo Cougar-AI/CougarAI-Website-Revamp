@@ -113,6 +113,8 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
   const [extendNote, setExtendNote] = useState('');
   const [extending, setExtending] = useState(false);
   const [extendError, setExtendError] = useState('');
+  const [revoking, setRevoking] = useState(false);
+  const [revokeError, setRevokeError] = useState('');
 
   const currentUser = getStoredUser();
   const isAdmin = currentUser?.role === 'admin';
@@ -151,6 +153,20 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
       setExtendError(err?.message ?? 'Failed to extend');
     } finally {
       setExtending(false);
+    }
+  }
+
+  async function handleRevokeMembership() {
+    setRevoking(true);
+    setRevokeError('');
+    try {
+      await apiDelete(`/admin/users/${user.user_id}/membership`);
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+      qc.invalidateQueries({ queryKey: ['admin-user-detail', user.user_id] });
+    } catch (err: any) {
+      setRevokeError(err?.message ?? 'Failed to remove membership');
+    } finally {
+      setRevoking(false);
     }
   }
 
@@ -264,15 +280,26 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-white/50 uppercase tracking-wide">Payment History</p>
             {isAdmin && (
-              <button
-                onClick={() => setShowExtend(!showExtend)}
-                className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-colors"
-                style={{ background: 'rgba(185,28,28,.15)', color: 'rgba(248,113,113,.8)', border: '1px solid rgba(185,28,28,.2)' }}
-              >
-                <CalendarPlus size={11} /> Manually Extend
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRevokeMembership}
+                  disabled={revoking || user.membership_status !== 'active'}
+                  className="text-xs px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
+                  style={{ background: 'rgba(255,255,255,.06)', color: 'rgba(255,255,255,.8)', border: '1px solid rgba(255,255,255,.12)' }}
+                >
+                  {revoking ? 'Removing…' : 'Remove Membership'}
+                </button>
+                <button
+                  onClick={() => setShowExtend(!showExtend)}
+                  className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg transition-colors"
+                  style={{ background: 'rgba(185,28,28,.15)', color: 'rgba(248,113,113,.8)', border: '1px solid rgba(185,28,28,.2)' }}
+                >
+                  <CalendarPlus size={11} /> Manually Extend
+                </button>
+              </div>
             )}
           </div>
+          {revokeError && <p className="text-red-400 text-xs mb-2">{revokeError}</p>}
 
           {/* Manual extend form — admin only */}
           {isAdmin && showExtend && (

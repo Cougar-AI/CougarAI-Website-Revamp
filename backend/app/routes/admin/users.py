@@ -127,3 +127,16 @@ def admin_set_membership(user_id):
         return jsonify({"error": "User not found"}), 404
 
     return jsonify({"message": "Membership manually granted"}), 200
+
+
+@admin_bp.route("/users/<int:user_id>/membership", methods=["DELETE", "OPTIONS"])
+@require_admin
+def admin_revoke_membership(user_id):
+    svc = UserService(get_db())
+    result = svc.revoke_membership(user_id)
+    if not result:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({
+        "message": "Membership removed",
+        "deleted_payments": result["deleted_payments"],
+    }), 200

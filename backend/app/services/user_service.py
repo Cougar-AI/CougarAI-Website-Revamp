@@ -320,3 +320,45 @@ class UserService(BaseService):
             )
             self.conn.commit()
         return user
+
+    def revoke_membership(self, user_id: int) -> dict | None:
+        with self.cursor() as cur:
+            cur.execute(
+                """
+                SELECT u.user_id, u.email, u.role, p.student_id
+                FROM users u
+                LEFT JOIN profile p ON p.user_id = u.user_id
+                WHERE u.user_id = %s
+                """,
+                (user_id,),
+            )
+            user = cur.fetchone()
+            if not user:
+                return None
+
+            cur.execute(
+                """
+                DELETE FROM payments
+                WHERE expires_at >= CURRENT_DATE
+                  AND (
+                    student_id = %s
+                    OR LOWER(email) = LOWER(%s)
+                  )
+                RETURNING payment_id
+                """,
+                (user["student_id"], user["email"]),
+            )
+            deleted_rows = cur.fetchall()
+
+            if user["role"] == "member":
+                cur.execute(
+                    "UPDATE users SET role = 'non-member' WHERE user_id = %s",
+                    (user_id,),
+                )
+
+            self.conn.commit()
+        return {
+            "user_id": user["user_id"],
+            "deleted_payments": len(deleted_rows),
+            "role": user["role"],
+        }
