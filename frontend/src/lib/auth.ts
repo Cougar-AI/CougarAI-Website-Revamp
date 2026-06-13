@@ -49,6 +49,16 @@ export function getStoredUser(): StoredUser | null {
   }
 }
 
+export function updateStoredUser(user: StoredUser) {
+  try {
+    const store = window.localStorage.getItem("access_token") ? window.localStorage : window.sessionStorage;
+    store.setItem("user", JSON.stringify(user));
+  } catch {
+    // Ignore storage failures.
+  }
+  window.dispatchEvent(new Event(AUTH_EVENT));
+}
+
 export function hasAccessToken() {
   return Boolean(window.localStorage.getItem("access_token") ?? window.sessionStorage.getItem("access_token"));
 }

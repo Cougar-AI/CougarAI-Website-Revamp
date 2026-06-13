@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
-import { hasAccessToken } from "@/lib/auth";
+import { getStoredUser, hasAccessToken, updateStoredUser } from "@/lib/auth";
+import { apiGet, apiPost } from "@/lib/api";
 
 /**
  * JoinUs page (aligned with Memberships page)
@@ -21,7 +22,7 @@ import { hasAccessToken } from "@/lib/auth";
  *    Returns: { user_id }
  *
  * 2) POST /api/billing/create-checkout-session
- *    Body: { price_id, user_id, plan_id, success_url, cancel_url }
+ *    Body: { price_id, plan_id, success_url, cancel_url }
  *    Returns: { sessionId } OR { url }
  *
  * ENV:
@@ -34,8 +35,6 @@ const PUBLISHABLE_KEY = (
     ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY
     : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
 ) as string | undefined;
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
-
 const PRICE_IDS = {
   semester: { live: "price_1S4sVLH2XIQuLIalBvif5rrs", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
   yearly:   { live: "price_1S0ylVH2XIQuLIalbpMXxrV9", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
@@ -84,7 +83,76 @@ const NEXT_STEPS = [
   { step: "3", title: "Attend an event", text: "Check the calendar for upcoming workshops, build nights, and speaker events.", link: { label: "View calendar →", href: "/calendar" } },
 ];
 
+type DashboardMe = {
+  user_id: number;
+  email: string;
+  role: string;
+  profile?: {
+    student_id?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    preferred_email?: string | null;
+    grade_level?: string | null;
+  } | null;
+  membership?: {
+    status?: string;
+    expires_at?: string | null;
+    plan_id?: string | null;
+  } | null;
+};
+
 function SuccessView() {
+  useEffect(() => {
+    if (!hasAccessToken()) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id")?.trim() || "";
+    let attempts = 0;
+    let stopped = false;
+    let intervalId: number | null = null;
+
+    async function confirmSession() {
+      if (!sessionId) return;
+      try {
+        await apiPost("/billing/checkout-session/confirm", { session_id: sessionId });
+      } catch {
+        // If webhook already handled it or Stripe is still finalizing, polling /dashboard/me below can still recover.
+      }
+    }
+
+    async function syncRole() {
+      try {
+        const me = await apiGet<DashboardMe>("/dashboard/me");
+        const stored = getStoredUser();
+        if (stored) {
+          updateStoredUser({
+            ...stored,
+            user_id: me.user_id,
+            email: me.email,
+            role: me.role,
+            onboarding_completed: stored.onboarding_completed ?? me.role !== "non-member",
+          });
+        }
+        if (me.membership?.status === "active" || me.role !== "non-member") {
+          stopped = true;
+        }
+      } catch {
+        // Ignore transient webhook timing or auth refresh issues here.
+      } finally {
+        attempts += 1;
+        if (intervalId !== null && (stopped || attempts >= 5)) {
+          window.clearInterval(intervalId);
+        }
+      }
+    }
+
+    confirmSession().finally(syncRole);
+    intervalId = window.setInterval(syncRole, 2000);
+    return () => {
+      if (intervalId !== null) window.clearInterval(intervalId);
+    };
+  }, []);
+
   return (
     <div className="mx-auto max-w-3xl text-white">
       <div className="text-center mb-10">
@@ -244,6 +312,33 @@ export default function JoinUs() {
 
   const selectedPlan = useMemo(() => PLANS.find((p) => p.id === plan)!, [plan]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfileDefaults() {
+      try {
+        const me = await apiGet<DashboardMe>("/dashboard/me");
+        if (cancelled) return;
+
+        const profile = me.profile;
+        const fallbackEmail = profile?.preferred_email?.trim() || me.email || "";
+
+        setFirst((current) => current || profile?.first_name?.trim() || "");
+        setLast((current) => current || profile?.last_name?.trim() || "");
+        setEmail((current) => current || fallbackEmail);
+        setStudent_id((current) => current || profile?.student_id?.trim() || "");
+        setGradLevel((current) => current || profile?.grade_level?.trim() || "");
+      } catch {
+        // If the profile isn't available yet, leave the form empty and let the user continue manually.
+      }
+    }
+
+    loadProfileDefaults();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   async function ensureStripe() {
     if (!PUBLISHABLE_KEY) throw new Error("Missing VITE_STRIPE_PUBLISHABLE_KEY");
     const stripe = await loadStripe(PUBLISHABLE_KEY);
@@ -257,7 +352,8 @@ export default function JoinUs() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "Please enter a valid email.";
     if (!agree) return "Please agree to the Code of Conduct.";
     if (!gradLevel) return "Please select your academic level.";
-    if (student_id && !/^\d{6,}$/.test(student_id)) return "Student ID looks off—use numbers only.";
+    if (!student_id.trim()) return "Please enter your UH student ID before purchasing membership.";
+    if (!/^\d{6,}$/.test(student_id)) return "Student ID looks off—use numbers only.";
     if (!selectedPlan.priceId) return "Missing Stripe price for selected plan."; // safety
     return null;
   }
@@ -275,47 +371,32 @@ export default function JoinUs() {
     setSubmitting(true);
     try {
       // 1) Create/attach member on backend
-      const res = await fetch(`${BACKEND}/members/join`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await apiPost<{ user_id: number }>(
+        "/members/join",
+        {
           first_name: first.trim(),
           last_name: last.trim(),
           email: email.trim(),
           student_id: student_id || undefined,
           grade_level: gradLevel || undefined,
           plan_id: selectedPlan.dbPlanId,
-        }),
-      });
-
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || `Join failed (${res.status})`);
-      }
-      const { user_id } = await res.json();
+        }
+      );
 
       // 2) Start Stripe Checkout
-      const success = new URL(window.location.href);
-      success.searchParams.set("status", "success");
-      const cancel = new URL(window.location.href);
-      cancel.searchParams.set("status", "canceled");
+      const base = new URL(window.location.href);
+      const success = `${base.origin}${base.pathname}?status=success&session_id={CHECKOUT_SESSION_ID}`;
+      const cancel = `${base.origin}${base.pathname}?status=canceled`;
 
-      const r2 = await fetch(`${BACKEND}/billing/create-checkout-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const data = await apiPost<{ sessionId?: string; url?: string }>(
+        "/billing/create-checkout-session",
+        {
           price_id: selectedPlan.priceId,
-          user_id,
           plan_id: selectedPlan.dbPlanId,
-          success_url: success.toString(),
-          cancel_url: cancel.toString(),
-        }),
-      });
-      if (!r2.ok) {
-        const t = await r2.text();
-        throw new Error(t || `Stripe session failed (${r2.status})`);
-      }
-      const data = await r2.json();
+          success_url: success,
+          cancel_url: cancel,
+        }
+      );
 
       if (data.sessionId) {
         const stripe = await ensureStripe();
@@ -454,11 +535,11 @@ export default function JoinUs() {
 
             <div>
               <label htmlFor="student_id" className={labelCls}>
-                UH Student ID <span className="normal-case text-white/35 font-normal">(optional)</span>
+                UH Student ID <span className="normal-case text-white/35 font-normal">(required)</span>
               </label>
               <input id="student_id" inputMode="numeric" maxLength={7}
                 value={student_id} onChange={(e) => setStudent_id(e.target.value.replace(/[^0-9]/g, ""))}
-                placeholder="1234567" autoComplete="off"
+                placeholder="1234567" autoComplete="off" required
                 className={inputCls} style={inputStyle} onFocus={inputFocus} onBlur={inputBlur} />
             </div>
 
