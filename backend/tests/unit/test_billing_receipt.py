@@ -72,7 +72,7 @@ def test_receipt_email_sent_semester(app):
     assert kwargs["to_email"] == "member@test.com"
     assert "Confirmed" in kwargs["subject"]
     assert "Semester Membership" in kwargs["text_body"]
-    assert "15.0" in kwargs["text_body"]
+    assert "15.00" in kwargs["text_body"]
     assert "Semester Membership" in kwargs["html_body"]
 
 
