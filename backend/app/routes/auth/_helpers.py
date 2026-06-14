@@ -125,6 +125,8 @@ def _send_verify_email(user_id: int, email: str):
         "Welcome!\n\n"
         "Please verify your email address using this link:\n"
         f"{url}\n\n"
+        "Or copy this token into the app:\n"
+        f"{token}\n\n"
         "This link expires in 24 hours."
     )
     html_body = f"""

@@ -404,8 +404,9 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
             current_role,
         )
 
+        mailer_backend = str(current_app.config.get("MAILER_BACKEND", "smtp")).strip().lower()
         smtp_configured = bool(current_app.config.get("SMTP_HOST", "").strip() not in ("", "localhost"))
-        if email_val and expires_at and smtp_configured:
+        if email_val and expires_at and (mailer_backend == "console" or smtp_configured):
             try:
                 from app.services.mailer import send_email
                 plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
