@@ -131,11 +131,10 @@ def _send_verify_email(user_id: int, email: str):
     )
     html_body = f"""
     <p>Welcome!</p>
-    <p>Please verify your email address by clicking:</p>
-    <p><a href="{url}">Verify Email</a></p>
-    <p>Or copy this token into the app:</p>
-    <pre style="white-space:pre-wrap;word-break:break-all">{token}</pre>
-    <p><small>Expires in 24 hours.</small></p>
+    <p>Please verify your email address by clicking the button below:</p>
+    <p><a href="{url}" style="display:inline-block;background:#b91c1c;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Verify Email</a></p>
+    <p><small>Expires in 24 hours. If the button doesn't work, paste this URL into your browser:</small></p>
+    <p><small style="word-break:break-all">{url}</small></p>
     """
     send_email(email, subject, text_body, html_body)
 
@@ -152,15 +151,15 @@ def _send_reset_email(user_id: int, email: str):
         "We received a request to reset your password.\n\n"
         "Use this link within 30 minutes:\n"
         f"{url}\n\n"
-        "Or paste this token in the app:\n"
-        f"{token}\n"
+        "If you didn't request this, you can ignore this email."
     )
     html_body = f"""
     <p>We received a request to reset your password.</p>
-    <p>Use this link within 30 minutes:</p>
-    <p><a href="{url}">Reset Password</a></p>
-    <p>Or paste this token in the app:</p>
-    <pre style="white-space:pre-wrap;word-break:break-all">{token}</pre>
+    <p>Click the button below — this link expires in 30 minutes:</p>
+    <p><a href="{url}" style="display:inline-block;background:#b91c1c;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold">Reset Password</a></p>
+    <p><small>If the button doesn't work, paste this URL into your browser:</small></p>
+    <p><small style="word-break:break-all">{url}</small></p>
+    <p><small>If you didn't request this, you can safely ignore this email.</small></p>
     """
     send_email(email, subject, text_body, html_body)
 

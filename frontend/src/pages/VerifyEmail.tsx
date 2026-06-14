@@ -37,6 +37,9 @@ export default function VerifyEmail() {
     <main className="relative min-h-screen font-['Oxanium'] flex items-center justify-center px-4">
       <div className="w-full max-w-md rounded-2xl bg-white/5 border border-white/10 p-8 backdrop-blur text-center">
         <h1 className="text-2xl font-semibold text-white mb-4">Verify Your Email</h1>
+        <p className="mb-5 text-sm text-white/55">
+          If you don't see the verification email, check your spam or promotions folder.
+        </p>
 
         {status === "loading" && (
           <p className="text-white/60">Verifying your email…</p>

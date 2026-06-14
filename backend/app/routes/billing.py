@@ -17,10 +17,17 @@ _ALLOWED_PRICE_IDS = {
     "price_1RPA1MQdq5f9y5dIX6qzElLY",   # Yearly   (test)
 }
 
+_ALLOWED_GRADE_LEVELS = {"freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"}
+
 
 def _cors_preflight():
     """Return a 200 response for OPTIONS preflight; headers are added by app after_request hook."""
     return "", 200
+
+
+def _normalize_grade_level(value):
+    normalized = (value or "").strip().lower()
+    return normalized if normalized in _ALLOWED_GRADE_LEVELS else None
 
 
 @members_bp.route("/join", methods=["POST", "OPTIONS"])
@@ -31,7 +38,7 @@ def join_member():
     first_name = (data.get("first_name") or "").strip()
     last_name = (data.get("last_name") or "").strip()
     student_id = (data.get("student_id") or "").strip() or None
-    grade_level = (data.get("grade_level") or "").strip() or None
+    grade_level = _normalize_grade_level(data.get("grade_level"))
 
     if not first_name or not last_name:
         current_app.logger.warning("members/join rejected: missing name user_id=%s", user_id)
@@ -139,17 +146,20 @@ def create_checkout_session():
         current_app.logger.error("billing/create-checkout-session stripe not configured user_id=%s", user_id)
         return jsonify({"error": "Stripe is not configured"}), 500
 
-    # Look up existing Stripe customer ID so returning members skip re-entering payment details
+    # Look up existing Stripe customer ID and email
     existing_customer_id = None
+    user_email = None
     try:
         conn = get_db()
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT stripe_customer_id FROM users WHERE user_id = %s",
+                "SELECT stripe_customer_id, email FROM users WHERE user_id = %s",
                 (user_id,),
             )
             row = cur.fetchone()
-            existing_customer_id = row["stripe_customer_id"] if row else None
+            if row:
+                existing_customer_id = row["stripe_customer_id"]
+                user_email = row["email"]
     except Exception:
         current_app.logger.exception("billing/create-checkout-session failed looking up customer user_id=%s", user_id)
 
@@ -161,15 +171,24 @@ def create_checkout_session():
             price_id,
             bool(existing_customer_id),
         )
+        plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
         session_kwargs = dict(
             mode="payment",
             line_items=[{"price": price_id, "quantity": 1}],
             metadata={"user_id": str(user_id), "plan_id": str(plan_id or "")},
             success_url=success_url,
             cancel_url=cancel_url,
+            # Stripe sends a branded payment receipt automatically
+            payment_intent_data={
+                "description": f"CougarAI {plan_label}",
+                "statement_descriptor_suffix": "COUGARAI",
+                **({"receipt_email": user_email} if user_email else {}),
+            },
         )
         if existing_customer_id:
             session_kwargs["customer"] = existing_customer_id
+        elif user_email:
+            session_kwargs["customer_email"] = user_email
         session = stripe.checkout.Session.create(**session_kwargs)
         current_app.logger.warning(
             "billing/create-checkout-session success user_id=%s session_id=%s url=%s",
@@ -384,6 +403,49 @@ def _finalize_completed_checkout(session: dict, source: str, expected_user_id: O
             stripe_session_id,
             current_role,
         )
+
+        mailer_backend = str(current_app.config.get("MAILER_BACKEND", "smtp")).strip().lower()
+        smtp_configured = bool(current_app.config.get("SMTP_HOST", "").strip() not in ("", "localhost"))
+        if email_val and expires_at and (mailer_backend == "console" or smtp_configured):
+            try:
+                from app.services.mailer import send_email
+                plan_label = "Yearly Membership" if plan_id == "yearly" else "Semester Membership"
+                exp_str = expires_at.strftime("%B %d, %Y")
+                frontend_url = current_app.config.get("FRONTEND_URL", "https://cougarai.org")
+                send_email(
+                    to_email=email_val,
+                    subject="Your CougarAI Membership is Confirmed!",
+                    text_body=(
+                        f"Your {plan_label} is now active.\n\n"
+                        f"Amount: ${amount:.2f}\n"
+                        f"Expires: {exp_str}\n\n"
+                        f"View your dashboard: {frontend_url}/dashboard\n"
+                        f"Join our Discord: https://discord.gg/ucd5ZnDDnf"
+                    ),
+                    html_body=(
+                        f'<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:24px">'
+                        f'<h2 style="color:#b91c1c;margin-bottom:8px">You\'re a CougarAI Member!</h2>'
+                        f'<p style="color:#555;margin-bottom:20px">Your <strong>{plan_label}</strong> is now active.</p>'
+                        f'<table style="width:100%;border-collapse:collapse;margin-bottom:24px">'
+                        f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Plan</td>'
+                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">{plan_label}</td></tr>'
+                        f'<tr><td style="padding:8px 0;color:#888;border-bottom:1px solid #eee">Amount</td>'
+                        f'<td style="padding:8px 0;font-weight:bold;border-bottom:1px solid #eee">${amount:.2f}</td></tr>'
+                        f'<tr><td style="padding:8px 0;color:#888">Expires</td>'
+                        f'<td style="padding:8px 0;font-weight:bold">{exp_str}</td></tr>'
+                        f'</table>'
+                        f'<a href="{frontend_url}/dashboard" style="display:inline-block;background:#b91c1c;'
+                        f'color:white;padding:12px 24px;border-radius:8px;text-decoration:none;'
+                        f'font-weight:bold;margin-bottom:16px">View Dashboard</a>'
+                        f'<p style="color:#555;margin-top:16px">Join our '
+                        f'<a href="https://discord.gg/ucd5ZnDDnf" style="color:#b91c1c">Discord</a> '
+                        f'to get your member role and access all channels!</p>'
+                        f'</div>'
+                    ),
+                )
+            except Exception as _mail_err:
+                current_app.logger.warning("billing/finalize-checkout receipt email failed: %s", _mail_err)
+
         return {
             "processed": True,
             "already_processed": False,

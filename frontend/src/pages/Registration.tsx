@@ -229,7 +229,7 @@ export default function Registration({
 
         persistAuthSession(data.access_token, { ...data.user, provider: "google" }, true);
         const from = (location.state as any)?.from as string | undefined;
-        navigate(from && from !== "/register" ? from : "/", { replace: true });
+        navigate(from && from !== "/register" ? from : "/dashboard", { replace: true });
       } catch (err: any) {
         const status = err?.status as number | undefined;
         if (status === 401) {

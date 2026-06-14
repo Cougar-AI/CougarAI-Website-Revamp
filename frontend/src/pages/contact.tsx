@@ -122,7 +122,7 @@ export default function Contact() {
       {/* Bottom cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {[
-          { label: "New here?", title: "Become a member", desc: "Join workshops, projects, and a friendly community.", to: "/memberships" },
+          { label: "New here?", title: "Become a member", desc: "Join workshops, projects, and a friendly community.", to: "/join" },
           { label: "Partner with us", title: "Sponsorships", desc: "Collaborate on events, talks, and student projects.", to: "/sponsorships" },
         ].map((c) => (
           <Link

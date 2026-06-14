@@ -398,7 +398,7 @@ export default function About() {
           <section style={glass}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
               <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 22, margin: 0, color: "#fff" }}>Our Officers</h2>
-              <Link to="/memberships" style={{ background: "#b91c1c", color: "#fff", padding: "9px 20px", borderRadius: 10, fontWeight: 600, fontSize: 13.5, boxShadow: "0 0 16px rgba(185,28,28,.4)", display: "inline-block", textDecoration: "none" }}>
+              <Link to="/join" style={{ background: "#b91c1c", color: "#fff", padding: "9px 20px", borderRadius: 10, fontWeight: 600, fontSize: 13.5, boxShadow: "0 0 16px rgba(185,28,28,.4)", display: "inline-block", textDecoration: "none" }}>
                 Join CougarAI
               </Link>
             </div>

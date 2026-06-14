@@ -9,7 +9,11 @@ def send_email(to_email: str, subject: str, text_body: str, html_body: Optional[
         current_app.logger.info("=== CONSOLE MAIL ===\nTo: %s\nSubject: %s\n\n%s", to_email, subject, text_body)
         return
 
-    host = current_app.config["SMTP_HOST"]
+    host = (current_app.config.get("SMTP_HOST") or "").strip()
+    if not host or host == "localhost":
+        current_app.logger.warning("send_email skipped — SMTP_HOST not configured (to=%s subject=%s)", to_email, subject)
+        return
+
     port = current_app.config["SMTP_PORT"]
     user = current_app.config.get("SMTP_USER") or None
     password = current_app.config.get("SMTP_PASSWORD") or None

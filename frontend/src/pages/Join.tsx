@@ -71,6 +71,13 @@ const PLANS = [
 
 type PlanId = typeof PLANS[number]["id"];
 
+const GRADE_LEVEL_OPTIONS = ["freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"] as const;
+
+function normalizeGradeLevel(value?: string | null) {
+  const normalized = (value || "").trim().toLowerCase();
+  return GRADE_LEVEL_OPTIONS.includes(normalized as (typeof GRADE_LEVEL_OPTIONS)[number]) ? normalized : "";
+}
+
 const Check = () => (
   <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ width: 14, height: 14 }}>
     <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -327,7 +334,7 @@ export default function JoinUs() {
         setLast((current) => current || profile?.last_name?.trim() || "");
         setEmail((current) => current || fallbackEmail);
         setStudent_id((current) => current || profile?.student_id?.trim() || "");
-        setGradLevel((current) => current || profile?.grade_level?.trim() || "");
+        setGradLevel((current) => current || normalizeGradeLevel(profile?.grade_level));
       } catch {
         // If the profile isn't available yet, leave the form empty and let the user continue manually.
       }
@@ -378,7 +385,7 @@ export default function JoinUs() {
           last_name: last.trim(),
           email: email.trim(),
           student_id: student_id || undefined,
-          grade_level: gradLevel || undefined,
+          grade_level: normalizeGradeLevel(gradLevel) || undefined,
           plan_id: selectedPlan.dbPlanId,
         }
       );
@@ -392,7 +399,7 @@ export default function JoinUs() {
         "/billing/create-checkout-session",
         {
           price_id: selectedPlan.priceId,
-          plan_id: selectedPlan.dbPlanId,
+          plan_id: selectedPlan.id,
           success_url: success,
           cancel_url: cancel,
         }
@@ -549,13 +556,11 @@ export default function JoinUs() {
                 className={inputCls} style={{ ...inputStyle, background: 'rgba(0,0,0,.5)' }}
                 onFocus={inputFocus} onBlur={inputBlur}>
                 <option value="">Select level…</option>
-                <option value="Freshman">Freshman</option>
-                <option value="Sophomore">Sophomore</option>
-                <option value="Junior">Junior</option>
-                <option value="Senior">Senior</option>
-                <option value="Graduate">Graduate</option>
-                <option value="Alumni">Alumni</option>
-                <option value="Other">Other</option>
+                {GRADE_LEVEL_OPTIONS.map((level) => (
+                  <option key={level} value={level}>
+                    {level.charAt(0).toUpperCase() + level.slice(1)}
+                  </option>
+                ))}
               </select>
             </div>
 
