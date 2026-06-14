@@ -52,8 +52,13 @@ def register():
 
     try:
         _send_verify_email(row["user_id"], email_raw)
-    except Exception as e:
-        current_app.logger.error("Send verify mail failed for %s: %r", email_raw, e)
+    except Exception:
+        current_app.logger.exception("Send verify mail failed for %s", email_raw)
+        return jsonify({
+            "ok": False,
+            "error": "verification_email_failed",
+            "message": "Your account was created, but we couldn't send the verification email. Please try the resend option in a moment.",
+        }), 502
 
     return jsonify({"ok": True}), 201
 
@@ -141,8 +146,8 @@ def resend_verification():
             ).mappings().first()
         if user and user["email_verified_at"] is None:
             _send_verify_email(user["user_id"], email)
-    except Exception as e:
-        current_app.logger.error("Resend verify failed for %s: %r", email, e)
+    except Exception:
+        current_app.logger.exception("Resend verify failed for %s", email)
 
     return jsonify({"ok": True}), 200
 
@@ -162,8 +167,8 @@ def forgot_password():
                 ).mappings().first()
             if user and user["email_verified_at"] is not None:
                 _send_reset_email(user["user_id"], email)
-        except Exception as e:
-            current_app.logger.error("Forgot-password mail failed for %s: %r", email, e)
+        except Exception:
+            current_app.logger.exception("Forgot-password mail failed for %s", email)
 
     elapsed = time.monotonic() - _start
     if elapsed < 0.2:

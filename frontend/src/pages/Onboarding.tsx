@@ -169,10 +169,12 @@ function StepOne({
       <div>
         <label className="mb-1 block text-sm font-medium text-white/80">UH Student ID</label>
         <input
+          inputMode="numeric"
+          maxLength={7}
           className="w-full rounded-xl bg-white/5 px-3 py-2 text-white ring-1 ring-white/10 focus:outline-none focus:ring-2 focus:ring-red-600/60 placeholder:text-white/30"
           placeholder="1234567"
           value={profile.student_id}
-          onChange={(e) => onChange({ ...profile, student_id: e.target.value })}
+          onChange={(e) => onChange({ ...profile, student_id: e.target.value.replace(/[^0-9]/g, "").slice(0, 7) })}
         />
         <p className="mt-1 text-xs text-white/30">Required for event points tracking.</p>
       </div>
@@ -328,7 +330,7 @@ function StepThree({
           href="/calendar"
           className="flex items-center gap-1.5 text-red-400 hover:text-red-300 transition"
         >
-          <span>View Calendar →</span>
+          <span>View Events →</span>
         </a>
       </div>
 
