@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiDelete } from '@/lib/api';
-import { Users, Calendar, DollarSign, TrendingUp, Star, Clock, Megaphone, X, Trash2, RefreshCw } from 'lucide-react';
+import { Users, Calendar, DollarSign, TrendingUp, Star, Clock, Megaphone, Trash2, RefreshCw } from 'lucide-react';
 import { formatDate } from '@/lib/dates';
 
 interface AdminStats {
@@ -19,13 +19,11 @@ function StatCard({
   label,
   value,
   sub,
-  color = 'rgba(185,28,28,.7)',
 }: {
   icon: React.FC<{ size?: number }>;
   label: string;
   value: string | number;
   sub?: string;
-  color?: string;
 }) {
   return (
     <div

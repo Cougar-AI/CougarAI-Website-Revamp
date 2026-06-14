@@ -1294,16 +1294,16 @@ function AttendanceDrawer({
                         key={b.ts}
                         className="flex-1 rounded-sm relative group"
                         style={{ height: `${Math.max(b.pct, 8)}%`, background: 'rgba(185,28,28,.5)', minWidth: 4 }}
-                        title={`${formatTime(b.ts)}: ${b.count}`}
+                        title={`${formatTime(new Date(b.ts))}: ${b.count}`}
                       />
                     ))}
                   </div>
                   <div className="flex justify-between mt-1">
                     <span className="text-[10px] text-white/20">
-                      {formatTime(timeline[0].ts)}
+                      {formatTime(new Date(timeline[0].ts))}
                     </span>
                     <span className="text-[10px] text-white/20">
-                      {formatTime(timeline[timeline.length - 1].ts)}
+                      {formatTime(new Date(timeline[timeline.length - 1].ts))}
                     </span>
                   </div>
                 </div>

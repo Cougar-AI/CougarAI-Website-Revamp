@@ -536,7 +536,7 @@ export default function AdminSponsorsTab() {
                       <div className="text-sm font-semibold text-white truncate font-['Oxanium']">{s.name}</div>
                       <span
                         className="text-xs px-2 py-0.5 rounded-full mt-0.5 inline-block"
-                        style={ts}
+                        style={{ background: ts.bg, color: ts.text }}
                       >
                         {s.tier}
                       </span>

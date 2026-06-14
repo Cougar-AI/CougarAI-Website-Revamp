@@ -1,10 +1,7 @@
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Navigation, Autoplay, Pagination } from 'swiper/modules'
-// @ts-expect-error — swiper v11 CSS exports lack TS declarations
 import 'swiper/css'
-// @ts-expect-error — swiper v11 CSS exports lack TS declarations
 import 'swiper/css/navigation'
-// @ts-expect-error — swiper v11 CSS exports lack TS declarations
 import 'swiper/css/pagination'
 import './Slideshow.css'
 

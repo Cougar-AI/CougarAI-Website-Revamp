@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
-import { Plus, Edit2, X, ExternalLink, Building2, Trash2, Users, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, X, ExternalLink, Building2, Trash2, Users } from 'lucide-react';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 

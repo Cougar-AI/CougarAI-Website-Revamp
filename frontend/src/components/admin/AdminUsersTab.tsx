@@ -174,8 +174,6 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
     }
   }
 
-  const formatDateLocal = (d: string | null) => (d ? formatDate(d) : '—');
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -422,8 +420,6 @@ export default function AdminUsersTab() {
     border: '1px solid rgba(185,28,28,.22)',
     backdropFilter: 'blur(10px)',
   };
-
-  const formatDateLocal = (d: string | null) => (d ? formatDate(d) : '—');
 
   return (
     <>

@@ -251,9 +251,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
     if (!evId) return;
     setLoadingAttendees(true);
     try {
-      const res = await import('@/lib/api').then((m) =>
-        m.apiGet<{ attendance_count: number; attendees: AttendeeUser[] }>(`/admin/events/${evId}/attendance`)
-      );
+      const res = await apiGet<{ attendance_count: number; attendees: AttendeeUser[] }>(`/admin/events/${evId}/attendance`);
       const ev = eventsData?.events.find((e) => String(e.event_id) === evId);
       const newUsers: UserSearchResult[] = res.attendees
         .filter((a) => a.user_id)

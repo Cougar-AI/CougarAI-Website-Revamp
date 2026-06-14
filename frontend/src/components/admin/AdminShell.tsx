@@ -40,9 +40,6 @@ const OFFICER_TABS: TabDef[] = [
   { id: 'checkin',     label: 'Check-In',     icon: UserCheck },
 ];
 
-const ADMIN_TAB_IDS = new Set<AdminTab>(ADMIN_TABS.map((t) => t.id));
-const OFFICER_TAB_IDS = new Set<AdminTab>(OFFICER_TABS.map((t) => t.id));
-
 interface AdminShellProps {
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
@@ -105,9 +102,6 @@ function TabButton({
 
 export default function AdminShell({ activeTab, onTabChange, children, userRole }: AdminShellProps) {
   const isAdmin = userRole === 'admin';
-
-  const activeIsAdmin = ADMIN_TAB_IDS.has(activeTab);
-  const activeIsOfficer = OFFICER_TAB_IDS.has(activeTab);
 
   const [adminOpen, setAdminOpen] = useState(true);
   const [officerOpen, setOfficerOpen] = useState(true);

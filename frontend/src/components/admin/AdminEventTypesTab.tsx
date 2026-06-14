@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import { Plus, Edit2, X, Tag } from 'lucide-react';
 
 interface EventType {
@@ -194,11 +194,6 @@ export default function AdminEventTypesTab() {
   const toggleActive = useMutation({
     mutationFn: ({ id, active }: { id: number; active: boolean }) =>
       apiPatch(`/admin/event-types/${id}`, { is_active: active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-event-types'] }),
-  });
-
-  const deleteType = useMutation({
-    mutationFn: (id: number) => apiDelete(`/admin/event-types/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-event-types'] }),
   });
 

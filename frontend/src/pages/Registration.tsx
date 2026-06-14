@@ -133,7 +133,6 @@ export default function Registration({
   // Success state
   const [verifySent, setVerifySent] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  const [resendSent, setResendSent] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
 
@@ -300,7 +299,6 @@ export default function Registration({
   async function handleResend() {
     setResendLoading(true);
     await postJSON("/auth/resend-verification", { email: email.trim() }).catch(() => {});
-    setResendSent(true);
     setResendLoading(false);
     setResendCooldown(60);
   }

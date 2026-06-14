@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
-import { BarChart2, Users, TrendingUp, Calendar, X, ChevronUp, ChevronDown, Download } from 'lucide-react';
+import { BarChart2, Users, TrendingUp, Calendar, X, ChevronUp, ChevronDown } from 'lucide-react';
 import { formatDate, formatTime } from '@/lib/dates';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';

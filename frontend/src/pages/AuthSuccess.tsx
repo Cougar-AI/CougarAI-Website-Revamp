@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { getStoredUser, persistAuthSession } from "@/lib/auth";
+import { getStoredUser, persistAuthSession, type StoredUser } from "@/lib/auth";
 
 const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? "";
 
@@ -18,13 +18,17 @@ export default function AuthSuccess() {
     const role = (searchParams.get("role") || "").trim() || undefined;
     const onboardingCompleted = (searchParams.get("onboarding_completed") || "").trim() === "true";
     const provider = (searchParams.get("provider") || "").trim();
+    const typedProvider: StoredUser["provider"] =
+      provider === "google" || provider === "microsoft" || provider === "discord" || provider === "credentials"
+        ? provider
+        : undefined;
     return email && userId
       ? {
           email,
           user_id: userId,
           role,
           onboarding_completed: onboardingCompleted,
-          provider: provider === "microsoft" || provider === "discord" ? provider : undefined,
+          provider: typedProvider,
         }
       : null;
   }, [searchParams]);

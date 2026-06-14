@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import { GraduationCap, FlaskConical, Users, Crown, BookOpen, Megaphone, CalendarDays, Wrench, Globe, Briefcase, Camera, type LucideIcon } from "lucide-react";
 

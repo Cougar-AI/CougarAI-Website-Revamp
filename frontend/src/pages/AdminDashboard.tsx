@@ -19,18 +19,6 @@ import AdminNotificationsTab from '@/components/admin/AdminNotificationsTab';
 import AdminBulkEmailTab from '@/components/admin/AdminBulkEmailTab';
 import AdminSlideshowTab from '@/components/admin/AdminSlideshowTab';
 
-// Phase 2.6 — Event Types (stub until built)
-function StubTab({ label }: { label: string }) {
-  return (
-    <div
-      className="rounded-xl p-12 flex items-center justify-center"
-      style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(185,28,28,.22)' }}
-    >
-      <p className="text-white/30 text-sm font-['Oxanium']">{label} — coming soon</p>
-    </div>
-  );
-}
-
 const ADMIN_TABS: AdminTab[] = ['overview', 'users', 'officers', 'sponsors', 'partners', 'event-types', 'receipts', 'notifications', 'bulk-email', 'slideshow'];
 const OFFICER_TABS: AdminTab[] = ['events', 'event-stats', 'points', 'members', 'progress', 'checkin'];
 const ALL_VALID_TABS: AdminTab[] = [...ADMIN_TABS, ...OFFICER_TABS];
