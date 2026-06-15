@@ -220,7 +220,7 @@ function ConfirmModal({ message, confirmLabel = 'Confirm', danger = false, onCon
   );
 }
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 const _pad = (n: number) => String(n).padStart(2, '0');
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
 
 type Status = "loading" | "success" | "already_verified" | "error";
 

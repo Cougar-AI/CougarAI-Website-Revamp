@@ -33,7 +33,7 @@ interface SlideshowPhoto {
 }
 
 // Add filenames for group photos here. Place image files in frontend/public/
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
 
 interface PublicSponsor {
   sponsor_id: number;

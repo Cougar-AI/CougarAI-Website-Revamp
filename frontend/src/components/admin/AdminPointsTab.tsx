@@ -4,7 +4,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import { Star, TrendingUp, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { formatDate, formatDateTimeFull } from '@/lib/dates';
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 void BACKEND;
 
 // ── Types ──────────────────────────────────────────────────────────────────────

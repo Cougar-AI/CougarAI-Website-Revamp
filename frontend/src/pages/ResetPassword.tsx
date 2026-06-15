@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { setAuthNotice } from "@/lib/auth";
 import logo from "../assets/logo.png";
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
 
 function Spinner() {
   return (

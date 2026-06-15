@@ -25,7 +25,7 @@ type RegisterOk = { ok: true };
 type FieldErrors = { field_errors?: { email?: string[]; password?: string[] } };
 type GoogleAuthOk = { access_token: string; user: { user_id: number; email: string; role?: string; onboarding_completed?: boolean } };
 
-const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
+const API_BASE = (import.meta.env?.VITE_BACKEND_API_URL ?? "").replace(/\/$/, ""); // remove trailing slash for proper URL construction
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
 const MICROSOFT_ENABLED = import.meta.env?.VITE_ENABLE_MICROSOFT_OAUTH === "true";
 const DISCORD_ENABLED = import.meta.env?.VITE_ENABLE_DISCORD_OAUTH === "true";

@@ -5,7 +5,7 @@ import { Plus, Edit2, UserMinus, Trash2, X, Search, Upload, Link, Move, Sprout, 
 import { formatDate } from '@/lib/dates';
 import { departments as staticDepartments } from '@/data/officers';
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 interface Officer {
   student_id: string;

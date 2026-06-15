@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { getStoredUser, persistAuthSession, type StoredUser } from "@/lib/auth";
 
-const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? "";
+const API_BASE = (import.meta.env?.VITE_BACKEND_API_URL ?? "").replace(/\/$/, "");
 
 type RefreshOk = { access_token: string };
 

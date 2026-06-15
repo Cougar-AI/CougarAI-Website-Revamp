@@ -564,7 +564,7 @@ function EventDetailModal({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const API_BASE = import.meta.env.VITE_BACKEND_API_URL ?? "";
+const API_BASE = (import.meta.env.VITE_BACKEND_API_URL ?? "").replace(/\/$/, "");
 
 export default function Calendar() {
   const now = new Date();

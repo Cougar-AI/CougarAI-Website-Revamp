@@ -10,8 +10,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import type { MeResponse } from '@/pages/Dashboard';
 
-const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? '';
-const BACKEND = import.meta.env?.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const API_BASE = (import.meta.env?.VITE_BACKEND_API_URL ?? '').replace(/\/$/, '');
+const BACKEND = (import.meta.env?.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 const ADMIN_ROLES = new Set(['admin', 'officer']);
 const PARTNER_ROLES = new Set(['partner', 'admin']);
