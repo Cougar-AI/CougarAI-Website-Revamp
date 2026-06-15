@@ -6,6 +6,9 @@ import { defineConfig } from "vite"
 const backendTarget = process.env.VITE_PROXY_TARGET || "http://127.0.0.1:5000"
 
 // https://vite.dev/config/
+console.log("🔍 VITE_BACKEND_API_URL:", process.env.VITE_BACKEND_API_URL)
+console.log("🔍 VITE_PROXY_TARGET:", process.env.VITE_PROXY_TARGET)
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
