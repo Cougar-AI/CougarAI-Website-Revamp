@@ -6,7 +6,7 @@ from app.utils.auth_decorators import require_officer
 
 announcements_bp = Blueprint('announcements', __name__)
 
-@announcements_bp.route("/announcements/", methods=["GET"])
+@announcements_bp.route("/", methods=["GET"])
 def getAnnouncements():
     connections = get_db()
     with connections.cursor() as cur:
@@ -30,7 +30,7 @@ def getAnnouncements():
         results = cur.fetchall()
         return (jsonify(results),200) if results else (jsonify({"error": "No announcements found"}), 404)
     
-@announcements_bp.route("/announcements/<int:announcement_id>", methods=["DELETE", "OPTIONS"])
+@announcements_bp.route("/<int:announcement_id>", methods=["DELETE", "OPTIONS"])
 @require_officer
 def deleteAnnouncement(announcement_id):
     try:
@@ -45,7 +45,7 @@ def deleteAnnouncement(announcement_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@announcements_bp.route("/announcements/<string:guild_id>", methods=["POST", "OPTIONS"])
+@announcements_bp.route("/<string:guild_id>", methods=["POST", "OPTIONS"])
 @require_officer
 def createAnnouncement(guild_id):
     try:
@@ -82,7 +82,7 @@ def createAnnouncement(guild_id):
         connections.rollback()
         return jsonify({"error": str(e)}), 500
     
-@announcements_bp.route("/announcements/<int:announcement_id>", methods=["PATCH", "OPTIONS"])
+@announcements_bp.route("/<int:announcement_id>", methods=["PATCH", "OPTIONS"])
 @require_officer
 def updateAnnouncement(announcement_id):
     try:
@@ -118,7 +118,7 @@ def updateAnnouncement(announcement_id):
 # GET /announcements/pinned  — public, no auth required
 # ---------------------------------------------------------------------------
 
-@announcements_bp.route("/announcements/pinned", methods=["GET", "OPTIONS"])
+@announcements_bp.route("/pinned", methods=["GET", "OPTIONS"])
 def get_pinned_announcement_public():
     if request.method == "OPTIONS":
         return "", 200

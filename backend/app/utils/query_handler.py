@@ -17,6 +17,13 @@ def _validate_col(name: str) -> str:
         raise ValueError(f"Column name is a reserved SQL keyword: {name!r}")
     return name
 
+
+def _parse_date(date_str: str):
+    for fmt in ("%m-%d-%Y", "%Y-%m-%d"):
+        if is_valid_date(date_str, fmt=fmt):
+            return datetime.strptime(date_str, fmt).date()
+    raise ValueError("Invalid date format. Use MM-DD-YYYY or YYYY-MM-DD.")
+
 def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC", group_by=None): # mainly for get queries
     filters = [] # stores the SQL Filters
     params = [] # stores the variables
@@ -50,24 +57,18 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
             
     if mode == "WHERE":
         if start_date and end_date:
-            if not is_valid_date(start_date, fmt="%m-%d-%Y") or not is_valid_date(end_date, fmt="%m-%d-%Y"):
-                raise ValueError("Invalid date format. Use MM-DD-YYYY.")
-            start = datetime.strptime(start_date, "%m-%d-%Y").date()
-            end = datetime.strptime(end_date, "%m-%d-%Y").date()
+            start = _parse_date(start_date)
+            end = _parse_date(end_date)
             filters.append(f"{date_column} BETWEEN %s AND %s")
             params.extend([start, end])
 
         elif start_date:
-            if not is_valid_date(start_date, fmt="%m-%d-%Y"):
-                raise ValueError("Invalid start date format. Use MM-DD-YYYY.")
-            start = datetime.strptime(start_date, "%m-%d-%Y").date()
+            start = _parse_date(start_date)
             filters.append(f"{date_column} >= %s")
             params.append(start)
 
         elif end_date:
-            if not is_valid_date(end_date, fmt="%m-%d-%Y"):
-                raise ValueError("Invalid end date format. Use MM-DD-YYYY.")
-            end = datetime.strptime(end_date, "%m-%d-%Y").date()
+            end = _parse_date(end_date)
             filters.append(f"{date_column} <= %s")
             params.append(end)
 

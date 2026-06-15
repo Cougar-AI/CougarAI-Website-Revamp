@@ -19,7 +19,7 @@ from app.routes.notifications import notifications_bp
 
 blueprints_with_prefixes = {
     discord_bp: '/discord',
-    announcements_bp: '/discord',
+    announcements_bp: '/announcements',
     profile_bp: '/profile',
     payments_bp:'/payments',
     events_bp:'/events',
