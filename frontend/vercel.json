@@ -7,8 +7,8 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://cai-prod-backend.cougarai.org;" },
-        { "key": "Access-Control-Allow-Origin", "value": "https://cougarai.org" }
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://cai-dev-backend.cougarai.org https://cai-prod-backend.cougarai.org;"},
+        { "key": "Access-Control-Allow-Origin", "value": "cougar-ai-website-revamp-jvyxytd3v-cougar-ai-692cdc75.vercel.app/" }
       ]
     }
   ]
