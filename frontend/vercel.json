@@ -1,4 +1,15 @@
 {
+  "rewrites": [
+    { "source": "/auth/:path*", "destination": "https://cai-dev-backend.cougarai.org/auth/:path*" },
+    { "source": "/events/:path*", "destination": "https://cai-dev-backend.cougarai.org/events/:path*" },
+    { "source": "/forms/:path*", "destination": "https://cai-dev-backend.cougarai.org/forms/:path*" },
+    { "source": "/sponsors/:path*", "destination": "https://cai-dev-backend.cougarai.org/sponsors/:path*" },
+    { "source": "/partners/:path*", "destination": "https://cai-dev-backend.cougarai.org/partners/:path*" },
+    { "source": "/admin/:path*", "destination": "https://cai-dev-backend.cougarai.org/admin/:path*" },
+    { "source": "/register/:path*", "destination": "https://cai-dev-backend.cougarai.org/register/:path*" },
+    { "source": "/users/:path*", "destination": "https://cai-dev-backend.cougarai.org/users/:path*" },
+    { "source": "/payments/:path*", "destination": "https://cai-dev-backend.cougarai.org/payments/:path*" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -6,9 +17,7 @@
         { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://cai-dev-backend.cougarai.org https://cai-prod-backend.cougarai.org;"},
-        { "key": "Access-Control-Allow-Origin", "value": "cougar-ai-website-revamp-jvyxytd3v-cougar-ai-692cdc75.vercel.app/" }
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
       ]
     }
   ]
