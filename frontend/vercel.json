@@ -17,7 +17,8 @@
     { "source": "/users", "destination": "https://cai-dev-backend.cougarai.org/users" },
     { "source": "/users/:path*", "destination": "https://cai-dev-backend.cougarai.org/users/:path*" },
     { "source": "/payments", "destination": "https://cai-dev-backend.cougarai.org/payments" },
-    { "source": "/payments/:path*", "destination": "https://cai-dev-backend.cougarai.org/payments/:path*" }
+    { "source": "/payments/:path*", "destination": "https://cai-dev-backend.cougarai.org/payments/:path*" },
+    { "source": "/(.*)", "destination":"/index.html"}
   ],
   "headers": [
     {
