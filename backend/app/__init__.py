@@ -25,12 +25,7 @@ def create_app(config_class='config.DevelopmentConfig'):
     app.json_provider_class = _ISODateProvider
     app.json = _ISODateProvider(app)
     app.config.from_object(config_class)
-    
-    # Split FRONTEND_URLS from environment (comma-separated string) into a list
-    from config import _split_origins
-    frontend_urls_str = app.config.get("FRONTEND_URLS")
-    allowed_origins = _split_origins(frontend_urls_str) if frontend_urls_str else [app.config.get("FRONTEND_URL", "http://localhost:5173")]
-    
+    allowed_origins = app.config.get("FRONTEND_URLS") or [app.config.get("FRONTEND_URL", "http://localhost:5173")]
     CORS(
         app,
         origins=allowed_origins,
@@ -43,7 +38,7 @@ def create_app(config_class='config.DevelopmentConfig'):
     @app.after_request
     def _ensure_cors(response):
         origin = request.headers.get("Origin", "")
-        if origin in allowed_origins or '*' in allowed_origins:
+        if origin in allowed_origins:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
