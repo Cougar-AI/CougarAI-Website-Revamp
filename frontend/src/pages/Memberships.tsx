@@ -126,7 +126,7 @@ const FAQItem: React.FC<{ q: string; a: string; open: boolean; onToggle: () => v
 const Memberships: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const isLoggedIn = hasAccessToken()
-  const joinHref = isLoggedIn ? JOIN_HREF : AUTH_HREF
+  const joinHref = isLoggedIn ? `${JOIN_HREF}?plan=semester` : AUTH_HREF
 
   const btnPrimary = "inline-flex items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
   const btnSecondary = "inline-flex items-center justify-center rounded-xl bg-white/8 px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/15"
