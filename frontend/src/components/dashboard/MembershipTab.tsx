@@ -27,6 +27,7 @@ interface MembershipsResponse {
 function StatusCard({ current }: { current: MembershipsResponse["current"] }) {
   const navigate = useNavigate();
   const status = current?.status ?? "none";
+  const plan = current?.plan_id === "yearly" ? "yearly" : "semester";
 
   const colorMap = {
     active: { glow: "0 0 20px rgba(34,197,94,.3)", ring: "rgba(34,197,94,.3)", label: "Active", textColor: "text-emerald-400" },
@@ -59,7 +60,7 @@ function StatusCard({ current }: { current: MembershipsResponse["current"] }) {
           )}
         </div>
         <button
-          onClick={() => navigate("/join")}
+          onClick={() => navigate(`/join?plan=${plan}`)}
           className="w-full rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 sm:w-auto"
           style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
         >
