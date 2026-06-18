@@ -11,6 +11,10 @@ console.log("🔍 VITE_PROXY_TARGET:", process.env.VITE_PROXY_TARGET)
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+          chunkSizeWarningLimit:1800,    
+  },
+
   server: {
     proxy: {
       "/auth": {
