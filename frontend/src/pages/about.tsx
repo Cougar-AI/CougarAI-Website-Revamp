@@ -349,7 +349,7 @@ export default function About() {
   };
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: "48px 20px 40px" }}>
+    <main style={{ maxWidth: 900, margin: "0 auto", padding: "40px 16px 36px" }}>
 
       {/* Header */}
       <header style={{ textAlign: "center", marginBottom: selectedDept ? 28 : 36 }}>
@@ -403,7 +403,7 @@ export default function About() {
               </Link>
             </div>
             <p style={{ color: "rgba(255,255,255,.5)", fontSize: 13.5, marginBottom: 20 }}>Select a department to meet the team.</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 10 }}>
               {departments.map((d) => <DeptCard key={d.id} dept={d} onClick={() => selectDept(d)} />)}
             </div>
           </section>
@@ -424,7 +424,7 @@ export default function About() {
                       const card = (
                         <div
                           key={s.sponsor_id}
-                          style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.2)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, minWidth: 160, transition: "border-color .2s" }}
+                            style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.2)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, minWidth: 0, transition: "border-color .2s" }}
                         >
                           {logo
                             ? <img src={logo} alt={s.name} style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 8, background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
@@ -455,7 +455,7 @@ export default function About() {
                       const card = (
                         <div
                           key={p.partner_id}
-                          style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.2)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, minWidth: 160 }}
+                            style={{ borderRadius: 14, background: "rgba(255,255,255,.05)", border: "1px solid rgba(185,28,28,.2)", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}
                         >
                           {logo
                             ? <img src={logo} alt={p.name} style={{ width: 36, height: 36, objectFit: "contain", borderRadius: 8, background: "rgba(255,255,255,.06)", flexShrink: 0 }} />
@@ -497,7 +497,7 @@ export default function About() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name or role…"
-              style={{ padding: "9px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,.14)", background: "rgba(0,0,0,.35)", color: "#fff", fontSize: 13.5, width: 260, outline: "none" }}
+              style={{ padding: "9px 14px", borderRadius: 10, border: "1px solid rgba(255,255,255,.14)", background: "rgba(0,0,0,.35)", color: "#fff", fontSize: 13.5, width: "100%", maxWidth: 260, outline: "none" }}
             />
           </div>
 

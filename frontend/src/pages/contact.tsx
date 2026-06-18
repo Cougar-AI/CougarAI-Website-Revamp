@@ -91,7 +91,7 @@ export default function Contact() {
         <p style={{ color: "rgba(255,255,255,.5)", fontSize: 13.5, margin: "0 0 22px" }}>Opens a pre-filled draft in your email app — no account required.</p>
 
         <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div className="grid grid-cols-1 gap-14 sm:grid-cols-2">
             <div>
               <label style={labelStyle}>Name</label>
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ada Lovelace" style={fieldStyle} autoComplete="name" />
@@ -120,7 +120,7 @@ export default function Contact() {
       </div>
 
       {/* Bottom cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[
           { label: "New here?", title: "Become a member", desc: "Join workshops, projects, and a friendly community.", to: "/join" },
           { label: "Partner with us", title: "Sponsorships", desc: "Collaborate on events, talks, and student projects.", to: "/sponsorships" },

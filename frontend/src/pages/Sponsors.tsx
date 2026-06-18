@@ -168,7 +168,7 @@ export default function SponsorPage() {
       ) : sponsors.length === 0 ? (
         <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 14, marginBottom: 64 }}>No sponsors yet.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 24, maxWidth: 720, margin: '0 auto 64px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 20, maxWidth: 720, margin: '0 auto 64px' }}>
           {sponsors.map((s) => <SponsorCard key={s.sponsor_id} {...s} />)}
         </div>
       )}

@@ -575,7 +575,10 @@ export default function Calendar() {
   const [type, setType] = useState<string>("all");
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth());
-  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [viewMode, setViewMode] = useState<"calendar" | "list">(() => {
+    if (typeof window === "undefined") return "calendar";
+    return window.matchMedia("(max-width: 767px)").matches ? "list" : "calendar";
+  });
   const [selectedEvent, setSelectedEvent] = useState<MergedEvent | null>(null);
   const [showMyRsvpsOnly, setShowMyRsvpsOnly] = useState(false);
   const [showPastInList, setShowPastInList] = useState(false);
@@ -734,7 +737,7 @@ export default function Calendar() {
   const displayCount = viewMode === "calendar" ? calendarEvents.length : agendaEvents.length;
 
   return (
-    <main style={{ position: "relative", maxWidth: 1260, margin: "0 auto", padding: "36px 20px 80px" }}>
+    <main className="overflow-x-hidden" style={{ position: "relative", maxWidth: 1260, margin: "0 auto", padding: "28px 16px 72px" }}>
       {selectedEvent && (
         <EventDetailModal
           ev={selectedEvent}
@@ -763,10 +766,10 @@ export default function Calendar() {
         <p style={{ color: "rgba(255,255,255,.55)", fontSize: 14.5, fontFamily: "Oxanium,sans-serif" }}>Browse upcoming meetings, workshops, and club events.</p>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 16, alignItems: "start" }}>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[260px_minmax(0,1fr)] md:items-start">
 
         {/* Sidebar */}
-        <aside style={panel}>
+        <aside className="min-w-0" style={panel}>
           {/* Event Type filter */}
           <div style={{ marginBottom: 22 }}>
             <span style={sLabel}>Event Type</span>
@@ -827,10 +830,10 @@ export default function Calendar() {
         </aside>
 
         {/* Main panel */}
-        <section style={panel}>
+        <section className="min-w-0" style={panel}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
             {/* Left: nav arrows (calendar mode) / search (list mode) */}
-            <div style={{ display: "flex", gap: 8, minWidth: 120 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
               {viewMode === "calendar" ? (
                 <>
                   <button style={navBtn} onClick={goPrev}>← Prev</button>
@@ -841,12 +844,12 @@ export default function Calendar() {
             </div>
 
             {/* Center: title */}
-            <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 22, margin: 0, color: "#fff", flex: 1, textAlign: "center" }}>
+            <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 22, margin: 0, color: "#fff", flex: "1 1 100%", textAlign: "center" }}>
               {viewMode === "calendar" ? `${MONTHS[month]} ${year}` : "Upcoming Events"}
             </h2>
 
             {/* Right: view toggle */}
-            <div style={{ display: "flex", gap: 6, minWidth: 120, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", minWidth: 0, justifyContent: "flex-end" }}>
               <button style={viewBtn(viewMode === "calendar")} onClick={() => setViewMode("calendar")}>📅 Month</button>
               <button style={viewBtn(viewMode === "list")} onClick={() => setViewMode("list")}>☰ List</button>
             </div>
@@ -879,7 +882,7 @@ export default function Calendar() {
             </div>
           )}
 
-          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.38)", fontFamily: "Oxanium,sans-serif", marginBottom: 16, textAlign: "right" }}>
+          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.38)", fontFamily: "Oxanium,sans-serif", marginBottom: 16, textAlign: "right", wordBreak: "break-word" }}>
             {displayCount} event{displayCount !== 1 ? "s" : ""}
             {showMyRsvpsOnly && " · My RSVPs only"}
             {viewMode === "list" && showPastInList && " · Incl. past"}

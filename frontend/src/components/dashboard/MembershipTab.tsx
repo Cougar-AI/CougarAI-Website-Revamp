@@ -46,7 +46,7 @@ function StatusCard({ current }: { current: MembershipsResponse["current"] }) {
       className="mb-5 rounded-2xl p-5"
       style={{ background: "rgba(255,255,255,.04)", border: `1px solid ${ring}`, boxShadow: glow }}
     >
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className={`text-lg font-semibold ${textColor} font-['Oxanium']`}>{label}</p>
           {current?.plan_id && (
@@ -60,7 +60,7 @@ function StatusCard({ current }: { current: MembershipsResponse["current"] }) {
         </div>
         <button
           onClick={() => navigate("/join")}
-          className="rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800"
+          className="w-full rounded-xl bg-red-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-800 sm:w-auto"
           style={{ boxShadow: "0 0 20px rgba(185,28,28,.35)" }}
         >
           {status === "active" ? "Renew" : "Get Membership"}

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import logo from '../assets/logo.png'
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Bell } from 'lucide-react';
+import { Bell, Menu, X } from 'lucide-react';
 const link = 'hover:text-gray-300'
 const active = 'underline underline-offset-8'
 import { cn } from '../lib/utils.ts'
@@ -42,6 +42,7 @@ const Navbar: React.FC = () => {
     const [notice, setNotice] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const notifRef = useRef<HTMLDivElement>(null);
     const isAuthenticated = Boolean(user);
@@ -110,6 +111,7 @@ const Navbar: React.FC = () => {
 
     async function handleLogout() {
         setDropdownOpen(false);
+        setMobileMenuOpen(false);
         try {
             const res = await fetch(`${API_BASE}/auth/logout`, {
                 method: 'DELETE',
@@ -138,16 +140,17 @@ const Navbar: React.FC = () => {
                     {notice.msg}
                 </div>
             ) : null}
-            <nav className="w-full bg-red-700 text-white p-4 flex justify-between items-center relative z-[100]">
+            <nav className="w-full bg-red-700 text-white p-4 flex flex-wrap items-center justify-between gap-3 relative z-[100]">
                 <button
                     type="button"
                     onClick={() => navigate('/')}
-                    className="flex items-center space-x-3 cursor-pointer focus:outline-none"
+                    className="flex min-w-0 items-center space-x-3 cursor-pointer focus:outline-none"
                 >
                     <img src={logo} alt="CougarAI Logo" className="h-8 w-8 rounded" />
-                    <span className="text-xl font-bold">CougarAI</span>
+                    <span className="truncate text-lg font-bold sm:text-xl">CougarAI</span>
                 </button>
-                <ul className="flex items-center space-x-5">
+
+                <ul className="hidden items-center space-x-5 md:flex">
                     <NavLink to="/" className={({isActive}) => cn(link, isActive && active)}>Home</NavLink>
                     {!isAuthenticated && (
                         <NavLink to="/about" className={({isActive}) => cn(link, isActive && active)}>About Us</NavLink>
@@ -310,6 +313,43 @@ const Navbar: React.FC = () => {
                         <NavLink to="/auth" className={({isActive}) => cn(link, isActive && active)}>Login / Register</NavLink>
                     )}
                 </ul>
+
+                <button
+                    type="button"
+                    onClick={() => setMobileMenuOpen((open) => !open)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 md:hidden"
+                    aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+                    aria-expanded={mobileMenuOpen}
+                >
+                    {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                </button>
+
+                {mobileMenuOpen && (
+                    <div className="basis-full md:hidden">
+                        <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-[rgba(10,2,2,0.97)] p-3 backdrop-blur-md">
+                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Home</NavLink>
+                            {!isAuthenticated && (
+                                <NavLink onClick={() => setMobileMenuOpen(false)} to="/about" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>About Us</NavLink>
+                            )}
+                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/memberships" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Memberships</NavLink>
+                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/contact" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Contact</NavLink>
+                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/calendar" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Events</NavLink>
+                            {!isAuthenticated && (
+                                <NavLink onClick={() => setMobileMenuOpen(false)} to="/sponsors" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Sponsors</NavLink>
+                            )}
+                            {isAuthenticated ? (
+                                <>
+                                    <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/dashboard'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Dashboard</button>
+                                    {isAdmin && <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/admin'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Admin</button>}
+                                    {isPartner && <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/partner'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Partner</button>}
+                                    <button type="button" onClick={handleLogout} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-300 hover:bg-white/10">Logout</button>
+                                </>
+                            ) : (
+                                <NavLink onClick={() => setMobileMenuOpen(false)} to="/auth" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Login / Register</NavLink>
+                            )}
+                        </div>
+                    </div>
+                )}
             </nav>
         </>
     );
