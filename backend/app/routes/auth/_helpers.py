@@ -60,7 +60,7 @@ def _set_refresh_cookie(resp, refresh_token: str, expires_at: datetime):
         expires=expires_at,
         httponly=True,
         secure=_cookie_secure(),
-        samesite="Lax",
+        samesite="None",
         path="/auth",
     )
     return resp
@@ -74,7 +74,7 @@ def _clear_refresh_cookie(resp):
         max_age=0,
         httponly=True,
         secure=_cookie_secure(),
-        samesite="Lax",
+        samesite="None",
         path="/auth",
     )
     return resp
