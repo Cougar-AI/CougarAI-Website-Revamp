@@ -2,8 +2,14 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { pdfjs, Document, Page, } from "react-pdf"
 
 const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString()
 
 interface Sponsor {
   sponsor_id: number;
@@ -133,6 +139,8 @@ export default function SponsorPage() {
   const [showBrochure, setShowBrochure] = useState(false);
   const brochureRef = useRef<HTMLDivElement | null>(null);
 
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pdfLoading, SetPdfLoading] = useState(true);
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -246,8 +254,29 @@ export default function SponsorPage() {
               <div style={{ marginBottom: 8 }}>
                 <a href={`${BACKEND}${brochureUrl}`} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,.9)' }}>Open brochure in new tab</a>
               </div>
-              <div style={{ width: '100%', height: 560 }}>
-                <iframe src={`${BACKEND}${brochureUrl}`} title="Sponsors Brochure" style={{ width: '100%', height: '100%', border: '1px solid rgba(255,255,255,.06)' }} />
+              <div style={{ width: '100%', minHeight: 600, overflow: 'auto', padding: 12 }}>
+                <Document
+                  file={`${BACKEND}${brochureUrl}`}
+                  onLoadSuccess={({ numPages }) => {
+                    setNumPages(numPages);
+                    SetPdfLoading(false);
+                  }}
+                  loading={pdfLoading &&
+                    <div style={{ color: 'rgba(255,255,255,.5)', marginBottom: 10 }}>
+                      Loading PDF…
+                    </div>
+                  }
+                >
+                  
+                  {numPages && 
+                    Array.from(new Array(numPages), (_, i) => (
+                    <Page
+                      key={i}
+                      pageNumber={i + 1}
+                      width={700}
+                    />
+                  ))}
+                </Document>
               </div>
             </div>
           ) : (
