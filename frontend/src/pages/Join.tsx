@@ -299,7 +299,7 @@ export default function JoinUs() {
 
   if (urlStatus === "success") return <SuccessView />;
   if (urlStatus === "canceled") return <CanceledView />;
-  if (!hasAccessToken()) return <NotLoggedInView />;
+  if (!(hasAccessToken() || getStoredUser())) return <NotLoggedInView />;
 
   // Read ?plan= from URL, fallback to "semester"
   const initialPlan = ((): PlanId => {
