@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BookOpen, CalendarDays, Clock3, ExternalLink, MessageSquare, Search, Sparkles, Tag } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
+import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/dates";
 import { hasAccessToken } from "@/lib/auth";
 
@@ -132,6 +133,33 @@ export default function KnowledgeBase() {
   const [query, setQuery] = useState("");
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const [commentBody, setCommentBody] = useState("");
+  const { user } = useAuth();
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState({
+    content_type: "cai_news",
+    title: "",
+    summary: "",
+    body: "",
+    tags: "",
+    source_label: "",
+    source_url: "",
+    is_featured: false,
+  });
+
+  const canOpenAdd = !!(user && (user.role === "admin" || user.role === "officer" || user.role === "partner"));
+
+  async function saveNewEntry() {
+    try {
+      const payload = { ...addForm, tags: addForm.tags.split(",").map((t) => t.trim()).filter(Boolean) };
+      await apiPost("/knowledge-base/entries", payload);
+      setShowAddModal(false);
+      setAddForm({ content_type: "cai_news", title: "", summary: "", body: "", tags: "", source_label: "", source_url: "", is_featured: false });
+      await qc.invalidateQueries({ queryKey: ["knowledge-base-entries"] });
+    } catch (err) {
+      console.error(err);
+      alert("Could not save entry: " + (((err as any)?.message) || ""));
+    }
+  }
 
   const canComment = hasAccessToken();
 
@@ -188,6 +216,7 @@ export default function KnowledgeBase() {
   }, [entries]);
 
   return (
+    <>
     <main className="mx-auto min-h-[calc(100vh-96px)] max-w-7xl px-4 py-10 text-white sm:px-6 lg:px-8">
       <section className="overflow-hidden rounded-[28px] border border-red-500/20 bg-[rgba(255,255,255,.04)] shadow-[0_24px_80px_rgba(0,0,0,.45)] backdrop-blur">
         <div className="border-b border-white/8 px-6 py-8 sm:px-8 lg:px-10">
@@ -241,6 +270,15 @@ export default function KnowledgeBase() {
                   onClick={() => setActiveType(option.value)}
                 />
               ))}
+              {canOpenAdd && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="rounded-full px-4 py-2 text-sm font-semibold bg-green-700/70 text-white"
+                >
+                  Add Entry
+                </button>
+              )}
             </div>
           </div>
 
@@ -425,5 +463,39 @@ export default function KnowledgeBase() {
         </div>
       </section>
     </main>
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-black/25 p-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold">Add Knowledge Entry</h3>
+              <button onClick={() => setShowAddModal(false)} className="text-white/60">Close</button>
+            </div>
+            <div className="mt-4 grid gap-3">
+              <label className="text-sm">Type</label>
+              <select value={addForm.content_type} onChange={(e) => setAddForm(f => ({ ...f, content_type: e.target.value }))} className="rounded px-3 py-2 bg-white/5">
+                {TYPE_OPTIONS.filter(o => o.value !== 'all').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+
+              <label className="text-sm">Title</label>
+              <input value={addForm.title} onChange={(e) => setAddForm(f => ({ ...f, title: e.target.value }))} className="rounded px-3 py-2 bg-white/5" />
+
+              <label className="text-sm">Summary</label>
+              <input value={addForm.summary} onChange={(e) => setAddForm(f => ({ ...f, summary: e.target.value }))} className="rounded px-3 py-2 bg-white/5" />
+
+              <label className="text-sm">Body</label>
+              <textarea value={addForm.body} onChange={(e) => setAddForm(f => ({ ...f, body: e.target.value }))} rows={6} className="rounded px-3 py-2 bg-white/5" />
+
+              <label className="text-sm">Tags (comma separated)</label>
+              <input value={addForm.tags} onChange={(e) => setAddForm(f => ({ ...f, tags: e.target.value }))} className="rounded px-3 py-2 bg-white/5" />
+
+              <div className="flex gap-2">
+                <button onClick={() => saveNewEntry()} className="rounded bg-red-700 px-4 py-2 text-white">Save</button>
+                <button onClick={() => setShowAddModal(false)} className="rounded border border-white/10 px-4 py-2 text-white">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

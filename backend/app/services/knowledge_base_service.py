@@ -2,6 +2,81 @@ from app.services.base_service import BaseService
 
 
 class KnowledgeBaseService(BaseService):
+    def create_entry(self, payload: dict):
+        # expected keys: content_type, title, summary, body, source_label, source_url, tags (list), is_featured (bool)
+        content_type = (payload.get("content_type") or "").strip()
+        title = (payload.get("title") or "").strip()
+        summary = (payload.get("summary") or "").strip()
+        body = (payload.get("body") or "").strip()
+        source_label = payload.get("source_label")
+        source_url = payload.get("source_url")
+        tags = payload.get("tags") or []
+        is_featured = bool(payload.get("is_featured"))
+
+        if not content_type or not title or not summary or not body:
+            return None, "missing_fields"
+
+        if isinstance(tags, str):
+            tags = [t.strip() for t in tags.split(",") if t.strip()]
+
+        with self.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO knowledge_entries (content_type, title, summary, body, source_label, source_url, tags, is_featured)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING entry_id
+                """,
+                (content_type, title, summary, body, source_label, source_url, tags, is_featured),
+            )
+            row = cur.fetchone()
+            self.conn.commit()
+
+        return self.get_entry(row["entry_id"]), None
+
+    def update_entry(self, entry_id: int, payload: dict):
+        # allow updating selected fields
+        fields = []
+        params: list[object] = []
+        for key in ("content_type", "title", "summary", "body", "source_label", "source_url", "is_featured"):
+            if key in payload:
+                fields.append(f"{key} = %s")
+                params.append(payload.get(key))
+
+        if "tags" in payload:
+            tags = payload.get("tags") or []
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",") if t.strip()]
+            fields.append("tags = %s")
+            params.append(tags)
+
+        if not fields:
+            return None, "no_changes"
+
+        params.append(entry_id)
+        sql = f"UPDATE knowledge_entries SET {', '.join(fields)}, updated_at = NOW() WHERE entry_id = %s AND is_active = TRUE RETURNING entry_id"
+
+        with self.cursor() as cur:
+            cur.execute(sql, tuple(params))
+            row = cur.fetchone()
+            if not row:
+                return None, "entry_not_found"
+            self.conn.commit()
+
+        return self.get_entry(row["entry_id"]), None
+
+    def delete_entry(self, entry_id: int):
+        with self.cursor() as cur:
+            cur.execute(
+                "UPDATE knowledge_entries SET is_active = FALSE WHERE entry_id = %s AND is_active = TRUE RETURNING entry_id",
+                (entry_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return False, "entry_not_found"
+            self.conn.commit()
+
+        return True, None
+
     def list_entries(self, content_type: str | None = None, query: str | None = None):
         sql = [
             """

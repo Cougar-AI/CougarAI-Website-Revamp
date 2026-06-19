@@ -150,14 +150,14 @@ const Navbar: React.FC = () => {
                     <span className="truncate text-lg font-bold sm:text-xl">CougarAI</span>
                 </button>
 
-                <ul className="hidden items-center space-x-5 md:flex">
-                    <NavLink to="/" className={({isActive}) => cn(link, isActive && active)}>Home</NavLink>
+                <ul className="hidden items-center space-x-5 md:flex ml-auto">
                     {!isAuthenticated && (
                         <NavLink to="/about" className={({isActive}) => cn(link, isActive && active)}>About Us</NavLink>
                     )}
                     <NavLink to="/memberships" className={({isActive}) => cn(link, isActive && active)}>Memberships</NavLink>
                     <NavLink to="/contact" className={({isActive}) => cn(link, isActive && active)}>Contact</NavLink>
                     <NavLink to="/calendar" className={({isActive}) => cn(link, isActive && active)}>Events</NavLink>
+                    <NavLink to="/knowledge-base" className={({isActive}) => cn(link, isActive && active)}>Knowledge Bar</NavLink>
                     {!isAuthenticated && (
                         <NavLink to="/sponsors" className={({isActive}) => cn(link, isActive && active)}>Sponsors</NavLink>
                     )}
@@ -327,13 +327,13 @@ const Navbar: React.FC = () => {
                 {mobileMenuOpen && (
                     <div className="basis-full md:hidden">
                         <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-[rgba(10,2,2,0.97)] p-3 backdrop-blur-md">
-                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Home</NavLink>
                             {!isAuthenticated && (
                                 <NavLink onClick={() => setMobileMenuOpen(false)} to="/about" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>About Us</NavLink>
                             )}
                             <NavLink onClick={() => setMobileMenuOpen(false)} to="/memberships" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Memberships</NavLink>
                             <NavLink onClick={() => setMobileMenuOpen(false)} to="/contact" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Contact</NavLink>
                             <NavLink onClick={() => setMobileMenuOpen(false)} to="/calendar" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Events</NavLink>
+                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/knowledge-base" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Knowledge Bar</NavLink>
                             {!isAuthenticated && (
                                 <NavLink onClick={() => setMobileMenuOpen(false)} to="/sponsors" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Sponsors</NavLink>
                             )}
