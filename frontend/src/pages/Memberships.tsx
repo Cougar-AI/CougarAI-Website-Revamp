@@ -1,6 +1,6 @@
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import React, { useState } from 'react'
-import { hasAccessToken } from '@/lib/auth'
+import { useAuth } from '@/hooks/useAuth'
 
 const JOIN_HREF = '/join'
 const AUTH_HREF = '/register'
@@ -125,7 +125,8 @@ const FAQItem: React.FC<{ q: string; a: string; open: boolean; onToggle: () => v
 
 const Memberships: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
-  const isLoggedIn = hasAccessToken()
+  const { isAuthenticated: isLoggedIn } = useAuth()
+  if (isLoggedIn) return <Navigate to={`${JOIN_HREF}?plan=semester`} replace />
   const joinHref = isLoggedIn ? `${JOIN_HREF}?plan=semester` : AUTH_HREF
 
   const btnPrimary = "inline-flex items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
