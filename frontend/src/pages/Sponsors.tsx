@@ -140,7 +140,13 @@ export default function SponsorPage() {
         const res = await fetch(`${BACKEND}/sponsors/brochure`);
         if (!res.ok) return;
         const j = await res.json();
-        if (mounted) setBrochureUrl(j.url ?? null);
+        if (mounted) {
+          setBrochureUrl(j.url ?? null);
+          if (j.url) {
+            setShowBrochure(true);
+            setTimeout(() => { if (brochureRef.current) brochureRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 140);
+          }
+        }
       } catch (e) {
         // ignore
       }
@@ -162,6 +168,7 @@ export default function SponsorPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Upload failed');
       setBrochureUrl(json.url);
+      setShowBrochure(true);
     } catch (e: any) {
       alert('Upload failed: ' + (e?.message ?? ''));
     } finally {

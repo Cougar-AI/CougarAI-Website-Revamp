@@ -128,8 +128,8 @@ const Memberships: React.FC = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const { user } = useAuth()
   const isLoggedIn = hasAccessToken() || user !== null
-  if (isLoggedIn) return <Navigate to={`${JOIN_HREF}?plan=semester`} replace />
-  const joinHref = isLoggedIn ? `${JOIN_HREF}?plan=semester` : AUTH_HREF
+  if (isLoggedIn) return <Navigate to={`/dashboard?tab=membership`} replace />
+  const joinHref = AUTH_HREF
 
   const btnPrimary = "inline-flex items-center justify-center rounded-xl bg-red-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-red-800"
   const btnSecondary = "inline-flex items-center justify-center rounded-xl bg-white/8 px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/15 backdrop-blur transition hover:bg-white/15"
