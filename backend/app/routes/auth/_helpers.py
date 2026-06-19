@@ -59,7 +59,7 @@ def _set_refresh_cookie(resp, refresh_token: str, expires_at: datetime):
         max_age=int((expires_at - _utcnow()).total_seconds()),
         expires=expires_at,
         httponly=True,
-        secure=_cookie_secure(),
+        secure=True,
         samesite="None",
         path="/auth",
     )
@@ -73,7 +73,7 @@ def _clear_refresh_cookie(resp):
         expires=0,
         max_age=0,
         httponly=True,
-        secure=_cookie_secure(),
+        secure=True,
         samesite="None",
         path="/auth",
     )
