@@ -55,6 +55,11 @@ export default function Footer() {
                     </NavLink>
                   </li>
                   <li>
+                    <NavLink to="/knowledge-base" className={navLinkBase}>
+                      Knowledge Base
+                    </NavLink>
+                  </li>
+                  <li>
                     <NavLink to="/Contact" className={navLinkBase}>
                       Contact
                     </NavLink>

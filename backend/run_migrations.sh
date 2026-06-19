@@ -66,6 +66,7 @@ MIGRATIONS=(
   add_officers_student_id_unique.sql
   add_officers_display_name.sql
   reorder_officer_departments.sql
+  add_knowledge_base_tables.sql
 )
 
 FAILED=0
