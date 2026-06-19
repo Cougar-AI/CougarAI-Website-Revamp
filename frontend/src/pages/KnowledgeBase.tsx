@@ -464,29 +464,29 @@ export default function KnowledgeBase() {
       </section>
     </main>
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-black/25 p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/15 bg-slate-950/95 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold">Add Knowledge Entry</h3>
               <button onClick={() => setShowAddModal(false)} className="text-white/60">Close</button>
             </div>
             <div className="mt-4 grid gap-3">
               <label className="text-sm">Type</label>
-              <select value={addForm.content_type} onChange={(e) => setAddForm(f => ({ ...f, content_type: e.target.value }))} className="rounded px-3 py-2 bg-white/5">
+              <select value={addForm.content_type} onChange={(e) => setAddForm(f => ({ ...f, content_type: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20">
                 {TYPE_OPTIONS.filter(o => o.value !== 'all').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
 
               <label className="text-sm">Title</label>
-              <input value={addForm.title} onChange={(e) => setAddForm(f => ({ ...f, title: e.target.value }))} className="rounded px-3 py-2 bg-white/5" />
+              <input value={addForm.title} onChange={(e) => setAddForm(f => ({ ...f, title: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <label className="text-sm">Summary</label>
-              <input value={addForm.summary} onChange={(e) => setAddForm(f => ({ ...f, summary: e.target.value }))} className="rounded px-3 py-2 bg-white/5" />
+              <input value={addForm.summary} onChange={(e) => setAddForm(f => ({ ...f, summary: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <label className="text-sm">Body</label>
-              <textarea value={addForm.body} onChange={(e) => setAddForm(f => ({ ...f, body: e.target.value }))} rows={6} className="rounded px-3 py-2 bg-white/5" />
+              <textarea value={addForm.body} onChange={(e) => setAddForm(f => ({ ...f, body: e.target.value }))} rows={6} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <label className="text-sm">Tags (comma separated)</label>
-              <input value={addForm.tags} onChange={(e) => setAddForm(f => ({ ...f, tags: e.target.value }))} className="rounded px-3 py-2 bg-white/5" />
+              <input value={addForm.tags} onChange={(e) => setAddForm(f => ({ ...f, tags: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <div className="flex gap-2">
                 <button onClick={() => saveNewEntry()} className="rounded bg-red-700 px-4 py-2 text-white">Save</button>
