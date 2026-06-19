@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
+import { apiGet, apiPost, apiPatch, apiDelete, apiUpload } from '@/lib/api';
 import { Plus, Edit2, X, ExternalLink, Building2, Trash2 } from 'lucide-react';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
@@ -383,6 +383,10 @@ export default function AdminSponsorsTab() {
   const [confirmDelete, setConfirmDelete] = useState<Sponsor | null>(null);
   const [tierFilter, setTierFilter] = useState('all');
   const [activeFilter, setActiveFilter] = useState('all');
+  const [brochureUrl, setBrochureUrl] = useState<string | null>(null);
+  const [brochureUploading, setBrochureUploading] = useState(false);
+  const [brochureError, setBrochureError] = useState<string | null>(null);
+  const brochureRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = useQuery<SponsorsResponse>({
     queryKey: ['admin-sponsors'],
@@ -403,6 +407,34 @@ export default function AdminSponsorsTab() {
       setConfirmDelete(null);
     },
   });
+
+  useEffect(() => {
+    let mounted = true;
+    apiGet<{ url: string | null }>('/sponsors/brochure')
+      .then((data) => {
+        if (mounted) setBrochureUrl(data.url ?? null);
+      })
+      .catch(() => {
+        if (mounted) setBrochureUrl(null);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  async function handleBrochureUpload(file: File) {
+    setBrochureError(null);
+    setBrochureUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const json = await apiUpload<{ url: string }>('/admin/upload-file?category=sponsors', fd);
+      setBrochureUrl(json.url);
+      qc.invalidateQueries({ queryKey: ['admin-sponsors'] });
+    } catch (err: any) {
+      setBrochureError(err?.message ?? 'Upload failed');
+    } finally {
+      setBrochureUploading(false);
+    }
+  }
 
   function handleSaved() {
     qc.invalidateQueries({ queryKey: ['admin-sponsors'] });
@@ -477,30 +509,72 @@ export default function AdminSponsorsTab() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-2 flex-wrap">
-          <select
-            value={tierFilter}
-            onChange={(e) => setTierFilter(e.target.value)}
-            className="text-xs rounded-lg px-3 py-1.5"
-            style={inputStyle}
-          >
-            <option value="all" style={{ background: '#1a0000' }}>All Tiers</option>
-            {TIERS.map((t) => (
-              <option key={t} value={t} style={{ background: '#1a0000' }}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
-          <select
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value)}
-            className="text-xs rounded-lg px-3 py-1.5"
-            style={inputStyle}
-          >
-            <option value="all" style={{ background: '#1a0000' }}>All Status</option>
-            <option value="active" style={{ background: '#1a0000' }}>Active</option>
-            <option value="inactive" style={{ background: '#1a0000' }}>Inactive</option>
-          </select>
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-2 flex-wrap">
+            <select
+              value={tierFilter}
+              onChange={(e) => setTierFilter(e.target.value)}
+              className="text-xs rounded-lg px-3 py-1.5"
+              style={inputStyle}
+            >
+              <option value="all" style={{ background: '#1a0000' }}>All Tiers</option>
+              {TIERS.map((t) => (
+                <option key={t} value={t} style={{ background: '#1a0000' }}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </option>
+              ))}
+            </select>
+            <select
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+              className="text-xs rounded-lg px-3 py-1.5"
+              style={inputStyle}
+            >
+              <option value="all" style={{ background: '#1a0000' }}>All Status</option>
+              <option value="active" style={{ background: '#1a0000' }}>Active</option>
+              <option value="inactive" style={{ background: '#1a0000' }}>Inactive</option>
+            </select>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-[rgba(10,2,2,0.95)] p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-white">Sponsor Brochure</p>
+                <p className="text-xs text-white/50">Upload a PDF brochure for the public Sponsors page.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => brochureRef.current?.click()}
+                disabled={brochureUploading}
+                className="rounded-full px-4 py-2 text-sm font-medium text-white"
+                style={{ background: 'rgba(185,28,28,.75)' }}
+              >
+                {brochureUploading ? 'Uploading…' : 'Upload Brochure'}
+              </button>
+            </div>
+            <input
+              ref={brochureRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleBrochureUpload(file);
+              }}
+            />
+            <div className="mt-3 text-xs text-white/60">
+              {brochureUrl ? (
+                <a href={`${BACKEND}${brochureUrl}`} target="_blank" rel="noreferrer" className="underline">
+                  Current brochure: {brochureUrl.split('/').pop()}
+                </a>
+              ) : (
+                'No brochure uploaded yet.'
+              )}
+            </div>
+            {brochureError ? (
+              <div className="mt-2 text-xs text-red-300">{brochureError}</div>
+            ) : null}
+          </div>
         </div>
 
         {/* Cards */}
