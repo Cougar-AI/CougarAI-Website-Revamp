@@ -92,6 +92,8 @@ export default function AdminSlideshowTab() {
   const [error, setError] = useState('');
   const [openPhotoId, setOpenPhotoId] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
+  const localPreviewObjectUrlRef = useRef<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const qc = useQueryClient();
 
@@ -165,6 +167,14 @@ export default function AdminSlideshowTab() {
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    // create a local preview immediately
+    try {
+      const localUrl = URL.createObjectURL(file);
+      localPreviewObjectUrlRef.current = localUrl;
+      setLocalPreviewUrl(localUrl);
+    } catch {
+      // ignore if createObjectURL fails
+    }
     setUploading(true);
     setError('');
     try {
@@ -181,6 +191,14 @@ export default function AdminSlideshowTab() {
         method: 'POST',
         body: JSON.stringify({ page: activePage, url: uploadJson.url, object_position: 'center' }),
       });
+      // switch preview to the uploaded URL (persisted)
+      try {
+        if (localPreviewObjectUrlRef.current) {
+          URL.revokeObjectURL(localPreviewObjectUrlRef.current);
+          localPreviewObjectUrlRef.current = null;
+        }
+      } catch {}
+      setLocalPreviewUrl(`${BACKEND}${uploadJson.url}`);
       qc.invalidateQueries({ queryKey: qKey });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -304,6 +322,27 @@ export default function AdminSlideshowTab() {
         {/* Bottom actions */}
         <div style={{ marginTop: photos.length === 0 ? 16 : 20, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={handleFileChange} />
+          {localPreviewUrl && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 72, height: 48, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.06)' }}>
+                <img src={localPreviewUrl} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <button
+                onClick={() => {
+                  if (localPreviewObjectUrlRef.current) {
+                    try { URL.revokeObjectURL(localPreviewObjectUrlRef.current); } catch {}
+                    localPreviewObjectUrlRef.current = null;
+                  }
+                  setLocalPreviewUrl(null);
+                  if (fileRef.current) fileRef.current.value = '';
+                }}
+                className="text-xs px-3 py-1.5 rounded-lg text-white/70"
+                style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.08)' }}
+              >
+                Remove
+              </button>
+            </div>
+          )}
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
