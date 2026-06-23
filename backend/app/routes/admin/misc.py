@@ -1,6 +1,6 @@
 import os
 import uuid
-from flask import request, jsonify, send_from_directory
+from flask import request, jsonify, send_from_directory, make_response
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES
@@ -74,7 +74,9 @@ def serve_upload(category, filename):
     if category not in ALLOWED_CATEGORIES:
         return jsonify({"error": "Not found"}), 404
     upload_dir = os.path.join(UPLOADS_BASE, category)
-    return send_from_directory(upload_dir, secure_filename(filename))
+    response = make_response(send_from_directory(upload_dir, secure_filename(filename)))
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @admin_bp.route("/pinned-announcement", methods=["GET", "OPTIONS"])
