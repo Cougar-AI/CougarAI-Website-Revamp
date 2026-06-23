@@ -152,7 +152,6 @@ export default function SponsorPage() {
           setBrochureUrl(j.url ?? null);
           if (j.url) {
             setShowBrochure(true);
-            setTimeout(() => { if (brochureRef.current) brochureRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 140);
           }
         }
       } catch (e) {
@@ -206,15 +205,17 @@ export default function SponsorPage() {
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
-            to="/join"
+            to="/contact"
             style={{ background: '#b91c1c', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, boxShadow: '0 0 24px rgba(185,28,28,.4)', display: 'inline-block', textDecoration: 'none' }}
           >
             Become a Sponsor
           </Link>
           <button
             onClick={() => {
-              setShowBrochure((s) => !s);
-              setTimeout(() => { if (brochureRef.current) brochureRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 120);
+              setShowBrochure((true));
+              setTimeout(() => {
+                brochureRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+              },120);
             }}
             style={{ background: 'rgba(255,255,255,.08)', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, border: '1px solid rgba(255,255,255,.14)', backdropFilter: 'blur(6px)', display: 'inline-block', cursor: 'pointer' }}
           >
