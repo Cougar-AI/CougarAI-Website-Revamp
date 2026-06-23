@@ -6,10 +6,7 @@ import { pdfjs, Document, Page, } from "react-pdf"
 
 const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString()
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
 
 interface Sponsor {
   sponsor_id: number;
@@ -261,6 +258,9 @@ export default function SponsorPage() {
                   onLoadSuccess={({ numPages }) => {
                     setNumPages(numPages);
                     SetPdfLoading(false);
+                  }}
+                  onLoadError={(error) => {
+                    console.log('PDF load error: ', error)
                   }}
                   loading={pdfLoading &&
                     <div style={{ color: 'rgba(255,255,255,.5)', marginBottom: 10 }}>
