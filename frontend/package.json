@@ -22,6 +22,7 @@
     "html5-qrcode": "^2.3.8",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.539.0",
+    "pdfjs-dist": "^6.0.227",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -46,6 +47,7 @@
     "tw-animate-css": "^1.3.6",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.0",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vite-plugin-static-copy": "^4.1.1"
   }
 }
