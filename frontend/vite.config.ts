@@ -16,7 +16,8 @@ export default defineConfig({
       targets:[
         {
           src: 'node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
-          dest: '',
+          dest: '.', 
+          rename: 'pdf.worker.min.mjs',
         }
       ]
     })
