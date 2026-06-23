@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/pdf.worker.min.mjs", "destination": "/pdf.worker.min.mjs" },
     { "source": "/(.*)", "destination":"/index.html"}
   ],
   "headers": [
