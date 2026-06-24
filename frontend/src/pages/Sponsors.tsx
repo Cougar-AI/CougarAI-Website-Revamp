@@ -8,6 +8,7 @@ const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001'
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
+
 interface Sponsor {
   sponsor_id: number;
   name: string;

@@ -13,7 +13,7 @@ const copyPdfWorker = {
   name: 'copy-pdf-worker',
   closeBundle() {
     copyFileSync(
-      resolve('node_modules/pdfjs-dist/build/pdf.worker.min.mjs'),
+      resolve('node_modules/react-pdf/node_modules/pdfjs-dist/build/pdf.worker.min.mjs'),
       resolve('dist/pdf.worker.min.mjs')
     )
     console.log('✓ pdf.worker.min.mjs copied to dist/')
