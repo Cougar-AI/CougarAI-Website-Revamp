@@ -203,7 +203,7 @@ export default function SponsorPage() {
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
-            to="/contact"
+            to="/sponsorships"
             style={{ background: '#b91c1c', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, boxShadow: '0 0 24px rgba(185,28,28,.4)', display: 'inline-block', textDecoration: 'none' }}
           >
             Become a Sponsor
@@ -299,7 +299,7 @@ export default function SponsorPage() {
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 14, lineHeight: 1.5 }}>We'd love to chat about how we can work together.</div>
         </div>
         <Link
-          to="/contact"
+          to="/sponsorships"
           style={{ background: '#b91c1c', color: '#fff', padding: '11px 22px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 0 18px rgba(185,28,28,.35)', flexShrink: 0, display: 'inline-block', textDecoration: 'none' }}
         >
           Get in Touch

@@ -122,8 +122,8 @@ export default function Contact() {
       {/* Bottom cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {[
-          { label: "New here?", title: "Become a member", desc: "Join workshops, projects, and a friendly community.", to: "/join" },
-          { label: "Partner with us", title: "Sponsorships", desc: "Collaborate on events, talks, and student projects.", to: "/sponsorships" },
+          { label: "New here?", title: "Become a member", desc: "Join workshops, projects, and a friendly community.", to: "/memberships" },
+          { label: "Partner with us", title: "Sponsorships", desc: "Collaborate on events, talks, and student projects.", to: "/sponsors" },
         ].map((c) => (
           <Link
             key={c.title}

@@ -65,7 +65,7 @@ export default function Footer() {
                     </NavLink>
                   </li>
                   <li>
-                    <NavLink to="/Sponsor" className={navLinkBase}>
+                    <NavLink to="/sponsors" className={navLinkBase}>
                       Sponsors
                     </NavLink>
                   </li>
