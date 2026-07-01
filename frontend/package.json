@@ -46,7 +46,7 @@
     "tw-animate-css": "^1.3.6",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.39.0",
-    "vite": "^8.0.16",
+    "vite": "^8.1.2",
     "vite-plugin-static-copy": "^4.1.1"
   }
 }
