@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { loadStripe } from "@stripe/stripe-js";
 import { getStoredUser, hasAccessToken, updateStoredUser } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 
@@ -346,13 +345,6 @@ export default function JoinUs() {
     };
   }, []);
 
-  async function ensureStripe() {
-    if (!PUBLISHABLE_KEY) throw new Error("Missing VITE_STRIPE_PUBLISHABLE_KEY");
-    const stripe = await loadStripe(PUBLISHABLE_KEY);
-    if (!stripe) throw new Error("Stripe failed to load");
-    return stripe;
-  }
-
   function validate(): string | null {
     if (!first.trim()) return "Please enter your first name.";
     if (!last.trim()) return "Please enter your last name.";
@@ -405,11 +397,7 @@ export default function JoinUs() {
         }
       );
 
-      if (data.sessionId) {
-        const stripe = await ensureStripe();
-        const { error: stripeErr } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-        if (stripeErr) throw stripeErr;
-      } else if (data.url) {
+      if (data.url) {
         window.location.assign(data.url as string);
       } else {
         throw new Error("No sessionId or url returned from checkout endpoint.");
