@@ -425,6 +425,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ Security hardening — knowledge-board source links now reject non-http(s) URLs; auth refresh/logout require a trusted frontend Origin to protect the refresh cookie
 - ✅ Knowledge board post management — knowledge-base entries now support edit and soft delete from the detail panel; backend PATCH/DELETE coverage added in integration tests
 - ✅ Phase 1 testing foundation — `tests/unit/` (104 tests, no Docker); `tests/integration/` (db_session autouse scoped to integration only); `.coveragerc`; pytest markers; passlib replaced with direct `bcrypt` in `passwords.py` (passlib 1.7.4 + bcrypt 5.x incompatibility fix); utils coverage: passwords 100%, date_validation 100%, query_handler 99%, auth_decorators 94%
 - ✅ Backend OOP refactor — all route files use explicit imports (no `from app.imports import *`); large blueprints split into sub-packages (`admin/`, `events/`, `auth/`, `partners/`); 11 service classes extracted (`BaseService` pattern); `@jwt_required()` replaced with `@require_authenticated`; `get_db()` returns g-scoped connection (no leaks)

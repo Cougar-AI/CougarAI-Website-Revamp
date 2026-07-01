@@ -1,5 +1,6 @@
 from __future__ import annotations
 import time
+from urllib.parse import urlsplit
 
 from flask import request, jsonify, current_app, make_response
 from sqlalchemy import text
@@ -16,6 +17,23 @@ from app.routes.auth._helpers import (
 )
 from app.utils.passwords import validate_password, hash_password, verify_password
 from app.utils.auth_decorators import require_authenticated, caller_id
+
+
+def _request_origin_allowed() -> bool:
+    allowed_origins = current_app.config.get("FRONTEND_URLS") or [current_app.config.get("FRONTEND_URL", "")]
+    allowed_origins = {origin.rstrip("/") for origin in allowed_origins if origin}
+
+    origin = (request.headers.get("Origin") or "").strip().rstrip("/")
+    if origin:
+        return origin in allowed_origins
+
+    referer = (request.headers.get("Referer") or "").strip()
+    if referer:
+        parsed = urlsplit(referer)
+        referer_origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+        return referer_origin in allowed_origins
+
+    return False
 
 
 @auth_bp.post("/register")
@@ -239,6 +257,9 @@ def refresh():
     if not token:
         return jsonify({"error": "unauthorized"}), 401
 
+    if not _request_origin_allowed():
+        return jsonify({"error": "forbidden"}), 403
+
     try:
         claims = _jwt_decode(token, current_app.config["JWT_REFRESH_SECRET"])
     except Exception:
@@ -411,6 +432,9 @@ def change_password_confirm():
 @auth_bp.delete("/logout")
 def logout():
     token = request.cookies.get("refresh_token") or ""
+
+    if token and not _request_origin_allowed():
+        return jsonify({"error": "forbidden"}), 403
 
     if token:
         try:

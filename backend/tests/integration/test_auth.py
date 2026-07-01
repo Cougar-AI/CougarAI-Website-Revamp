@@ -66,6 +66,15 @@ def _refresh_cookie(response) -> str | None:
     return None
 
 
+def _origin_headers(app, headers: dict | None = None, origin: str | None = None):
+    from config import BaseConfig
+
+    base = dict(headers or {})
+    allowed = origin or BaseConfig.FRONTEND_URL
+    base["Origin"] = allowed
+    return base
+
+
 # ---------------------------------------------------------------------------
 # POST /auth/register
 # ---------------------------------------------------------------------------
@@ -213,9 +222,19 @@ class TestRefreshAndLogout:
         cookie_value = cookie_header.split("refresh_token=")[1].split(";")[0]
         client.set_cookie("refresh_token", cookie_value, path="/auth")
 
-        resp = client.post("/auth/refresh")
+        resp = client.post("/auth/refresh", headers=_origin_headers(app))
         assert resp.status_code == 200
         assert "access_token" in resp.get_json()
+
+    def test_refresh_rejects_cross_site_origin(self, client, app, db_session):
+        cookie_header = self._authenticated_client(client, app)
+        assert cookie_header is not None
+
+        cookie_value = cookie_header.split("refresh_token=")[1].split(";")[0]
+        client.set_cookie("refresh_token", cookie_value, path="/auth")
+
+        resp = client.post("/auth/refresh", headers=_origin_headers(app, origin="https://evil.example"))
+        assert resp.status_code == 403
 
     def test_logout_clears_cookie(self, client, app, db_session):
         cookie_header = self._authenticated_client(client, app)
@@ -224,12 +243,22 @@ class TestRefreshAndLogout:
         cookie_value = cookie_header.split("refresh_token=")[1].split(";")[0]
         client.set_cookie("refresh_token", cookie_value, path="/auth")
 
-        resp = client.delete("/auth/logout")
+        resp = client.delete("/auth/logout", headers=_origin_headers(app))
         assert resp.status_code == 200
         # The response should clear the cookie (Max-Age=0 or empty value)
         set_cookie = _refresh_cookie(resp)
         assert set_cookie is not None
         assert "Max-Age=0" in set_cookie or 'refresh_token=""' in set_cookie or "refresh_token=;" in set_cookie
+
+    def test_logout_rejects_cross_site_origin(self, client, app, db_session):
+        cookie_header = self._authenticated_client(client, app)
+        assert cookie_header is not None
+
+        cookie_value = cookie_header.split("refresh_token=")[1].split(";")[0]
+        client.set_cookie("refresh_token", cookie_value, path="/auth")
+
+        resp = client.delete("/auth/logout", headers=_origin_headers(app, origin="https://evil.example"))
+        assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------

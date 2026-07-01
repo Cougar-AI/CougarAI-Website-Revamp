@@ -1,4 +1,17 @@
 from app.services.base_service import BaseService
+from urllib.parse import urlparse
+
+
+def _normalize_http_url(value):
+    url = (value or "").strip()
+    if not url:
+        return None
+
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return None
+
+    return url
 
 
 class KnowledgeBaseService(BaseService):
@@ -9,12 +22,14 @@ class KnowledgeBaseService(BaseService):
         summary = (payload.get("summary") or "").strip()
         body = (payload.get("body") or "").strip()
         source_label = payload.get("source_label")
-        source_url = payload.get("source_url")
+        source_url = _normalize_http_url(payload.get("source_url"))
         tags = payload.get("tags") or []
         is_featured = bool(payload.get("is_featured"))
 
         if not content_type or not title or not summary or not body:
             return None, "missing_fields"
+        if payload.get("source_url") and not source_url:
+            return None, "invalid_source_url"
 
         if isinstance(tags, str):
             tags = [t.strip() for t in tags.split(",") if t.strip()]
@@ -39,6 +54,11 @@ class KnowledgeBaseService(BaseService):
         params: list[object] = []
         for key in ("content_type", "title", "summary", "body", "source_label", "source_url", "is_featured"):
             if key in payload:
+                if key == "source_url":
+                    normalized = _normalize_http_url(payload.get(key))
+                    if payload.get(key) and not normalized:
+                        return None, "invalid_source_url"
+                    payload = {**payload, key: normalized}
                 fields.append(f"{key} = %s")
                 params.append(payload.get(key))
 

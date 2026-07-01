@@ -168,3 +168,21 @@ def test_delete_entry_success(client, app):
 
     entries = client.get("/knowledge-base/entries").get_json()["entries"]
     assert all(entry["entry_id"] != entry_id for entry in entries)
+
+
+def test_create_entry_rejects_invalid_source_url(client, app):
+    headers = _admin_headers(app)
+    res = client.post(
+        "/knowledge-base/entries",
+        json={
+            "content_type": "cai_news",
+            "title": f"Bad url {uuid.uuid4().hex}",
+            "summary": "Summary",
+            "body": "Body",
+            "source_url": "javascript:alert(1)",
+            "tags": [],
+        },
+        headers=headers,
+    )
+    assert res.status_code == 400
+    assert res.get_json()["error"] == "invalid_source_url"
