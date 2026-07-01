@@ -29,11 +29,7 @@ import { apiGet, apiPost } from "@/lib/api";
  */
 
 const _stripeMode = (import.meta.env.VITE_STRIPE_MODE ?? "test") as "test" | "live";
-const PUBLISHABLE_KEY = (
-  _stripeMode === "test"
-    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY
-    : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-) as string | undefined;
+
 const PRICE_IDS = {
   semester: { live: "price_1S4sVLH2XIQuLIalBvif5rrs", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
   yearly:   { live: "price_1S0ylVH2XIQuLIalbpMXxrV9", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
