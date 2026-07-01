@@ -1,0 +1,14 @@
+version 2: 
+updates: 
+  - package-ecosystem: "pip"
+    directory: "/backend/requirements.txt"
+    schedule:
+      interval: "weekly"
+    open-pull-request-limit: 10
+
+  - package-ecosystem: "npm"
+    directory: "frontend"
+    schedule: 
+      interval: "weekly"
+    open-pull-request-limit: 10
+    
