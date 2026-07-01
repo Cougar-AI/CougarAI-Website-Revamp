@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, CalendarDays, Clock3, ExternalLink, MessageSquare, Search, Sparkles, Tag } from "lucide-react";
-import { apiGet, apiPost } from "@/lib/api";
+import { BookOpen, CalendarDays, Clock3, ExternalLink, MessageSquare, PencilLine, Search, Sparkles, Tag, Trash2 } from "lucide-react";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { formatDate } from "@/lib/dates";
 import { hasAccessToken } from "@/lib/auth";
@@ -38,6 +38,17 @@ interface KnowledgeEntryDetail extends KnowledgeEntrySummary {
   comments: KnowledgeComment[];
 }
 
+interface EntryFormState {
+  content_type: string;
+  title: string;
+  summary: string;
+  body: string;
+  source_label: string;
+  source_url: string;
+  tags: string;
+  is_featured: boolean;
+}
+
 const TYPE_OPTIONS: Array<{ value: KnowledgeType; label: string }> = [
   { value: "all", label: "All topics" },
   { value: "workshop", label: "Workshops" },
@@ -55,6 +66,32 @@ const TYPE_META: Record<string, { label: string; tone: string; ring: string }> =
   officer_advice: { label: "Officer Advice", tone: "rgba(34,197,94,.92)", ring: "rgba(34,197,94,.22)" },
   all: { label: "All", tone: "rgba(255,255,255,.8)", ring: "rgba(255,255,255,.16)" },
 };
+
+function createEmptyEntryForm(defaultType: string): EntryFormState {
+  return {
+    content_type: defaultType,
+    title: "",
+    summary: "",
+    body: "",
+    source_label: "",
+    source_url: "",
+    tags: "",
+    is_featured: false,
+  };
+}
+
+function createEntryFormFromEntry(entry: KnowledgeEntrySummary): EntryFormState {
+  return {
+    content_type: entry.content_type,
+    title: entry.title,
+    summary: entry.summary,
+    body: entry.body,
+    source_label: entry.source_label ?? "",
+    source_url: entry.source_url ?? "",
+    tags: (entry.tags ?? []).join(", "),
+    is_featured: !!entry.is_featured,
+  };
+}
 
 function KnowledgeChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -134,30 +171,77 @@ export default function KnowledgeBase() {
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const { user } = useAuth();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addForm, setAddForm] = useState({
-    content_type: "cai_news",
-    title: "",
-    summary: "",
-    body: "",
-    tags: "",
-    source_label: "",
-    source_url: "",
-    is_featured: false,
-  });
+  const [entryModalMode, setEntryModalMode] = useState<"add" | "edit" | null>(null);
+  const [entryForm, setEntryForm] = useState<EntryFormState>(() => createEmptyEntryForm("cai_news"));
+  const [entrySaving, setEntrySaving] = useState(false);
+  const [entryDeleting, setEntryDeleting] = useState(false);
 
   const canOpenAdd = !!(user && (user.role === "admin" || user.role === "officer" || user.role === "partner"));
+  const defaultEntryType = user?.role === "partner" ? "ai_news" : "cai_news";
+  const availableEntryTypes = useMemo(
+    () => TYPE_OPTIONS.filter((option) => option.value !== "all" && (user?.role !== "partner" || option.value === "ai_news")),
+    [user?.role],
+  );
+
+  function openAddModal() {
+    setEntryModalMode("add");
+    setEntryForm(createEmptyEntryForm(defaultEntryType));
+  }
+
+  function openEditModal() {
+    if (!selectedEntry) return;
+    setEntryModalMode("edit");
+    setEntryForm(createEntryFormFromEntry(selectedEntry));
+  }
+
+  function closeEntryModal() {
+    setEntryModalMode(null);
+    setEntrySaving(false);
+    setEntryDeleting(false);
+  }
 
   async function saveNewEntry() {
     try {
-      const payload = { ...addForm, tags: addForm.tags.split(",").map((t) => t.trim()).filter(Boolean) };
-      await apiPost("/knowledge-base/entries", payload);
-      setShowAddModal(false);
-      setAddForm({ content_type: "cai_news", title: "", summary: "", body: "", tags: "", source_label: "", source_url: "", is_featured: false });
+      setEntrySaving(true);
+      const payload = {
+        ...entryForm,
+        tags: entryForm.tags.split(",").map((t) => t.trim()).filter(Boolean),
+      };
+
+      if (entryModalMode === "edit") {
+        if (!selectedEntry) throw new Error("Select an entry first.");
+        await apiPatch(`/knowledge-base/entries/${selectedEntry.entry_id}`, payload);
+        await qc.invalidateQueries({ queryKey: ["knowledge-base-entry", selectedEntry.entry_id] });
+      } else {
+        const response = await apiPost<{ entry: KnowledgeEntrySummary }>("/knowledge-base/entries", payload);
+        setSelectedEntryId(response.entry.entry_id);
+      }
+
+      closeEntryModal();
       await qc.invalidateQueries({ queryKey: ["knowledge-base-entries"] });
     } catch (err) {
       console.error(err);
       alert("Could not save entry: " + (((err as any)?.message) || ""));
+    } finally {
+      setEntrySaving(false);
+    }
+  }
+
+  async function deleteSelectedEntry() {
+    if (!selectedEntry || !window.confirm(`Delete \"${selectedEntry.title}\"? This will hide it from the board.`)) return;
+
+    try {
+      setEntryDeleting(true);
+      await apiDelete(`/knowledge-base/entries/${selectedEntry.entry_id}`);
+      setSelectedEntryId(null);
+      closeEntryModal();
+      await qc.invalidateQueries({ queryKey: ["knowledge-base-entries"] });
+      await qc.invalidateQueries({ queryKey: ["knowledge-base-entry", selectedEntry.entry_id] });
+    } catch (err) {
+      console.error(err);
+      alert("Could not delete entry: " + (((err as any)?.message) || ""));
+    } finally {
+      setEntryDeleting(false);
     }
   }
 
@@ -192,6 +276,12 @@ export default function KnowledgeBase() {
   });
 
   const selectedEntry = detailQuery.data?.entry ?? null;
+  const canEditSelectedEntry = !!selectedEntry && !!user && (
+    selectedEntry.content_type === "ai_news"
+      ? user.role === "admin" || user.role === "officer" || user.role === "partner"
+      : user.role === "admin" || user.role === "officer"
+  );
+  const canDeleteSelectedEntry = !!selectedEntry && !!user && (user.role === "admin" || user.role === "officer");
 
   const commentMutation = useMutation({
     mutationFn: async () => {
@@ -273,7 +363,7 @@ export default function KnowledgeBase() {
               {canOpenAdd && (
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(true)}
+                  onClick={openAddModal}
                   className="rounded-full px-4 py-2 text-sm font-semibold bg-green-700/70 text-white"
                 >
                   Add Entry
@@ -333,17 +423,40 @@ export default function KnowledgeBase() {
                       {selectedEntry.title}
                     </h2>
                   </div>
-                  {selectedEntry.source_url ? (
-                    <a
-                      href={selectedEntry.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
-                      aria-label="Open source"
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    {canEditSelectedEntry && (
+                      <button
+                        type="button"
+                        onClick={openEditModal}
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                        Edit
+                      </button>
+                    )}
+                    {canDeleteSelectedEntry && (
+                      <button
+                        type="button"
+                        onClick={deleteSelectedEntry}
+                        disabled={entryDeleting}
+                        className="inline-flex h-10 items-center gap-2 rounded-full border border-red-500/30 bg-red-950/35 px-3.5 text-sm font-semibold text-red-200 transition hover:bg-red-900/45 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {entryDeleting ? "Deleting…" : "Delete"}
+                      </button>
+                    )}
+                    {selectedEntry.source_url ? (
+                      <a
+                        href={selectedEntry.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10"
+                        aria-label="Open source"
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs text-white/45">
@@ -463,34 +576,50 @@ export default function KnowledgeBase() {
         </div>
       </section>
     </main>
-      {showAddModal && (
+      {entryModalMode && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-full max-w-2xl rounded-2xl border border-white/15 bg-slate-950/95 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold">Add Knowledge Entry</h3>
-              <button onClick={() => setShowAddModal(false)} className="text-white/60">Close</button>
+              <h3 className="text-lg font-bold">{entryModalMode === "edit" ? "Edit Knowledge Entry" : "Add Knowledge Entry"}</h3>
+              <button onClick={closeEntryModal} className="text-white/60">Close</button>
             </div>
             <div className="mt-4 grid gap-3">
               <label className="text-sm">Type</label>
-              <select value={addForm.content_type} onChange={(e) => setAddForm(f => ({ ...f, content_type: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20">
-                {TYPE_OPTIONS.filter(o => o.value !== 'all').map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              <select value={entryForm.content_type} onChange={(e) => setEntryForm(f => ({ ...f, content_type: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20">
+                {availableEntryTypes.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
 
               <label className="text-sm">Title</label>
-              <input value={addForm.title} onChange={(e) => setAddForm(f => ({ ...f, title: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+              <input value={entryForm.title} onChange={(e) => setEntryForm(f => ({ ...f, title: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <label className="text-sm">Summary</label>
-              <input value={addForm.summary} onChange={(e) => setAddForm(f => ({ ...f, summary: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+              <input value={entryForm.summary} onChange={(e) => setEntryForm(f => ({ ...f, summary: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <label className="text-sm">Body</label>
-              <textarea value={addForm.body} onChange={(e) => setAddForm(f => ({ ...f, body: e.target.value }))} rows={6} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+              <textarea value={entryForm.body} onChange={(e) => setEntryForm(f => ({ ...f, body: e.target.value }))} rows={6} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+
+              <label className="text-sm">Source label</label>
+              <input value={entryForm.source_label} onChange={(e) => setEntryForm(f => ({ ...f, source_label: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+
+              <label className="text-sm">Source URL</label>
+              <input value={entryForm.source_url} onChange={(e) => setEntryForm(f => ({ ...f, source_url: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
 
               <label className="text-sm">Tags (comma separated)</label>
-              <input value={addForm.tags} onChange={(e) => setAddForm(f => ({ ...f, tags: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+              <input value={entryForm.tags} onChange={(e) => setEntryForm(f => ({ ...f, tags: e.target.value }))} className="rounded bg-white/10 border border-white/10 px-3 py-2 text-white outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20" />
+
+              <label className="flex items-center gap-2 text-sm text-white/85">
+                <input
+                  type="checkbox"
+                  checked={entryForm.is_featured}
+                  onChange={(e) => setEntryForm(f => ({ ...f, is_featured: e.target.checked }))}
+                  className="h-4 w-4 rounded border-white/20 bg-white/10 text-red-600 focus:ring-red-500/30"
+                />
+                Featured post
+              </label>
 
               <div className="flex gap-2">
-                <button onClick={() => saveNewEntry()} className="rounded bg-red-700 px-4 py-2 text-white">Save</button>
-                <button onClick={() => setShowAddModal(false)} className="rounded border border-white/10 px-4 py-2 text-white">Cancel</button>
+                <button onClick={() => saveNewEntry()} disabled={entrySaving} className="rounded bg-red-700 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60">{entrySaving ? "Saving…" : "Save"}</button>
+                <button onClick={closeEntryModal} className="rounded border border-white/10 px-4 py-2 text-white">Cancel</button>
               </div>
             </div>
           </div>
