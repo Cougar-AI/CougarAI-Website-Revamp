@@ -5,9 +5,24 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      python-patch-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
 #default open pull request limit is 5
   - package-ecosystem: "npm"
     directory: "frontend"
     schedule: 
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      npm-patch-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
