@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
+import { pdfjs, Document, Page, } from "react-pdf"
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
+
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+
 
 interface Sponsor {
   sponsor_id: number;
@@ -118,6 +123,7 @@ function SponsorCard({ name, logo_url, website, description }: Sponsor) {
 }
 
 export default function SponsorPage() {
+  const { user } = useAuth();
   const { data, isLoading } = useQuery<SponsorsResponse>({
     queryKey: ['public-sponsors'],
     queryFn: fetchSponsors,
@@ -125,6 +131,55 @@ export default function SponsorPage() {
   });
 
   const sponsors = data?.sponsors ?? [];
+
+  const [brochureUrl, setBrochureUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [showBrochure, setShowBrochure] = useState(false);
+  const brochureRef = useRef<HTMLDivElement | null>(null);
+
+  const [numPages, setNumPages] = useState<number | null>(null);
+  const [pdfLoading, SetPdfLoading] = useState(true);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch(`${BACKEND}/sponsors/brochure`);
+        if (!res.ok) return;
+        const j = await res.json();
+        if (mounted) {
+          setBrochureUrl(j.url ?? null);
+          if (j.url) {
+            setShowBrochure(true);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  async function handleBrochureUpload(file: File) {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${BACKEND}/admin/upload-file?category=sponsors`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? 'Upload failed');
+      setBrochureUrl(json.url);
+      setShowBrochure(true);
+    } catch (e: any) {
+      alert('Upload failed: ' + (e?.message ?? ''));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <main className="relative font-['Oxanium']" style={{ maxWidth: 860, margin: '0 auto', padding: '64px 24px 90px', textAlign: 'center' }}>
@@ -148,17 +203,22 @@ export default function SponsorPage() {
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
           <Link
-            to="/join"
+            to="/sponsorships"
             style={{ background: '#b91c1c', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, boxShadow: '0 0 24px rgba(185,28,28,.4)', display: 'inline-block', textDecoration: 'none' }}
           >
             Become a Sponsor
           </Link>
-          <Link
-            to="/sponsorships"
-            style={{ background: 'rgba(255,255,255,.08)', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, border: '1px solid rgba(255,255,255,.14)', backdropFilter: 'blur(6px)', display: 'inline-block', textDecoration: 'none' }}
+          <button
+            onClick={() => {
+              setShowBrochure((true));
+              setTimeout(() => {
+                brochureRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+              },120);
+            }}
+            style={{ background: 'rgba(255,255,255,.08)', color: '#fff', padding: '13px 26px', borderRadius: 12, fontWeight: 600, fontSize: 14.5, border: '1px solid rgba(255,255,255,.14)', backdropFilter: 'blur(6px)', display: 'inline-block', cursor: 'pointer' }}
           >
             Sponsorship Info
-          </Link>
+          </button>
         </div>
       </header>
 
@@ -168,8 +228,62 @@ export default function SponsorPage() {
       ) : sponsors.length === 0 ? (
         <div style={{ color: 'rgba(255,255,255,.3)', fontSize: 14, marginBottom: 64 }}>No sponsors yet.</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 24, maxWidth: 720, margin: '0 auto 64px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 20, maxWidth: 720, margin: '0 auto 64px' }}>
           {sponsors.map((s) => <SponsorCard key={s.sponsor_id} {...s} />)}
+        </div>
+      )}
+
+      {/* Brochure drop-down panel (visible to all; upload controls for admins) */}
+      {showBrochure && (
+        <div ref={brochureRef} style={{ maxWidth: 720, margin: '0 auto 24px', padding: 18, borderRadius: 12, background: 'rgba(255,255,255,.02)', border: '1px solid rgba(255,255,255,.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+            <div style={{ fontWeight: 700 }}>Sponsorship Information</div>
+            {user && user.role === 'admin' && (
+              <div>
+                <label style={{ display: 'inline-block', marginRight: 8 }} className="rounded px-3 py-2" >
+                  <input type="file" accept="application/pdf" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBrochureUpload(f); }} />
+                  <button className="rounded px-3 py-1 text-sm" style={{ background: 'rgba(185,28,28,.6)', color: '#fff' }}>{uploading ? 'Uploading…' : 'Upload PDF'}</button>
+                </label>
+              </div>
+            )}
+          </div>
+
+          {brochureUrl ? (
+            <div>
+              <div style={{ marginBottom: 8 }}>
+                <a href={`${BACKEND}${brochureUrl}`} target="_blank" rel="noreferrer" style={{ color: 'rgba(255,255,255,.9)' }}>Open brochure in new tab</a>
+              </div>
+              <div style={{ width: '100%', minHeight: 600, overflow: 'auto', padding: 12 }}>
+                <Document
+                  file={`${BACKEND}${brochureUrl}`}
+                  onLoadSuccess={({ numPages }) => {
+                    setNumPages(numPages);
+                    SetPdfLoading(false);
+                  }}
+                  onLoadError={(error) => {
+                    console.log('PDF load error: ', error)
+                  }}
+                  loading={pdfLoading &&
+                    <div style={{ color: 'rgba(255,255,255,.5)', marginBottom: 10 }}>
+                      Loading PDF…
+                    </div>
+                  }
+                >
+                  
+                  {numPages && 
+                    Array.from(new Array(numPages), (_, i) => (
+                    <Page
+                      key={i}
+                      pageNumber={i + 1}
+                      width={700}
+                    />
+                  ))}
+                </Document>
+              </div>
+            </div>
+          ) : (
+            <div style={{ color: 'rgba(255,255,255,.45)' }}>No brochure uploaded yet.</div>
+          )}
         </div>
       )}
 
@@ -185,7 +299,7 @@ export default function SponsorPage() {
           <div style={{ color: 'rgba(255,255,255,.55)', fontSize: 14, lineHeight: 1.5 }}>We'd love to chat about how we can work together.</div>
         </div>
         <Link
-          to="/contact"
+          to="/sponsorships"
           style={{ background: '#b91c1c', color: '#fff', padding: '11px 22px', borderRadius: 10, fontWeight: 600, fontSize: 14, boxShadow: '0 0 18px rgba(185,28,28,.35)', flexShrink: 0, display: 'inline-block', textDecoration: 'none' }}
         >
           Get in Touch

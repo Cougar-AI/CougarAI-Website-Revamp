@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import logo from '../assets/logo.png';
 import Slideshow, { type SlideImage } from '../components/Slideshow';
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 const HP_FALLBACK: SlideImage[] = [
   { src: '/hp_gm.JPG',    objectPosition: 'center' },

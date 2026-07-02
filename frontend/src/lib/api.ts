@@ -1,6 +1,7 @@
 import { clearAuthSession, getAccessToken } from "@/lib/auth";
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+// Get backend URL and ensure no trailing slash
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Bell, Plus, Edit2, Trash2, X, Play, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { formatDate, formatDateTimeFull } from '@/lib/dates';
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TYPES = ['progress_report_reminder', 'event_reminder'] as const;

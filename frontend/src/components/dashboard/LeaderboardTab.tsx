@@ -212,9 +212,8 @@ export default function LeaderboardTab({ meData }: Props) {
               <div className="space-y-1">
                 {sortEntries(pointsData.entries, sortBy).map((entry, i) => {
                   const isMe = meData?.profile?.student_id === entry.student_id;
-                  const displayName = entry.is_public
-                    ? `${entry.first_name} ${entry.last_name}`
-                    : "Anonymous Member";
+                  const fullName = [entry.first_name, entry.last_name].filter(Boolean).join(" ");
+                  const displayName = fullName || "Anonymous Member";
 
                   return (
                     <div
@@ -228,9 +227,7 @@ export default function LeaderboardTab({ meData }: Props) {
                       <span className="w-6 flex-shrink-0 text-center text-xs font-medium text-white/40">
                         {sortBy === "rank" ? entry.rank : i + 1}
                       </span>
-                      {entry.is_public && (
-                        <Avatar url={entry.avatar_url} name={displayName} size={28} />
-                      )}
+                      <Avatar url={entry.avatar_url} name={displayName} size={28} />
                       <span className="flex-1 truncate text-sm text-white/80">{displayName}</span>
                       <span className="flex-shrink-0 text-xs text-white/40 font-['Oxanium']">
                         {entry.current_streak}🔥

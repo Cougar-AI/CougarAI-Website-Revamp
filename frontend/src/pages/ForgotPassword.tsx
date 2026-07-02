@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");

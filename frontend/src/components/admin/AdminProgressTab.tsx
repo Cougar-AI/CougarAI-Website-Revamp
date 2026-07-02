@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiPatch } from '@/lib/api';
+import { apiGet, apiPost } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
 import { ChevronLeft, ChevronRight, CheckCircle2, XCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { formatDate } from '@/lib/dates';
@@ -244,7 +244,6 @@ function MyReport({ userId }: { userId: number }) {
 // Team Reports view
 // --------------------------------------------------------------------------
 function TeamReports() {
-  const qc = useQueryClient();
   const [currentWeek, setCurrentWeek] = useState(() => mondayOf(new Date()));
   const weekIso = isoDate(currentWeek);
   const [expandedUser, setExpandedUser] = useState<number | null>(null);

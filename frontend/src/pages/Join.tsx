@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { loadStripe } from "@stripe/stripe-js";
 import { getStoredUser, hasAccessToken, updateStoredUser } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 
@@ -30,11 +29,7 @@ import { apiGet, apiPost } from "@/lib/api";
  */
 
 const _stripeMode = (import.meta.env.VITE_STRIPE_MODE ?? "test") as "test" | "live";
-const PUBLISHABLE_KEY = (
-  _stripeMode === "test"
-    ? import.meta.env.VITE_STRIPE_TEST_PUBLISHABLE_KEY
-    : import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-) as string | undefined;
+
 const PRICE_IDS = {
   semester: { live: "price_1S4sVLH2XIQuLIalBvif5rrs", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
   yearly:   { live: "price_1S0ylVH2XIQuLIalbpMXxrV9", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
@@ -299,7 +294,7 @@ export default function JoinUs() {
 
   if (urlStatus === "success") return <SuccessView />;
   if (urlStatus === "canceled") return <CanceledView />;
-  if (!hasAccessToken()) return <NotLoggedInView />;
+  if (!(hasAccessToken() || getStoredUser())) return <NotLoggedInView />;
 
   // Read ?plan= from URL, fallback to "semester"
   const initialPlan = ((): PlanId => {
@@ -345,13 +340,6 @@ export default function JoinUs() {
       cancelled = true;
     };
   }, []);
-
-  async function ensureStripe() {
-    if (!PUBLISHABLE_KEY) throw new Error("Missing VITE_STRIPE_PUBLISHABLE_KEY");
-    const stripe = await loadStripe(PUBLISHABLE_KEY);
-    if (!stripe) throw new Error("Stripe failed to load");
-    return stripe;
-  }
 
   function validate(): string | null {
     if (!first.trim()) return "Please enter your first name.";
@@ -405,11 +393,7 @@ export default function JoinUs() {
         }
       );
 
-      if (data.sessionId) {
-        const stripe = await ensureStripe();
-        const { error: stripeErr } = await stripe.redirectToCheckout({ sessionId: data.sessionId });
-        if (stripeErr) throw stripeErr;
-      } else if (data.url) {
+      if (data.url) {
         window.location.assign(data.url as string);
       } else {
         throw new Error("No sessionId or url returned from checkout endpoint.");

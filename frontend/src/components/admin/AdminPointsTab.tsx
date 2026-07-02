@@ -4,7 +4,7 @@ import { apiGet, apiPost } from '@/lib/api';
 import { Star, TrendingUp, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import { formatDate, formatDateTimeFull } from '@/lib/dates';
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 void BACKEND;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -251,9 +251,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
     if (!evId) return;
     setLoadingAttendees(true);
     try {
-      const res = await import('@/lib/api').then((m) =>
-        m.apiGet<{ attendance_count: number; attendees: AttendeeUser[] }>(`/admin/events/${evId}/attendance`)
-      );
+      const res = await apiGet<{ attendance_count: number; attendees: AttendeeUser[] }>(`/admin/events/${evId}/attendance`);
       const ev = eventsData?.events.find((e) => String(e.event_id) === evId);
       const newUsers: UserSearchResult[] = res.attendees
         .filter((a) => a.user_id)

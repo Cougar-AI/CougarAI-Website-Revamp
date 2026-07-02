@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Mail, Send, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { formatDateTimeFull } from '@/lib/dates';
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 async function apiFetch(path: string, opts: RequestInit = {}) {
   const token = localStorage.getItem('access_token') ?? sessionStorage.getItem('access_token') ?? '';

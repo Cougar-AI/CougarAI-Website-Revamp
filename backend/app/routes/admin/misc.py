@@ -1,6 +1,6 @@
 import os
 import uuid
-from flask import request, jsonify, send_from_directory
+from flask import request, jsonify, send_from_directory, make_response
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES
@@ -37,12 +37,46 @@ def upload_image():
     return jsonify({"url": f"/admin/uploads/{category}/{filename}"}), 200
 
 
+@admin_bp.route("/upload-file", methods=["POST", "OPTIONS"])
+@require_admin
+def upload_file():
+    """Upload non-image files (PDFs) for admin-managed categories like sponsors.
+    Returns a URL under /admin/uploads/<category>/<filename>
+    """
+    category = request.args.get("category", "").strip()
+    if category not in ALLOWED_CATEGORIES:
+        return jsonify({"error": f"category must be one of: {', '.join(sorted(ALLOWED_CATEGORIES))}"}), 400
+
+    if "file" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    f = request.files["file"]
+    # Allow PDFs for now
+    if f.mimetype != "application/pdf":
+        return jsonify({"error": "Only PDF files are allowed for this endpoint"}), 400
+
+    f.seek(0, 2)
+    size = f.tell()
+    f.seek(0)
+    if size > (10 * 1024 * 1024):  # 10 MB limit for PDFs
+        return jsonify({"error": "File exceeds 10 MB limit"}), 400
+
+    filename = secure_filename(f"{uuid.uuid4().hex}.pdf")
+    upload_dir = os.path.join(UPLOADS_BASE, category)
+    os.makedirs(upload_dir, exist_ok=True)
+    f.save(os.path.join(upload_dir, filename))
+
+    return jsonify({"url": f"/admin/uploads/{category}/{filename}"}), 200
+
+
 @admin_bp.route("/uploads/<category>/<filename>", methods=["GET"])
 def serve_upload(category, filename):
     if category not in ALLOWED_CATEGORIES:
         return jsonify({"error": "Not found"}), 404
     upload_dir = os.path.join(UPLOADS_BASE, category)
-    return send_from_directory(upload_dir, secure_filename(filename))
+    response = make_response(send_from_directory(upload_dir, secure_filename(filename)))
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 
 @admin_bp.route("/pinned-announcement", methods=["GET", "OPTIONS"])

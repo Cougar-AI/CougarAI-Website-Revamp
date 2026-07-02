@@ -18,7 +18,7 @@ type LoginOk = { access_token: string; user: { user_id: number; email: string; r
 type ResendOk = { ok: boolean };
 type GoogleLoginPayload = LoginOk;
 
-const API_BASE = import.meta.env?.VITE_BACKEND_API_URL ?? ""; // leave "" for same-origin
+const API_BASE = (import.meta.env?.VITE_BACKEND_API_URL ?? "").replace(/\/$/, ""); // remove trailing slash
 const GOOGLE_CLIENT_ID = import.meta.env?.VITE_GOOGLE_CLIENT_ID ?? "";
 const MICROSOFT_ENABLED = import.meta.env?.VITE_ENABLE_MICROSOFT_OAUTH === "true";
 const DISCORD_ENABLED = import.meta.env?.VITE_ENABLE_DISCORD_OAUTH === "true";

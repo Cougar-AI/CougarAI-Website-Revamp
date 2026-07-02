@@ -14,7 +14,7 @@ const TYPE_LABELS: Record<string, string> = {
   other: 'Other',
 };
 
-const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
+const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 interface Partner {
   partner_id: number;
