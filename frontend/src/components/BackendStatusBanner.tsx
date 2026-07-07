@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { getBackendBaseUrl } from '@/lib/backend';
 
-const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
-const HEALTH_URL = `${BACKEND}/health`;
-const CHECK_INTERVAL_MS = 30_000;
+const HEALTH_URL = `${getBackendBaseUrl()}/health`;
 const REQUEST_TIMEOUT_MS = 5_000;
 
 export default function BackendStatusBanner() {
@@ -12,8 +11,6 @@ export default function BackendStatusBanner() {
 
   useEffect(() => {
     let isMounted = true;
-    let intervalId: number | undefined;
-
     const checkBackend = async () => {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -26,6 +23,13 @@ export default function BackendStatusBanner() {
           cache: 'no-store',
           signal: controller.signal,
         });
+
+        if (response.status === 429) {
+          if (isMounted) {
+            setIsBackendOnline(true);
+          }
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(`health_${response.status}`);
@@ -52,15 +56,9 @@ export default function BackendStatusBanner() {
     };
 
     void checkBackend();
-    intervalId = window.setInterval(() => {
-      void checkBackend();
-    }, CHECK_INTERVAL_MS);
 
     return () => {
       isMounted = false;
-      if (intervalId !== undefined) {
-        window.clearInterval(intervalId);
-      }
     };
   }, []);
 
