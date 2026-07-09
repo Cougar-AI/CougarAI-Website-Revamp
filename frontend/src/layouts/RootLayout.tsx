@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import SiteBackground from '@/components/SiteBackground';
+import BackendStatusBanner from '@/components/BackendStatusBanner';
 
 export default function RootLayout() {
   return (
@@ -11,6 +12,8 @@ export default function RootLayout() {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50">
         Skip to content
       </a>
+
+      <BackendStatusBanner />
 
       <div className="relative z-20">
         <Navbar />

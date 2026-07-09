@@ -17,6 +17,7 @@ from app.routes.partners import partners_bp
 from app.routes.receipts import receipts_bp
 from app.routes.notifications import notifications_bp
 from app.routes.knowledge_base import knowledge_base_bp
+from app.routes.health import health_bp
 
 blueprints_with_prefixes = {
     discord_bp: '/discord',
@@ -38,4 +39,5 @@ blueprints_with_prefixes = {
     receipts_bp: '/receipts',
     notifications_bp: '/notifications',
     knowledge_base_bp: '/knowledge-base',
+    health_bp: '/health',
 }
