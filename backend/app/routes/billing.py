@@ -1,3 +1,4 @@
+import os
 import stripe
 from datetime import date
 from typing import Optional
@@ -18,6 +19,13 @@ _ALLOWED_PRICE_IDS = {
 }
 
 _ALLOWED_GRADE_LEVELS = {"freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"}
+_ALLOWED_SHIRT_SIZES = {"XS", "S", "M", "L", "XL", "XXL"}
+_STRIPE_MODE = (os.getenv("STRIPE_MODE") or "test").strip().lower()
+_SHIRT_PRICE_ID = (
+    (os.getenv("STRIPE_TEST_SHIRT_PRICE_ID") or "").strip()
+    if _STRIPE_MODE == "test"
+    else (os.getenv("STRIPE_SHIRT_PRICE_ID") or "").strip()
+)
 
 
 def _cors_preflight():
@@ -30,6 +38,38 @@ def _normalize_grade_level(value):
     return normalized if normalized in _ALLOWED_GRADE_LEVELS else None
 
 
+def _normalize_shirt_size(value):
+    normalized = (value or "").strip().upper()
+    return normalized if normalized in _ALLOWED_SHIRT_SIZES else None
+
+
+def _get_active_membership(cur, user_id: int):
+    cur.execute(
+        """
+        SELECT plan_id, expires_at
+        FROM payments
+        WHERE (student_id = (SELECT student_id FROM profile WHERE user_id = %s)
+               OR email = (SELECT email FROM users WHERE user_id = %s))
+          AND expires_at >= CURRENT_DATE
+        ORDER BY expires_at DESC
+        LIMIT 1
+        """,
+        (user_id, user_id),
+    )
+    return cur.fetchone()
+
+
+def _can_purchase_membership(active_plan_id: Optional[str], requested_plan_id: Optional[str]) -> bool:
+    """Allow first-time purchases and semester -> yearly upgrades only."""
+    normalized_active = (active_plan_id or "").strip().lower()
+    normalized_requested = (requested_plan_id or "").strip().lower()
+
+    if not normalized_active:
+        return True
+
+    return normalized_active == "semester" and normalized_requested == "yearly"
+
+
 @members_bp.route("/join", methods=["POST", "OPTIONS"])
 @require_authenticated
 def join_member():
@@ -39,6 +79,7 @@ def join_member():
     last_name = (data.get("last_name") or "").strip()
     student_id = (data.get("student_id") or "").strip() or None
     grade_level = _normalize_grade_level(data.get("grade_level"))
+    shirt_size = _normalize_shirt_size(data.get("shirt_size"))
 
     if not first_name or not last_name:
         current_app.logger.warning("members/join rejected: missing name user_id=%s", user_id)
@@ -48,10 +89,11 @@ def join_member():
         conn = get_db()
         with conn.cursor() as cur:
             current_app.logger.warning(
-                "members/join start user_id=%s student_id=%s grade_level=%s",
+                "members/join start user_id=%s student_id=%s grade_level=%s shirt_size=%s",
                 user_id,
                 student_id,
                 grade_level,
+                shirt_size,
             )
             cur.execute("SELECT email FROM users WHERE user_id = %s", (user_id,))
             user_row = cur.fetchone()
@@ -87,10 +129,11 @@ def join_member():
                     SET student_id = %s,
                         first_name = %s,
                         last_name = %s,
-                        grade_level = %s
+                        grade_level = %s,
+                        shirt_size = %s
                     WHERE user_id = %s
                     """,
-                    (student_id, first_name, last_name, grade_level, user_id),
+                    (student_id, first_name, last_name, grade_level, shirt_size, user_id),
                 )
             elif student_id and existing_student_profile:
                 current_app.logger.warning("members/join linking existing student profile user_id=%s student_id=%s", user_id, student_id)
@@ -100,19 +143,20 @@ def join_member():
                     SET user_id = %s,
                         first_name = %s,
                         last_name = %s,
-                        grade_level = %s
+                        grade_level = %s,
+                        shirt_size = %s
                     WHERE student_id = %s
                     """,
-                    (user_id, first_name, last_name, grade_level, student_id),
+                    (user_id, first_name, last_name, grade_level, shirt_size, student_id),
                 )
             else:
                 current_app.logger.warning("members/join inserting profile user_id=%s student_id=%s", user_id, student_id)
                 cur.execute(
                     """
-                    INSERT INTO profile (user_id, student_id, first_name, last_name, grade_level)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO profile (user_id, student_id, first_name, last_name, grade_level, shirt_size)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                    (user_id, student_id, first_name, last_name, grade_level),
+                    (user_id, student_id, first_name, last_name, grade_level, shirt_size),
                 )
             conn.commit()
             current_app.logger.warning("members/join success user_id=%s email=%s", user_id, user_row["email"])
@@ -132,10 +176,15 @@ def create_checkout_session():
     plan_id = data.get("plan_id")
     success_url = data.get("success_url")
     cancel_url = data.get("cancel_url")
+    include_shirt = bool(data.get("include_shirt"))
 
     if price_id not in _ALLOWED_PRICE_IDS:
         current_app.logger.warning("billing/create-checkout-session invalid price user_id=%s price_id=%s", user_id, price_id)
         return jsonify({"error": "Invalid price ID"}), 400
+
+    if plan_id not in {"semester", "yearly"}:
+        current_app.logger.warning("billing/create-checkout-session invalid plan user_id=%s plan_id=%s", user_id, plan_id)
+        return jsonify({"error": "Invalid membership plan"}), 400
 
     if not all([success_url, cancel_url]):
         current_app.logger.warning("billing/create-checkout-session missing urls user_id=%s", user_id)
@@ -149,6 +198,8 @@ def create_checkout_session():
     # Look up existing Stripe customer ID and email
     existing_customer_id = None
     user_email = None
+    shirt_size = None
+    active_membership = None
     try:
         conn = get_db()
         with conn.cursor() as cur:
@@ -160,8 +211,49 @@ def create_checkout_session():
             if row:
                 existing_customer_id = row["stripe_customer_id"]
                 user_email = row["email"]
+
+            cur.execute("SELECT shirt_size FROM profile WHERE user_id = %s", (user_id,))
+            profile_row = cur.fetchone()
+            shirt_size = profile_row["shirt_size"] if profile_row else None
+            active_membership = _get_active_membership(cur, user_id)
     except Exception:
         current_app.logger.exception("billing/create-checkout-session failed looking up customer user_id=%s", user_id)
+
+    active_plan_id = active_membership["plan_id"] if active_membership else None
+    if active_membership and not _can_purchase_membership(active_plan_id, plan_id):
+        expires_at = active_membership["expires_at"]
+        current_app.logger.warning(
+            "billing/create-checkout-session blocked active membership user_id=%s active_plan=%s expires_at=%s",
+            user_id,
+            active_membership["plan_id"],
+            expires_at,
+        )
+        return jsonify({
+            "error": "You already have an active membership.",
+            "code": "active_membership_exists",
+            "membership": {
+                "plan_id": active_membership["plan_id"],
+                "expires_at": expires_at.isoformat() if expires_at else None,
+            },
+        }), 409
+    elif active_membership:
+        current_app.logger.warning(
+            "billing/create-checkout-session allowing upgrade user_id=%s active_plan=%s requested_plan=%s expires_at=%s",
+            user_id,
+            active_plan_id,
+            plan_id,
+            active_membership["expires_at"],
+        )
+
+    if include_shirt and plan_id != "semester":
+        return jsonify({"error": "Shirt add-on is only available with semester memberships."}), 400
+
+    if include_shirt and not _SHIRT_PRICE_ID:
+        current_app.logger.error("billing/create-checkout-session shirt add-on not configured user_id=%s", user_id)
+        return jsonify({"error": "Shirt checkout is not configured yet."}), 500
+
+    if include_shirt and not shirt_size:
+        return jsonify({"error": "Please select a shirt size before adding a shirt."}), 400
 
     try:
         current_app.logger.warning(
@@ -175,7 +267,12 @@ def create_checkout_session():
         session_kwargs = dict(
             mode="payment",
             line_items=[{"price": price_id, "quantity": 1}],
-            metadata={"user_id": str(user_id), "plan_id": str(plan_id or "")},
+            metadata={
+                "user_id": str(user_id),
+                "plan_id": str(plan_id or ""),
+                "include_shirt": "true" if include_shirt else "false",
+                "shirt_size": shirt_size or "",
+            },
             success_url=success_url,
             cancel_url=cancel_url,
             # Stripe sends a branded payment receipt automatically
@@ -185,6 +282,8 @@ def create_checkout_session():
                 **({"receipt_email": user_email} if user_email else {}),
             },
         )
+        if include_shirt and _SHIRT_PRICE_ID:
+            session_kwargs["line_items"].append({"price": _SHIRT_PRICE_ID, "quantity": 1})
         if existing_customer_id:
             session_kwargs["customer"] = existing_customer_id
         elif user_email:

@@ -1,4 +1,4 @@
-import { clearAuthSession, getAccessToken } from "@/lib/auth";
+import { clearAuthSession, getAccessToken, replaceAccessToken } from "@/lib/auth";
 
 // Get backend URL and ensure no trailing slash
 const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001").replace(/\/$/, "");
@@ -11,30 +11,78 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(
+type RefreshOk = { access_token?: string };
+
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${BACKEND}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        });
+
+        if (!res.ok) return null;
+
+        const data = (await res.json().catch(() => ({}))) as RefreshOk;
+        const nextToken = (data.access_token || "").trim();
+        if (!nextToken) return null;
+
+        replaceAccessToken(nextToken);
+        return nextToken;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+
+  return refreshPromise;
+}
+
+async function performRequest(
   method: string,
   path: string,
   body?: unknown,
   formData?: FormData,
-): Promise<T> {
-  const token = getAccessToken();
+  tokenOverride?: string | null,
+) {
+  const token = tokenOverride ?? getAccessToken();
   const headers: Record<string, string> = {};
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
   let bodyInit: BodyInit | undefined;
   if (formData) {
     bodyInit = formData;
-    // Let browser set Content-Type with boundary for multipart
   } else if (body !== undefined) {
     headers["Content-Type"] = "application/json";
     bodyInit = JSON.stringify(body);
   }
 
-  const res = await fetch(`${BACKEND}${path}`, { method, headers, body: bodyInit });
+  return fetch(`${BACKEND}${path}`, { method, headers, body: bodyInit });
+}
 
-  if (res.status === 401 || res.status === 422) {
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  formData?: FormData,
+): Promise<T> {
+  let res = await performRequest(method, path, body, formData);
+
+  if (res.status === 401) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      res = await performRequest(method, path, body, formData, refreshedToken);
+    }
+  }
+
+  if (res.status === 401) {
     clearAuthSession();
-    window.location.replace("/login");
+    window.location.replace("/auth?mode=login");
     throw new ApiError(res.status, "Unauthorized");
   }
 

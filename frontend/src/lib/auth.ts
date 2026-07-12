@@ -26,6 +26,20 @@ export function persistAuthSession(token: string, user: StoredUser, remember: bo
   window.dispatchEvent(new Event(AUTH_EVENT));
 }
 
+export function replaceAccessToken(token: string) {
+  try {
+    if (window.localStorage.getItem("access_token")) {
+      window.localStorage.setItem("access_token", token);
+    }
+    if (window.sessionStorage.getItem("access_token")) {
+      window.sessionStorage.setItem("access_token", token);
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+  window.dispatchEvent(new Event(AUTH_EVENT));
+}
+
 export function clearAuthSession() {
   try {
     window.localStorage.removeItem("access_token");
