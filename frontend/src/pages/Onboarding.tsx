@@ -67,7 +67,7 @@ export default function Onboarding() {
         persistAuthSession(token, { ...stored, onboarding_completed: true }, remember);
       }
 
-      navigate("/dashboard", { replace: true });
+      navigate("/dashboard?tab=overview", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSaving(false);

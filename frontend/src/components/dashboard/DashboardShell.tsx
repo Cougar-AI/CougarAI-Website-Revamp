@@ -1,11 +1,12 @@
-import { User, CreditCard, QrCode, Star, Trophy } from "lucide-react";
+import { LayoutGrid, User, CreditCard, QrCode, Star, Trophy } from "lucide-react";
 import type { MeResponse } from "@/pages/Dashboard";
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? "http://localhost:5001";
 
-export type DashboardTab = "profile" | "membership" | "checkin" | "points" | "leaderboard";
+export type DashboardTab = "overview" | "profile" | "membership" | "checkin" | "points" | "leaderboard";
 
 const TABS: { id: DashboardTab; label: string; icon: React.ElementType }[] = [
+  { id: "overview", label: "Overview", icon: LayoutGrid },
   { id: "profile", label: "Profile", icon: User },
   { id: "membership", label: "Membership", icon: CreditCard },
   { id: "checkin", label: "Check In", icon: QrCode },

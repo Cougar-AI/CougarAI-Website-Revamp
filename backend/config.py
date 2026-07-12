@@ -54,7 +54,7 @@ class BaseConfig:
     JWT_EMAIL_SECRET   = os.environ.get("JWT_EMAIL_SECRET",   "dev-email-secret")
     JWT_RESET_SECRET   = os.environ.get("JWT_RESET_SECRET",   "dev-reset-secret")
     
-    ACCESS_EXPIRES  = timedelta(minutes=15)
+    ACCESS_EXPIRES  = timedelta(minutes=30)
     REFRESH_EXPIRES = timedelta(days=7)
     VERIFY_EXPIRES  = timedelta(hours=24)
     RESET_EXPIRES   = timedelta(minutes=30)

@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
 import { Megaphone, X } from "lucide-react";
 import { DashboardShell, type DashboardTab } from "@/components/dashboard/DashboardShell";
+import OverviewTab from "@/components/dashboard/OverviewTab";
 import ProfileTab from "@/components/dashboard/ProfileTab";
 import MembershipTab from "@/components/dashboard/MembershipTab";
 import CheckInTab from "@/components/dashboard/CheckInTab";
@@ -105,7 +106,7 @@ function AnnouncementBanner() {
 
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = (searchParams.get("tab") as DashboardTab) ?? "profile";
+  const tab = (searchParams.get("tab") as DashboardTab) ?? "overview";
 
   function setTab(t: DashboardTab) {
     setSearchParams({ tab: t }, { replace: true });
@@ -130,6 +131,7 @@ export default function Dashboard() {
         <Skeleton />
       ) : (
         <>
+          {tab === "overview" && <OverviewTab meData={meData} />}
           {tab === "profile" && <ProfileTab {...tabProps} />}
           {tab === "membership" && <MembershipTab {...tabProps} />}
           {tab === "checkin" && <CheckInTab {...tabProps} userId={meData?.user_id} />}

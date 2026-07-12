@@ -66,7 +66,7 @@ export default function AuthSuccess() {
 
         if (!cancelled) {
           persistAuthSession(token, queryUser, true);
-          navigate("/dashboard", { replace: true });
+          navigate("/dashboard?tab=overview", { replace: true });
         }
       } catch (err: any) {
         if (!cancelled) {
@@ -102,7 +102,7 @@ export default function AuthSuccess() {
 
         <div className="mt-8 flex justify-center">
           <Link
-            to="/dashboard"
+            to="/dashboard?tab=overview"
             className="inline-flex items-center justify-center rounded-xl bg-red-700 px-5 py-2.5 text-sm font-semibold text-white shadow-sm ring-1 ring-inset ring-rose-400/30 transition hover:bg-red-600"
           >
             Continue to dashboard

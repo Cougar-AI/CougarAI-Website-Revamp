@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { getStoredUser, hasAccessToken, updateStoredUser } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
 
@@ -29,7 +29,12 @@ import { apiGet, apiPost } from "@/lib/api";
  */
 
 const _stripeMode = (import.meta.env.VITE_STRIPE_MODE ?? "test") as "test" | "live";
-
+const SHIRT_ADDON_PRICE_ID = (
+  _stripeMode === "test"
+    ? import.meta.env.VITE_STRIPE_TEST_SHIRT_PRICE_ID
+    : import.meta.env.VITE_STRIPE_SHIRT_PRICE_ID
+) as string | undefined;
+const SHIRT_ADDON_AVAILABLE = Boolean(SHIRT_ADDON_PRICE_ID);
 const PRICE_IDS = {
   semester: { live: "price_1S4sVLH2XIQuLIalBvif5rrs", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
   yearly:   { live: "price_1S0ylVH2XIQuLIalbpMXxrV9", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
@@ -67,10 +72,16 @@ const PLANS = [
 type PlanId = typeof PLANS[number]["id"];
 
 const GRADE_LEVEL_OPTIONS = ["freshman", "sophomore", "junior", "senior", "graduate", "alumni", "other"] as const;
+const SHIRT_SIZE_OPTIONS = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 
 function normalizeGradeLevel(value?: string | null) {
   const normalized = (value || "").trim().toLowerCase();
   return GRADE_LEVEL_OPTIONS.includes(normalized as (typeof GRADE_LEVEL_OPTIONS)[number]) ? normalized : "";
+}
+
+function normalizeShirtSize(value?: string | null) {
+  const normalized = (value || "").trim().toUpperCase();
+  return SHIRT_SIZE_OPTIONS.includes(normalized as (typeof SHIRT_SIZE_OPTIONS)[number]) ? normalized : "";
 }
 
 const Check = () => (
@@ -95,6 +106,7 @@ type DashboardMe = {
     last_name?: string | null;
     preferred_email?: string | null;
     grade_level?: string | null;
+    shirt_size?: string | null;
   } | null;
   membership?: {
     status?: string;
@@ -104,6 +116,8 @@ type DashboardMe = {
 };
 
 function SuccessView() {
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (!hasAccessToken()) return;
 
@@ -116,7 +130,19 @@ function SuccessView() {
     async function confirmSession() {
       if (!sessionId) return;
       try {
-        await apiPost("/billing/checkout-session/confirm", { session_id: sessionId });
+        const result = await apiPost<{
+          role?: string;
+          membership_expires_at?: string | null;
+          already_processed?: boolean;
+        }>("/billing/checkout-session/confirm", { session_id: sessionId });
+        const stored = getStoredUser();
+        if (stored && result.role) {
+          updateStoredUser({
+            ...stored,
+            role: result.role,
+            onboarding_completed: stored.onboarding_completed ?? result.role !== "non-member",
+          });
+        }
       } catch {
         // If webhook already handled it or Stripe is still finalizing, polling /dashboard/me below can still recover.
       }
@@ -137,6 +163,7 @@ function SuccessView() {
         }
         if (me.membership?.status === "active" || me.role !== "non-member") {
           stopped = true;
+          window.setTimeout(() => navigate("/dashboard", { replace: true }), 800);
         }
       } catch {
         // Ignore transient webhook timing or auth refresh issues here.
@@ -153,7 +180,7 @@ function SuccessView() {
     return () => {
       if (intervalId !== null) window.clearInterval(intervalId);
     };
-  }, []);
+  }, [navigate]);
 
   return (
     <div className="mx-auto max-w-3xl text-white">
@@ -291,10 +318,7 @@ function NotLoggedInView() {
 
 export default function JoinUs() {
   const urlStatus = new URLSearchParams(window.location.search).get("status");
-
-  if (urlStatus === "success") return <SuccessView />;
-  if (urlStatus === "canceled") return <CanceledView />;
-  if (!(hasAccessToken() || getStoredUser())) return <NotLoggedInView />;
+  const isAuthenticated = hasAccessToken() || Boolean(getStoredUser());
 
   // Read ?plan= from URL, fallback to "semester"
   const initialPlan = ((): PlanId => {
@@ -308,13 +332,33 @@ export default function JoinUs() {
   const [email, setEmail] = useState("");
   const [student_id, setStudent_id] = useState("");
   const [gradLevel, setGradLevel] = useState("");
+  const [shirtSize, setShirtSize] = useState("");
+  const [includeShirt, setIncludeShirt] = useState(false);
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [membership, setMembership] = useState<DashboardMe["membership"] | null>(null);
 
   const selectedPlan = useMemo(() => PLANS.find((p) => p.id === plan)!, [plan]);
+  const hasActiveMembership = membership?.status === "active";
+  const canUpgradeToYearly = hasActiveMembership && membership?.plan_id === "semester";
+  const purchaseBlocked = hasActiveMembership && !canUpgradeToYearly;
 
   useEffect(() => {
+    if (canUpgradeToYearly && plan !== "yearly") {
+      setPlan("yearly");
+    }
+  }, [canUpgradeToYearly, plan]);
+
+  useEffect(() => {
+    if (plan === "yearly") {
+      setIncludeShirt(false);
+    }
+  }, [plan]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
     let cancelled = false;
 
     async function loadProfileDefaults() {
@@ -330,6 +374,8 @@ export default function JoinUs() {
         setEmail((current) => current || fallbackEmail);
         setStudent_id((current) => current || profile?.student_id?.trim() || "");
         setGradLevel((current) => current || normalizeGradeLevel(profile?.grade_level));
+        setShirtSize((current) => current || normalizeShirtSize(profile?.shirt_size));
+        setMembership(me.membership ?? null);
       } catch {
         // If the profile isn't available yet, leave the form empty and let the user continue manually.
       }
@@ -339,9 +385,15 @@ export default function JoinUs() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [isAuthenticated]);
+
+  if (urlStatus === "success") return <SuccessView />;
+  if (urlStatus === "canceled") return <CanceledView />;
+  if (!isAuthenticated) return <NotLoggedInView />;
 
   function validate(): string | null {
+    if (purchaseBlocked) return "You already have an active membership.";
+    if (canUpgradeToYearly && plan !== "yearly") return "Your current semester membership can only be upgraded to yearly.";
     if (!first.trim()) return "Please enter your first name.";
     if (!last.trim()) return "Please enter your last name.";
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "Please enter a valid email.";
@@ -349,6 +401,9 @@ export default function JoinUs() {
     if (!gradLevel) return "Please select your academic level.";
     if (!student_id.trim()) return "Please enter your UH student ID before purchasing membership.";
     if (!/^\d{6,}$/.test(student_id)) return "Student ID looks off—use numbers only.";
+    if (plan === "semester" && includeShirt && !normalizeShirtSize(shirtSize)) {
+      return "Please choose a shirt size for the shirt add-on.";
+    }
     if (!selectedPlan.priceId) return "Missing Stripe price for selected plan."; // safety
     return null;
   }
@@ -374,6 +429,7 @@ export default function JoinUs() {
           email: email.trim(),
           student_id: student_id || undefined,
           grade_level: normalizeGradeLevel(gradLevel) || undefined,
+          shirt_size: normalizeShirtSize(shirtSize) || undefined,
           plan_id: selectedPlan.dbPlanId,
         }
       );
@@ -388,6 +444,7 @@ export default function JoinUs() {
         {
           price_id: selectedPlan.priceId,
           plan_id: selectedPlan.id,
+          include_shirt: plan === "semester" && includeShirt,
           success_url: success,
           cancel_url: cancel,
         }
@@ -398,8 +455,8 @@ export default function JoinUs() {
       } else {
         throw new Error("No sessionId or url returned from checkout endpoint.");
       }
-    } catch (err: any) {
-      setError(err?.message || "Something went wrong. Please try again.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -412,6 +469,9 @@ export default function JoinUs() {
     (e.target.style.borderColor = 'rgba(255,255,255,.1)');
   const inputCls = "w-full rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/30 outline-none transition";
   const labelCls = "block text-xs font-medium uppercase tracking-wide text-white/55 mb-1.5";
+  const membershipExpiresLabel = membership?.expires_at
+    ? new Date(`${membership.expires_at}T12:00:00`).toLocaleDateString()
+    : null;
 
   return (
     <div className="relative min-h-[calc(100vh-96px)] text-white">
@@ -440,6 +500,25 @@ export default function JoinUs() {
           </div>
         )}
 
+        {hasActiveMembership && (
+          <div
+            className="mb-6 rounded-xl p-4 text-sm text-amber-200"
+            style={{ background: 'rgba(217,119,6,.12)', border: '1px solid rgba(245,158,11,.35)' }}
+          >
+            {canUpgradeToYearly ? (
+              <>
+                You already have an active semester membership
+                {membershipExpiresLabel ? ` through ${membershipExpiresLabel}` : ""}. You can still upgrade to yearly below, but additional semester purchases are disabled.
+              </>
+            ) : (
+              <>
+                You already have an active {membership?.plan_id === "yearly" ? "yearly" : "semester"} membership
+                {membershipExpiresLabel ? ` through ${membershipExpiresLabel}` : ""}. You can't purchase another membership until your current one expires.
+              </>
+            )}
+          </div>
+        )}
+
         {/* Plan picker */}
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {PLANS.map((p) => {
@@ -448,12 +527,18 @@ export default function JoinUs() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setPlan(p.id)}
+                onClick={() => {
+                  if (canUpgradeToYearly && p.id === "semester") return;
+                  setPlan(p.id);
+                }}
+                disabled={canUpgradeToYearly && p.id === "semester"}
                 className="relative flex flex-col rounded-2xl p-6 text-left transition"
                 style={
                   selected
                     ? { background: 'rgba(185,28,28,.1)', border: '1px solid rgba(185,28,28,.5)', boxShadow: '0 8px 40px rgba(185,28,28,.2), inset 0 1px 0 rgba(255,255,255,.06)' }
-                    : { background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 4px 20px rgba(0,0,0,.3)' }
+                    : canUpgradeToYearly && p.id === "semester"
+                      ? { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)', boxShadow: '0 4px 20px rgba(0,0,0,.2)', opacity: 0.55, cursor: 'not-allowed' }
+                      : { background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.1)', boxShadow: '0 4px 20px rgba(0,0,0,.3)' }
                 }
               >
                 <div className="flex items-start justify-between mb-4">
@@ -489,6 +574,11 @@ export default function JoinUs() {
                     </li>
                   ))}
                 </ul>
+                {canUpgradeToYearly && p.id === "semester" && (
+                  <p className="mt-4 text-xs font-medium uppercase tracking-wide text-amber-200/90">
+                    Current plan on file
+                  </p>
+                )}
               </button>
             );
           })}
@@ -548,6 +638,54 @@ export default function JoinUs() {
               </select>
             </div>
 
+            {plan === "yearly" && (
+              <div
+                className="sm:col-span-2 rounded-xl p-4 text-sm text-emerald-200"
+                style={{ background: 'rgba(16,185,129,.10)', border: '1px solid rgba(16,185,129,.28)' }}
+              >
+                Annual memberships already include a club shirt.
+              </div>
+            )}
+
+            {plan === "semester" && SHIRT_ADDON_AVAILABLE && (
+              <div
+                className="sm:col-span-2 rounded-xl p-4"
+                style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.08)' }}
+              >
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={includeShirt}
+                    onChange={(e) => setIncludeShirt(e.target.checked)}
+                    className="mt-0.5 size-4 flex-shrink-0 rounded accent-red-700"
+                  />
+                  <span className="text-sm text-white/70 leading-relaxed">
+                    Add an optional club shirt to this semester membership purchase.
+                  </span>
+                </label>
+
+                {includeShirt && (
+                  <div className="mt-4 max-w-xs">
+                    <label htmlFor="shirtSize" className={labelCls}>Shirt size</label>
+                    <select
+                      id="shirtSize"
+                      value={shirtSize}
+                      onChange={(e) => setShirtSize(e.target.value)}
+                      className={inputCls}
+                      style={{ ...inputStyle, background: 'rgba(0,0,0,.5)' }}
+                      onFocus={inputFocus}
+                      onBlur={inputBlur}
+                    >
+                      <option value="">Select size…</option>
+                      {SHIRT_SIZE_OPTIONS.map((size) => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="sm:col-span-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)}
@@ -561,11 +699,17 @@ export default function JoinUs() {
             <div className="sm:col-span-2 pt-2">
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || purchaseBlocked}
                 className="w-full inline-flex items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:brightness-110 active:scale-[.98] disabled:opacity-60"
                 style={{ background: '#b91c1c', boxShadow: '0 0 24px rgba(185,28,28,.4)' }}
               >
-                {submitting ? "Processing…" : `Continue to Checkout — ${selectedPlan.name} (${selectedPlan.priceLabel})`}
+                {submitting
+                  ? "Processing…"
+                  : purchaseBlocked
+                    ? "Active membership on file"
+                    : canUpgradeToYearly
+                      ? `Upgrade to Yearly — ${selectedPlan.priceLabel}`
+                      : `Continue to Checkout — ${selectedPlan.name} (${selectedPlan.priceLabel})`}
               </button>
             </div>
           </form>

@@ -216,8 +216,18 @@ class DashboardService(BaseService):
         today = date.today()
         history = []
         current_membership = None
+        active_candidates = []
 
-        for p in payments:
+        sorted_payments = sorted(
+            payments,
+            key=lambda p: (
+                p.get("date") or date.min,
+                p.get("payment_id") or 0,
+            ),
+            reverse=True,
+        )
+
+        for p in sorted_payments:
             expires = p.get("expires_at")
             row = {
                 "payment_id": p["payment_id"],
@@ -231,8 +241,20 @@ class DashboardService(BaseService):
                 "status": "active" if expires and expires >= today else "expired",
             }
             history.append(row)
-            if not current_membership and expires and expires >= today:
-                current_membership = row
+
+            if expires and expires >= today:
+                active_candidates.append(
+                    (
+                        expires,
+                        p.get("date") or date.min,
+                        p.get("payment_id") or 0,
+                        row,
+                    )
+                )
+
+        if active_candidates:
+            # Prefer the active membership with the furthest expiry, then newest payment.
+            current_membership = max(active_candidates, key=lambda item: (item[0], item[1], item[2]))[3]
 
         return {"current": current_membership, "history": history}
 
