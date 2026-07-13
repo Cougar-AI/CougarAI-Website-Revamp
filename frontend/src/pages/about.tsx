@@ -375,9 +375,9 @@ export default function About() {
           <section style={{ ...glass, marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 28, alignItems: "center" }}>
             <div style={{ flex: "1 1 300px", minWidth: 0 }}>
               <p style={{ fontFamily: "Oxanium,sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", color: "rgba(248,113,113,.7)", textTransform: "uppercase", marginBottom: 10 }}>Our Mission</p>
-              <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 20, color: "#fff", marginBottom: 12 }}>Building the next generation of AI practitioners</h2>
+              <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 20, color: "#fff", marginBottom: 12 }}>Building the next generation of AI</h2>
               <p style={{ color: "rgba(255,255,255,.62)", fontSize: 14.5, lineHeight: 1.75 }}>
-                CougarAI is the University of Houston's community for artificial intelligence and data science. We bring together students of all majors to learn, collaborate on real-world projects, and connect with industry partners — no experience required.
+                CougarAI is the University of Houston's community for artificial intelligence and data science. We bring together students of all majors and skill levels to learn, collaborate on real-world projects, and connect with industry partners. No experience required.
               </p>
             </div>
             <div style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -412,7 +412,7 @@ export default function About() {
           {(sponsors.length > 0 || partners.length > 0) && (
             <section style={{ ...glass, marginTop: 16 }}>
               <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 800, fontSize: 22, margin: "0 0 6px", color: "#fff" }}>Our Community</h2>
-              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13.5, marginBottom: 24 }}>The companies and organizations that support CougarAI.</p>
+              <p style={{ color: "rgba(255,255,255,.45)", fontSize: 13.5, marginBottom: 24 }}>Companies and organizations that support our mission at CougarAI.</p>
 
               {sponsors.length > 0 && (
                 <div style={{ marginBottom: partners.length > 0 ? 28 : 0 }}>

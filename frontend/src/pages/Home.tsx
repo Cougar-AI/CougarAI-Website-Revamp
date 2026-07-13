@@ -47,7 +47,7 @@ function resolveSlideUrl(url: string): string {
 const features = [
   {
     title: 'Workshops',
-    desc: 'Hands-on sessions on ML/AI topics.',
+    desc: 'Hands-on works on ML/AI topics.',
     icon: (
       <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden="true">
         <path fill="currentColor" d="M3 5h18v2H3V5zm2 4h14v10H5V9zm2 2v6h10v-6H7z" />
@@ -137,7 +137,7 @@ export default function Home() {
           Welcome to CougarAI
         </h1>
         <p className="mx-auto mt-3 max-w-2xl text-balance text-base text-white/80 md:text-lg" style={{ fontFamily: "Oxanium, sans-serif" }}>
-          University of Houston&#39;s hub for AI &amp; ML workshops, research, and a supportive community.
+          University of Houston&#39;s Club for AI &amp; ML workshops, research, and community.
         </p>
 
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">

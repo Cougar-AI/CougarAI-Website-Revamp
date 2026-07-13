@@ -131,9 +131,8 @@ export default function MembershipTab({ meData }: Props) {
 
           <div className="mt-5 grid gap-2 text-sm text-white/70">
             {[
-              "Full access to workshops, events, and member-only sessions",
-              "Points rewards, streaks, and reward tiers",
-              "Priority consideration for project teams",
+              "Access to workshops, events, and member-only sessions",
+              "(Coming Soon) Points rewards, streaks, and reward tiers",
               "Knowledge Bar access for project and AI resources",
               "Discord member role, channels, and announcements",
             ].map((item) => (
@@ -162,12 +161,12 @@ export default function MembershipTab({ meData }: Props) {
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
             <p className="font-semibold text-white">Discord access</p>
             <p className="mt-2">After payment, join Discord and claim your CougarAI member role for channel access and updates.</p>
-            <Link
-              to="/join?plan=semester"
+            <a
+              href="https://discord.com/invite/ndt27Rc9dm"
               className="mt-3 inline-flex items-center rounded-xl bg-red-700 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-800"
             >
               How to join Discord
-            </Link>
+            </a>
           </div>
 
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">

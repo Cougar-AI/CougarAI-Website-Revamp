@@ -312,7 +312,7 @@ export default function KnowledgeBase() {
         <div className="border-b border-white/8 px-6 py-8 sm:px-8 lg:px-10">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-red-500/25 bg-red-700/15 px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-red-200">
             <BookOpen className="h-3.5 w-3.5" />
-            Phase 3 Knowledge Base
+            Knowledge Base
           </div>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,.8fr)] lg:items-end">
             <div>
@@ -320,8 +320,7 @@ export default function KnowledgeBase() {
                 Workshop history, club notes, and AI learning in one place
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-white/68 sm:text-lg">
-                Browse past workshops, project recaps, CAI updates, curated AI news, and advice from previous officers.
-                Anyone can read the archive, and logged-in users can add their thoughts to each topic.
+                Browse past workshops, project recaps, CAI updates, news, and advice from previous officers.
               </p>
             </div>
 
