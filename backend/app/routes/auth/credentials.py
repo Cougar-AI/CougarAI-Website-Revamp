@@ -5,10 +5,10 @@ from flask import request, jsonify, current_app, make_response
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app import db
+from app import db, limiter
 from app.routes.auth import auth_bp
 from app.routes.auth._helpers import (
-    _jwt_decode, _sha256, _utcnow,
+    _jwt_decode, _jwt_encode, _sha256, _utcnow,
     _issue_access_jwt, _issue_refresh_jwt_and_persist,
     _delete_refresh_by_jti,
     _send_verify_email, _send_reset_email,
@@ -19,6 +19,7 @@ from app.utils.auth_decorators import require_authenticated, caller_id
 
 
 @auth_bp.post("/register")
+@limiter.limit("5/hour")
 def register():
     data = request.get_json(silent=True) or {}
     email_raw = (data.get("email") or "").strip()
@@ -95,6 +96,7 @@ def verify_email():
 
 
 @auth_bp.post("/login")
+@limiter.limit("10/minute")
 def login():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
@@ -127,6 +129,7 @@ def login():
 
 
 @auth_bp.post("/resend-verification")
+@limiter.limit("5/hour")
 def resend_verification():
     data = request.get_json(silent=True) or {}
     email = (data.get("email") or "").strip()
@@ -148,6 +151,7 @@ def resend_verification():
 
 
 @auth_bp.post("/forgot-password")
+@limiter.limit("5/hour")
 def forgot_password():
     _start = time.monotonic()
     data = request.get_json(silent=True) or {}
@@ -173,6 +177,7 @@ def forgot_password():
 
 
 @auth_bp.post("/reset-password")
+@limiter.limit("10/hour")
 def reset_password():
     data = request.get_json(silent=True) or {}
     token = (data.get("token") or "").strip()

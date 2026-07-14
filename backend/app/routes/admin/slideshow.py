@@ -158,8 +158,11 @@ def delete_slideshow_photo(photo_id: int):
 
     if url.startswith("/admin/uploads/slideshow/"):
         filename = url.split("/admin/uploads/slideshow/")[-1]
-        filepath = os.path.join(UPLOADS_BASE, "slideshow", filename)
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        # Reject any traversal attempt — only flat filenames allowed under the slideshow dir.
+        if filename and "/" not in filename and "\\" not in filename and ".." not in filename:
+            slideshow_dir = os.path.realpath(os.path.join(UPLOADS_BASE, "slideshow"))
+            filepath = os.path.realpath(os.path.join(slideshow_dir, filename))
+            if filepath.startswith(slideshow_dir + os.sep) and os.path.isfile(filepath):
+                os.remove(filepath)
 
     return jsonify({"message": "Deleted"}), 200

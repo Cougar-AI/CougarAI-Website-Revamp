@@ -172,22 +172,21 @@ def stripe_webhook():
                         (stripe_customer_id, int(user_id_str)),
                     )
 
-                # Duplicate-payment guard: warn but don't block
-                if user_id_str and user_id_str.isdigit() and expires_at:
+                # Idempotency guard: Stripe retries webhooks on non-2xx responses, and
+                # the same checkout.session.completed event can arrive multiple times.
+                # Key off stripe_session_id (unique per Checkout session) — if we've
+                # already recorded this payment, acknowledge with 200 and return.
+                if stripe_session_id:
                     cur.execute(
-                        """
-                        SELECT payment_id FROM payments
-                        WHERE student_id = (SELECT student_id FROM profile WHERE user_id = %s)
-                          AND expires_at >= CURRENT_DATE
-                        LIMIT 1
-                        """,
-                        (int(user_id_str),),
+                        "SELECT payment_id FROM payments WHERE stripe_session_id = %s LIMIT 1",
+                        (stripe_session_id,),
                     )
                     if cur.fetchone():
-                        current_app.logger.warning(
-                            "Duplicate payment detected for user_id=%s plan=%s — inserting anyway",
-                            user_id_str, plan_id,
+                        current_app.logger.info(
+                            "Stripe webhook replay for session %s — already processed, skipping",
+                            stripe_session_id,
                         )
+                        return jsonify({"received": True, "duplicate": True}), 200
 
                 # Determine student_id for the payments row
                 student_id_val = None

@@ -101,21 +101,24 @@ def member_checkin():
         student_id = profile["student_id"]
         event_id = event["event_id"]
 
+        # Atomic insert-or-fail on (event_id, user_id) UNIQUE constraint — protects against
+        # the race where two simultaneous requests both pass a SELECT and both INSERT.
+        today = date_type.today()
         cur.execute(
-            "SELECT checkin_id FROM event_checkins WHERE event_id = %s AND user_id = %s",
-            (event_id, user_id),
+            """
+            INSERT INTO event_checkins (event_id, student_id, user_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (event_id, user_id) DO NOTHING
+            RETURNING checkin_id
+            """,
+            (event_id, student_id, user_id),
         )
-        if cur.fetchone():
+        if cur.fetchone() is None:
             return jsonify({"error": "You have already checked in to this event"}), 409
 
-        today = date_type.today()
         cur.execute(
             "INSERT INTO points (student_id, event_id, points, date) VALUES (%s, %s, %s, %s)",
             (student_id, event_id, event["points_value"], today),
-        )
-        cur.execute(
-            "INSERT INTO event_checkins (event_id, student_id, user_id) VALUES (%s, %s, %s)",
-            (event_id, student_id, user_id),
         )
         _update_streak(cur, student_id, today)
         conn.commit()

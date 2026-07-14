@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { apiGet } from '@/lib/api';
 import logo from '../assets/logo.png';
 import Slideshow, { type SlideImage } from '../components/Slideshow';
 
@@ -33,6 +34,29 @@ interface SlideshowPhoto {
   url: string;
   object_position: string;
   caption: string | null;
+}
+
+interface UpcomingEvent {
+  event_id: number;
+  name: string;
+  event_type: string;
+  starts_at: string;
+  ends_at: string | null;
+  location: string | null;
+  points_value: number;
+  type_color: string | null;
+}
+
+const FALLBACK_COLOR = '#b91c1c';
+
+function formatEventDate(startsAt: string): string {
+  const d = new Date(startsAt.replace(' ', 'T'));
+  return d.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatEventTime(startsAt: string): string {
+  const d = new Date(startsAt.replace(' ', 'T'));
+  return d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
 }
 
 function resolveLogoUrl(logo_url: string | null): string | null {
@@ -110,6 +134,22 @@ export default function Home() {
     staleTime: 5 * 60_000,
   });
 
+  const { data: eventsData } = useQuery<UpcomingEvent[]>({
+    queryKey: ['home-upcoming-events'],
+    queryFn: () =>
+      apiGet<UpcomingEvent[]>('/events/').catch(() => []),
+    staleTime: 5 * 60_000,
+    select: (events) => {
+      const now = new Date();
+      return (Array.isArray(events) ? events : [])
+        .filter((e) => new Date(e.starts_at.replace(' ', 'T')) >= now)
+        .sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+        .slice(0, 4);
+    },
+  });
+
+  const upcomingEvents = eventsData ?? [];
+
   const sponsors = sponsorsData?.sponsors ?? [];
   const partners = partnersData?.partners ?? [];
   const hasCommunity = sponsors.length > 0 || partners.length > 0;
@@ -148,10 +188,10 @@ export default function Home() {
             Become a member
           </Link>
           <Link
-            to="/login"
+            to="/calendar"
             className="rounded-xl bg-white/10 px-5 py-3 font-semibold text-white ring-1 ring-white/20 backdrop-blur transition hover:bg-white/15 focus:outline-none focus:ring-2 focus:ring-red-400 font-['Oxanium']"
           >
-            Member login
+            View Calendar
           </Link>
           {/* Social icon buttons */}
           <a
@@ -218,6 +258,66 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* Upcoming Events */}
+      <section className="mx-auto mt-12 max-w-5xl text-left">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+          <h2 className="text-2xl font-extrabold tracking-tight font-['Oxanium'] text-white">
+            Upcoming Events
+          </h2>
+          <Link
+            to="/calendar"
+            style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(248,113,113,.85)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
+          >
+            View all
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M3 7h8M7 3l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </Link>
+        </div>
+
+        {upcomingEvents.length === 0 ? (
+          <div style={{ borderRadius: 16, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(185,28,28,.18)', backdropFilter: 'blur(10px)', padding: '32px 20px', textAlign: 'center' }}>
+            <p style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 14, color: 'rgba(255,255,255,.35)' }}>No upcoming events — check back soon.</p>
+            <Link to="/calendar" style={{ display: 'inline-block', marginTop: 12, fontFamily: 'Oxanium,sans-serif', fontSize: 13, fontWeight: 600, color: 'rgba(248,113,113,.8)', textDecoration: 'none' }}>
+              Browse past events →
+            </Link>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12 }}>
+            {upcomingEvents.map((ev) => {
+              const color = ev.type_color ?? FALLBACK_COLOR;
+              const typeLabel = ev.event_type.charAt(0).toUpperCase() + ev.event_type.slice(1);
+              return (
+                <Link
+                  key={ev.event_id}
+                  to="/calendar"
+                  style={{ textDecoration: 'none', borderRadius: 16, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(185,28,28,.18)', backdropFilter: 'blur(10px)', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'transform .15s, border-color .15s' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = 'translateY(-2px)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = `${color}55`; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.transform = ''; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'rgba(185,28,28,.18)'; }}
+                >
+                  <div style={{ height: 4, background: color }} />
+                  <div style={{ padding: '14px 16px', flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 9, fontWeight: 800, letterSpacing: '.12em', textTransform: 'uppercase', color, display: 'block' }}>{typeLabel}</span>
+                    <p style={{ fontFamily: 'Oxanium,sans-serif', fontWeight: 700, fontSize: 14, color: '#fff', margin: 0, lineHeight: 1.35 }}>{ev.name}</p>
+                    <p style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 12, color: 'rgba(255,255,255,.45)', margin: 0 }}>
+                      {formatEventDate(ev.starts_at)} · {formatEventTime(ev.starts_at)}
+                    </p>
+                    {ev.location && (
+                      <p style={{ fontFamily: 'Oxanium,sans-serif', fontSize: 11, color: 'rgba(255,255,255,.3)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        📍 {ev.location}
+                      </p>
+                    )}
+                    {ev.points_value > 0 && (
+                      <span style={{ display: 'inline-block', marginTop: 'auto', paddingTop: 6, fontFamily: 'Oxanium,sans-serif', fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,.35)' }}>
+                        {ev.points_value} pts
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* Slideshow */}
       <section className="mx-auto mt-24 max-w-5xl text-left">

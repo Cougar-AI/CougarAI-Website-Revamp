@@ -398,10 +398,10 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Todo
 
-- **Run DB migrations on prod** — `bash backend/run_migrations.sh`; includes `add_officers_display_name.sql` and `reorder_officer_departments.sql`; safe to re-run (all use `IF NOT EXISTS` or idempotent UPDATEs)
+- **Run DB migrations on prod** — `bash backend/run_migrations.sh`; includes `add_officers_display_name.sql` and `reorder_officer_departments.sql`; also run `db-init/002_base_tables.sql` against prod if any base tables are missing; safe to re-run (all use `IF NOT EXISTS` or idempotent UPDATEs)
 - **Google OAuth frontend** — backend done; navbar auth link already visible; needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env` for full end-to-end test.
 - **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
-- **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
+- **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx`, `AdminShell.tsx`, `Slideshow.tsx`, `about.tsx`, `Registration.tsx` have unused-import/type errors; clean up before production build
 - **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
 - **Event RSVP enhancements** — email reminder 24h before (wire through notification scheduler), RSVP list drawer in admin Events tab
 - **Admin Audit Log** — `audit_log` table; searchable log tab in Admin Tools
@@ -489,3 +489,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 - ✅ Department order — About page order locked to: Executive Board → Advisors → Webmasters → Marketing → Corporate Relations → Events Directors → Workshops / Projects → Historians → Other (last); enforced via `DEPT_ORDER` map in `about.tsx` and `reorder_officer_departments.sql` migration for DB `sort_order`; `officers.ts` array also reordered to match
 - ✅ Department icons fixed — `DEPT_ICON_MAP` keys corrected to exact DB department names (`"Events Directors"`, `"Workshops / Projects"`); Historians gets Camera icon; all 8 departments now have icons
 - ✅ Officer position CRUD — `POST/PATCH/DELETE /admin/officer-positions` routes (`@require_admin`); `create_position`, `update_position`, `delete_position` service methods; delete blocked if any active officer uses the position; collapsible "Position Titles" panel in AdminOfficersTab with inline add form, per-row edit (hover-reveal pencil), and delete; positions grouped by department
+- ✅ Points service OOP refactor — `get_leaderboard`, `get_monthly_totals`, `get_streak_leaderboard` extracted from `routes/points.py` into `PointsService`; route functions are now thin (validate → service call → jsonify)
+- ✅ AdminEventsTab component extraction — `QRPresentModal`, `AttendanceDrawer`, `LiveEventModal` extracted to `components/admin/`; shared types moved to `events.types.ts` and re-exported; `AdminEventsTab.tsx` reduced from ~1,875 to ~1,410 lines; `Calendar.tsx` type imports updated
+- ✅ Calendar React Query migration — replaced 3 raw `fetch()` / `Promise.all` blocks with `useQuery` hooks (stale 2 min for events, 30s for RSVPs, 5 min for admin partners/sponsors); `refetchKey` state replaced with `queryClient.invalidateQueries`
+- ✅ Integration test base DDL — `db-init/002_base_tables.sql` provides `CREATE TABLE IF NOT EXISTS` for `profile`, `events`, `points`, `payments`, `officers`, `event_checkins`, `event_rsvps`, `discord_announcements`; added to `tests/conftest.py` schema_files alongside core migrations
+- ✅ Integration tests expanded — added `tests/integration/helpers.py` (shared `make_user`, `make_profile`, `auth_header` helpers); new test files: `test_events.py` (CRUD + event-types), `test_points.py` (leaderboard, streak, monthly, award), `test_dashboard.py` (me, profile patch, link, memberships, points), `test_announcements.py` (pinned announcement CRUD), `test_sponsors_public.py` (public list)

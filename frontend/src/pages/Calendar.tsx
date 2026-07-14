@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -14,7 +15,7 @@ import type {
   EventTypeOption,
   PartnerOption,
   SponsorOption,
-} from "@/components/admin/AdminEventsTab";
+} from "@/components/admin/events.types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -564,13 +565,12 @@ function EventDetailModal({
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const API_BASE = import.meta.env.VITE_BACKEND_API_URL ?? "";
-
 export default function Calendar() {
   const now = new Date();
   const { user } = useAuth();
   const isOfficerAdmin = !!(user && OFFICER_ROLES.includes(user.role ?? ""));
   const showRsvpCount = isOfficerAdmin;
+  const qc = useQueryClient();
 
   const [type, setType] = useState<string>("all");
   const [year, setYear] = useState(now.getFullYear());
@@ -581,57 +581,62 @@ export default function Calendar() {
   const [showPastInList, setShowPastInList] = useState(false);
   const [listSearch, setListSearch] = useState("");
 
-  const [gcalRaw, setGcalRaw] = useState<Record<string, unknown>[]>([]);
-  const [dbEvents, setDbEvents] = useState<DbEvent[]>([]);
-  const [eventTypes, setEventTypes] = useState<EventTypeOption[]>([]);
-  const [userRsvpIds, setUserRsvpIds] = useState<Set<number>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-  const [refetchKey, setRefetchKey] = useState(0);
-
   // Edit modal state (officer/admin only)
   const [editModalEvent, setEditModalEvent] = useState<AdminEvent | null>(null);
   const [editModalKey, setEditModalKey] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [allPartners, setAllPartners] = useState<PartnerOption[]>([]);
-  const [allSponsors, setAllSponsors] = useState<SponsorOption[]>([]);
 
-  // Load events + event types in parallel
-  useEffect(() => {
-    Promise.all([
-      fetch(`${API_BASE}/events/google`).then((r) => r.json()).catch(() => []),
-      fetch(`${API_BASE}/events/`).then(async (r) => { const d = await r.json(); return Array.isArray(d) ? d : []; }).catch(() => []),
-      fetch(`${API_BASE}/events/event-types`).then(async (r) => { const d = await r.json(); return Array.isArray(d.event_types) ? d.event_types : []; }).catch(() => []),
-    ])
-      .then(([gcal, db, types]) => {
-        setGcalRaw(Array.isArray(gcal) ? gcal : []);
-        setDbEvents(Array.isArray(db) ? db : []);
-        // Public endpoint only returns active types; mark them so EventModal's filter works
-        setEventTypes(Array.isArray(types) ? types.map((t: EventTypeOption) => ({ ...t, is_active: true })) : []);
-      })
-      .catch(() => setFetchError("Could not load events."))
-      .finally(() => setLoading(false));
-  }, [refetchKey]);
+  // Load events + event types in parallel (cached 2 min)
+  const eventsQuery = useQuery({
+    queryKey: ["calendar-events"],
+    queryFn: async () => {
+      const [gcal, db, typesResp] = await Promise.all([
+        apiGet<Record<string, unknown>[]>("/events/google").catch(() => []),
+        apiGet<DbEvent[]>("/events/").catch(() => []),
+        apiGet<{ event_types: EventTypeOption[] }>("/events/event-types").catch(() => ({ event_types: [] })),
+      ]);
+      return {
+        gcalRaw: Array.isArray(gcal) ? gcal : [],
+        dbEvents: Array.isArray(db) ? db : [],
+        eventTypes: Array.isArray(typesResp.event_types)
+          ? typesResp.event_types.map((t) => ({ ...t, is_active: true }))
+          : [],
+      };
+    },
+    staleTime: 2 * 60 * 1000,
+  });
 
-  // Fetch user RSVPs when authenticated
-  useEffect(() => {
-    if (!user) { setUserRsvpIds(new Set()); return; }
-    apiGet<{ rsvped_event_ids: number[] }>("/events/my-rsvps")
-      .then((d) => setUserRsvpIds(new Set(d.rsvped_event_ids)))
-      .catch(() => setUserRsvpIds(new Set()));
-  }, [user]);
+  const gcalRaw = eventsQuery.data?.gcalRaw ?? [];
+  const dbEvents = eventsQuery.data?.dbEvents ?? [];
+  const eventTypes = eventsQuery.data?.eventTypes ?? [];
 
-  // Fetch partners/sponsors for the edit modal — officer/admin only
-  useEffect(() => {
-    if (!isOfficerAdmin) return;
-    Promise.all([
-      fetch(`${API_BASE}/partners/`).then((r) => r.json()).catch(() => ({ partners: [] })),
-      fetch(`${API_BASE}/sponsors/`).then((r) => r.json()).catch(() => ({ sponsors: [] })),
-    ]).then(([pd, sd]) => {
-      setAllPartners(pd.partners ?? []);
-      setAllSponsors(sd.sponsors ?? []);
-    });
-  }, [isOfficerAdmin]);
+  // Fetch user RSVPs when authenticated (cached 30s)
+  const rsvpQuery = useQuery({
+    queryKey: ["my-rsvps"],
+    queryFn: () => apiGet<{ rsvped_event_ids: number[] }>("/events/my-rsvps"),
+    enabled: !!user,
+    staleTime: 30 * 1000,
+  });
+  const userRsvpIds = useMemo(
+    () => new Set(rsvpQuery.data?.rsvped_event_ids ?? []),
+    [rsvpQuery.data],
+  );
+
+  // Fetch partners/sponsors for the edit modal — officer/admin only (cached 5 min)
+  const psQuery = useQuery({
+    queryKey: ["calendar-partners-sponsors"],
+    queryFn: async () => {
+      const [pd, sd] = await Promise.all([
+        apiGet<{ partners: PartnerOption[] }>("/partners/").catch(() => ({ partners: [] })),
+        apiGet<{ sponsors: SponsorOption[] }>("/sponsors/").catch(() => ({ sponsors: [] })),
+      ]);
+      return { partners: pd.partners ?? [], sponsors: sd.sponsors ?? [] };
+    },
+    enabled: isOfficerAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+  const allPartners = psQuery.data?.partners ?? [];
+  const allSponsors = psQuery.data?.sponsors ?? [];
 
   const typeColorMap = useMemo<TypeColorMap>(() => {
     const m: TypeColorMap = {};
@@ -677,11 +682,13 @@ export default function Calendar() {
   }, [filteredEvents, showPastInList, listSearch]);
 
   const handleRsvpChange = (eventId: number, rsvped: boolean) => {
-    setUserRsvpIds((prev) => {
-      const next = new Set(prev);
-      if (rsvped) next.add(eventId);
-      else next.delete(eventId);
-      return next;
+    qc.setQueryData<{ rsvped_event_ids: number[] }>(["my-rsvps"], (prev) => {
+      const ids = prev?.rsvped_event_ids ?? [];
+      return {
+        rsvped_event_ids: rsvped
+          ? [...ids, eventId]
+          : ids.filter((id) => id !== eventId),
+      };
     });
   };
 
@@ -698,8 +705,6 @@ export default function Calendar() {
   const goToday = () => { const t = new Date(); setYear(t.getFullYear()); setMonth(t.getMonth()); };
   const goPrev = () => { if (month === 0) { setMonth(11); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
   const goNext = () => { if (month === 11) { setMonth(0); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
-  const reset = () => { setType("all"); setYear(now.getFullYear()); setMonth(now.getMonth()); setViewMode("calendar"); setShowMyRsvpsOnly(false); setShowPastInList(false); setListSearch(""); };
-
   // Shared styles
   const panel: React.CSSProperties = { borderRadius: 18, background: "rgba(255,255,255,.04)", border: "1px solid rgba(185,28,28,.2)", backdropFilter: "blur(10px)", padding: "20px" };
   const sLabel: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "rgba(255,255,255,.35)", fontFamily: "Oxanium,sans-serif", marginBottom: 10, display: "block" };
@@ -720,15 +725,15 @@ export default function Calendar() {
     border: active ? "1px solid rgba(185,28,28,.5)" : "1px solid rgba(255,255,255,.12)",
   });
 
-  if (loading) return (
+  if (eventsQuery.isLoading) return (
     <main className="relative min-h-screen w-full text-white flex items-center justify-center">
       <p className="font-['Oxanium'] text-white/70">Loading events…</p>
     </main>
   );
 
-  if (fetchError) return (
+  if (eventsQuery.isError) return (
     <main className="relative min-h-screen w-full text-white flex items-center justify-center">
-      <p className="font-['Oxanium'] text-rose-400">{fetchError}</p>
+      <p className="font-['Oxanium'] text-rose-400">Could not load events.</p>
     </main>
   );
 
@@ -755,7 +760,7 @@ export default function Calendar() {
           allPartners={allPartners}
           allSponsors={allSponsors}
           onClose={() => { setShowEditModal(false); setEditModalEvent(null); }}
-          onSaved={() => setRefetchKey((k) => k + 1)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["calendar-events"] })}
         />
       )}
 

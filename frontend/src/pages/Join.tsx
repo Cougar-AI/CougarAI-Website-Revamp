@@ -226,6 +226,10 @@ export default function JoinUs() {
   if (urlStatus === "canceled") return <CanceledView />;
   if (!hasAccessToken()) return <NotLoggedInView />;
 
+  return <JoinForm />;
+}
+
+function JoinForm() {
   // Read ?plan= from URL, fallback to "semester"
   const initialPlan = ((): PlanId => {
     const p = new URLSearchParams(window.location.search).get("plan")?.toLowerCase();

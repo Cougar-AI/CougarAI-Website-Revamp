@@ -4,6 +4,7 @@ from app.raw_db import get_db
 from app.utils.date_validation import is_valid_date
 from app.utils.query_handler import build_sql_querys
 from app.utils.auth_decorators import require_officer
+from app.services.points_service import PointsService
 
 points_bp = Blueprint('points', __name__)
 @points_bp.route("/", methods=["GET"])
@@ -62,78 +63,9 @@ def getLeaderboard():
     limit = request.args.get("limit", 100, type=int)
     offset = request.args.get("offset", 0, type=int)
 
-    date_filter = ""
-    date_params = []
-    if start_date:
-        date_filter += " AND points.date >= %s"
-        date_params.append(start_date)
-    if end_date:
-        date_filter += " AND points.date <= %s"
-        date_params.append(end_date)
-
-    connection = get_db()
-    with connection.cursor() as cur:
-        # Public leaderboard — only is_public profiles
-        cur.execute(
-            f"""
-            SELECT profile.student_id,
-                   profile.first_name,
-                   profile.last_name,
-                   profile.avatar_url,
-                   profile.current_streak,
-                   profile.max_streak,
-                   SUM(points.points) AS total_points
-            FROM points
-            JOIN profile ON profile.student_id = points.student_id
-            WHERE profile.is_public = TRUE {date_filter}
-            GROUP BY profile.student_id, profile.first_name, profile.last_name,
-                     profile.avatar_url, profile.current_streak, profile.max_streak
-            ORDER BY total_points DESC
-            LIMIT %s OFFSET %s
-            """,
-            tuple(date_params + [limit, offset]),
-        )
-        results = cur.fetchall()
-
-        # Caller's own rank (always returned, even if private)
-        my_rank = None
-        my_total = None
-        if caller_user_id:
-            cur.execute(
-                "SELECT student_id FROM profile WHERE user_id = %s", (caller_user_id,)
-            )
-            profile_row = cur.fetchone()
-            if profile_row:
-                sid = profile_row["student_id"]
-                cur.execute(
-                    f"""
-                    SELECT SUM(points) AS total FROM points
-                    WHERE student_id = %s {date_filter}
-                    """,
-                    tuple([sid] + date_params),
-                )
-                total_row = cur.fetchone()
-                my_total = int(total_row["total"] or 0) if total_row else 0
-
-                cur.execute(
-                    f"""
-                    SELECT COUNT(*) + 1 AS rank FROM (
-                        SELECT student_id, SUM(points) AS pts
-                        FROM points {("WHERE date >= %s" if start_date else "")}
-                        {("AND date <= %s" if end_date else "")}
-                        GROUP BY student_id
-                    ) sub WHERE sub.pts > %s
-                    """,
-                    tuple(date_params + [my_total]),
-                )
-                rank_row = cur.fetchone()
-                my_rank = rank_row["rank"] if rank_row else None
-
-    return jsonify({
-        "entries": results,
-        "caller_rank": my_rank,
-        "caller_total": my_total,
-    }), 200
+    svc = PointsService(get_db())
+    result = svc.get_leaderboard(caller_user_id, start_date, end_date, limit, offset)
+    return jsonify(result), 200
 
 
 @points_bp.route("/add/<int:student_id>", methods=["POST"])
@@ -282,29 +214,13 @@ def getPointById(points_id):
     
 @points_bp.route("/total/by-month", methods=["GET"])
 def getMonthlyTotals():
-    connection = get_db()
-    with connection.cursor() as cur:
-
-        filter_dict = {
-            "student_id": request.args.get("student_id", type=int),
-            "start_date": request.args.get("start_date"),
-            "end_date": request.args.get("end_date"),
-        }
-
-        base_query = """
-            SELECT
-                DATE_TRUNC('month', date) AS month,
-                SUM(points) AS total_points
-            FROM points
-        """
-
-
-        query, params = build_sql_querys(base_query, filter_dict, date_column="date")
-        query += " GROUP BY month ORDER BY month DESC"
-
-        cur.execute(query, tuple(params))
-        results = cur.fetchall()
-        return (jsonify(results)) if results else (jsonify({"error": "No point totals found"}), 404)
+    svc = PointsService(get_db())
+    results = svc.get_monthly_totals(
+        request.args.get("student_id", type=int),
+        request.args.get("start_date"),
+        request.args.get("end_date"),
+    )
+    return jsonify(results) if results else (jsonify({"error": "No point totals found"}), 404)
 
 @points_bp.route("/event_type", methods=["GET"])
 def getEventType():
@@ -331,17 +247,6 @@ def getEventType():
 def getStreakLeaderboard():
     if request.method == "OPTIONS":
         return "", 200
-    connection = get_db()
-    with connection.cursor() as cur:
-        cur.execute(
-            """
-            SELECT first_name, last_name, current_streak, max_streak,
-                   student_id
-            FROM profile
-            WHERE is_public = TRUE
-            ORDER BY current_streak DESC, max_streak DESC
-            LIMIT 100
-            """
-        )
-        results = cur.fetchall()
+    svc = PointsService(get_db())
+    results = svc.get_streak_leaderboard()
     return (jsonify(results), 200) if results else (jsonify({"error": "No streak data found"}), 404)

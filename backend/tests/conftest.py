@@ -61,8 +61,15 @@ def app(_postgres_url):
     root = os.path.join(os.path.dirname(__file__), "..")
     schema_files = [
         os.path.join(root, "db-init", "001_auth.sql"),
+        os.path.join(root, "db-init", "002_base_tables.sql"),
         os.path.join(root, "migrations", "add_users_dashboard_fields.sql"),
         os.path.join(root, "migrations", "add_non_member_default_role.sql"),
+        os.path.join(root, "migrations", "add_profile_dashboard_fields.sql"),
+        os.path.join(root, "migrations", "add_event_types_table.sql"),
+        os.path.join(root, "migrations", "add_officer_positions_table.sql"),
+        os.path.join(root, "migrations", "add_sponsors_table.sql"),
+        os.path.join(root, "migrations", "add_pinned_announcements_table.sql"),
+        os.path.join(root, "migrations", "add_points_admin_fields.sql"),
         os.path.join(root, "migrations", "add_slideshow_photos.sql"),
         os.path.join(root, "migrations", "add_officer_photos.sql"),
         os.path.join(root, "migrations", "add_officers_display_name.sql"),

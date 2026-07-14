@@ -19,6 +19,7 @@ export default function CheckIn() {
   const [status, setStatus] = useState<Status>('locating');
   const [result, setResult] = useState<CheckInResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [locationUnavailable, setLocationUnavailable] = useState(false);
 
   useEffect(() => {
     if (!code) {
@@ -31,12 +32,14 @@ export default function CheckIn() {
       // Try to get location; proceed without it if unavailable (server decides if required)
       let geoPayload: { lat?: number; lon?: number } = {};
       try {
+        if (!navigator.geolocation) throw new Error('Geolocation not supported');
         const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
           navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 6000 })
         );
         geoPayload = { lat: pos.coords.latitude, lon: pos.coords.longitude };
       } catch {
-        // Location unavailable — attempt check-in without coords
+        // Location unavailable — surface a hint so the user knows why a geo-gated event may reject them
+        setLocationUnavailable(true);
       }
 
       setStatus('loading');
@@ -132,6 +135,11 @@ export default function CheckIn() {
             <div>
               <h1 className="text-xl font-bold text-white font-['Oxanium']">Check-in Failed</h1>
               <p className="text-sm text-white/50 mt-2">{errorMsg}</p>
+              {locationUnavailable && (
+                <p className="text-xs text-amber-300/80 mt-2">
+                  Location was unavailable. If this event requires geolocation, enable location permissions and try again.
+                </p>
+              )}
             </div>
             <button
               onClick={() => navigate('/dashboard')}

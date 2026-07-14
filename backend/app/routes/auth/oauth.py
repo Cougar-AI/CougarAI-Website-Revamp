@@ -433,10 +433,25 @@ def discord_callback():
                 return redirect(f"{frontend_url}/login?{query}")
             user = _provision_oauth_user(email)
 
-        # Store discord_id + discord_username on profile if it exists
+        # Store discord_id + discord_username on profile if it exists.
+        # Defense: refuse to overwrite a non-null discord_id with a different one —
+        # forces the user to explicitly disconnect from their old Discord account first.
         from app.raw_db import get_db as _get_db2
         _raw2 = _get_db2()
         with _raw2.cursor() as _cur2:
+            _cur2.execute(
+                "SELECT discord_id FROM profile WHERE user_id = %s",
+                (user["user_id"],),
+            )
+            existing = _cur2.fetchone()
+            if existing and existing["discord_id"] and str(existing["discord_id"]) != str(discord_user_id):
+                current_app.logger.warning(
+                    "Refused Discord re-link: user_id=%s already linked to a different discord_id",
+                    user["user_id"],
+                )
+                query = urlencode({"error": "discord_already_linked"})
+                return redirect(f"{frontend_url}/login?{query}")
+
             _cur2.execute(
                 "UPDATE profile SET discord_id = %s, discord_username = %s WHERE user_id = %s",
                 (discord_user_id, discord_username, user["user_id"]),

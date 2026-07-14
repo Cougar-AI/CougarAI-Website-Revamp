@@ -151,11 +151,14 @@ def delete_receipt(receipt_id):
 
     if image_path:
         uploads_dir = current_app.config.get("UPLOAD_FOLDER", "uploads")
-        abs_path = os.path.join(uploads_dir, "receipts", os.path.basename(image_path))
-        if os.path.isfile(abs_path):
-            try:
-                os.remove(abs_path)
-            except OSError:
-                pass
+        receipts_dir = os.path.realpath(os.path.join(uploads_dir, "receipts"))
+        filename = os.path.basename(image_path)
+        if filename and ".." not in filename:
+            abs_path = os.path.realpath(os.path.join(receipts_dir, filename))
+            if abs_path.startswith(receipts_dir + os.sep) and os.path.isfile(abs_path):
+                try:
+                    os.remove(abs_path)
+                except OSError:
+                    pass
 
     return jsonify({"success": True})
