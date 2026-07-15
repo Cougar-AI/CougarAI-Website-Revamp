@@ -312,7 +312,7 @@ export default function OverviewTab({ meData }: Props) {
             </p>
           </SectionCard>
 
-          <SectionCard title="Point Reward Ladder" icon={Gift}>
+          <SectionCard title="Point Reward Ladder (Coming Soon)" icon={Gift}>
             <div className="space-y-3">
               {rewardSteps.map((step) => {
                 const reached = totalPoints >= step.threshold;

@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-
+from werkzeug.middleware.proxy_fix import ProxyFix 
 
 class _ISODateProvider(DefaultJSONProvider):
     """Override Flask 3.x default which serialises datetime as RFC 2822."""
@@ -22,6 +22,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["300/day", "60/ho
 
 def create_app(config_class='config.DevelopmentConfig'):
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     app.json_provider_class = _ISODateProvider
     app.json = _ISODateProvider(app)
     app.config.from_object(config_class)

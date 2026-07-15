@@ -425,6 +425,8 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
+
 - ✅ API health route — public `GET /health` returns `{status: "ok", version: <env stamped or fallback>}` for uptime checks
 - ✅ Security hardening — knowledge-board source links now reject non-http(s) URLs; auth refresh/logout require a trusted frontend Origin to protect the refresh cookie
 - ✅ Knowledge board post management — knowledge-base entries now support edit and soft delete from the detail panel; backend PATCH/DELETE coverage added in integration tests

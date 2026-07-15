@@ -65,6 +65,7 @@ const PLANS = [
       "Everything in Semester",
       "Priority for project teams",
       "Saves vs. two semesters",
+      "Access to our Yearly shirt drops"
     ],
   },
 ] as const;
@@ -590,7 +591,6 @@ export default function JoinUs() {
           style={{ background: 'rgba(255,255,255,.04)', border: '1px solid rgba(185,28,28,.2)', backdropFilter: 'blur(10px)' }}
         >
           <h2 className="font-['Oxanium'] text-xl font-bold mb-1">Member details</h2>
-          <p className="text-sm text-white/50 mb-6">Used for club administration only — no spam.</p>
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2" noValidate>
             <div>

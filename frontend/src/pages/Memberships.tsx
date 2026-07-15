@@ -167,7 +167,7 @@ const Memberships: React.FC = () => {
           {[
             'Weekly workshops & study sessions',
             'Hands-on research & build teams',
-            'Resume + interview prep nights',
+            'Interactive and Supportive Community.',
             'Speaker events with industry',
             'Exclusive project showcase slots',
             'Points, perks, and member rewards',
@@ -237,7 +237,7 @@ const Memberships: React.FC = () => {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {[
               { step: '1', title: 'Join',     text: 'Fill out the short form and pick a plan.' },
-              { step: '2', title: 'Activate', text: 'Get access on Discord & website within 24 hours.' },
+              { step: '2', title: 'Activate', text: 'Get access on Discord & website.' },
               { step: '3', title: 'Build',    text: 'Attend workshops, join a team, and start shipping.' },
             ].map(({ step, title, text }) => (
               <div

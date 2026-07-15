@@ -57,7 +57,7 @@ export default function Contact() {
           Contact CougarAI
         </h1>
         <p style={{ color: "rgba(255,255,255,.6)", fontSize: 16, lineHeight: 1.65, maxWidth: 480, margin: "0 auto" }}>
-          Whether it's a sponsorship inquiry, workshop idea, or quick question — reach out. We read every message.
+          Whether it's a sponsorship inquiry, workshop idea, or quick question. We encourage you to reach out. We read every message.
         </p>
       </header>
 
@@ -88,7 +88,6 @@ export default function Contact() {
       {/* Contact form */}
       <div style={{ ...glass, marginBottom: 16 }}>
         <h2 style={{ fontFamily: "Oxanium,sans-serif", fontWeight: 700, fontSize: 18, margin: "0 0 6px", color: "#fff" }}>Send a message</h2>
-        <p style={{ color: "rgba(255,255,255,.5)", fontSize: 13.5, margin: "0 0 22px" }}>Opens a pre-filled draft in your email app — no account required.</p>
 
         <form onSubmit={onSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div className="grid grid-cols-1 gap-14 sm:grid-cols-2">
