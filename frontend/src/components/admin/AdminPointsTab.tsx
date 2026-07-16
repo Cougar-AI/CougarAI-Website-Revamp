@@ -228,9 +228,9 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
     staleTime: 30_000,
   });
 
-  const { data: eventsData } = useQuery<{ events: Event[] }>({
+  const { data: eventsData } = useQuery<Event[]>({
     queryKey: ['admin-events-pts'],
-    queryFn: () => apiGet<{ events: Event[] }>('/events/?limit=50'),
+    queryFn: () => apiGet<Event[]>('/events/?limit=50'),
     staleTime: 120_000,
   });
 
@@ -252,7 +252,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
     setLoadingAttendees(true);
     try {
       const res = await apiGet<{ attendance_count: number; attendees: AttendeeUser[] }>(`/admin/events/${evId}/attendance`);
-      const ev = eventsData?.events.find((e) => String(e.event_id) === evId);
+      const ev = eventsData?.find((e) => String(e.event_id) === evId);
       const newUsers: UserSearchResult[] = res.attendees
         .filter((a) => a.user_id)
         .map((a) => ({
@@ -332,7 +332,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
               style={inputStyle}
             >
               <option value="" style={{ background: '#1a0000' }}>— Pick an event to load attendees —</option>
-              {(eventsData?.events ?? []).map((ev) => (
+              {(eventsData ?? []).map((ev) => (
                 <option key={ev.event_id} value={String(ev.event_id)} style={{ background: '#1a0000' }}>
                   {ev.name} ({formatDate(ev.starts_at)})
                 </option>
@@ -475,7 +475,7 @@ function AwardForm({ onSuccess }: { onSuccess: () => void }) {
             style={inputStyle}
           >
             <option value="" style={{ background: '#1a0000' }}>— None —</option>
-            {(eventsData?.events ?? []).map((ev) => (
+            {(eventsData ?? []).map((ev) => (
               <option key={ev.event_id} value={String(ev.event_id)} style={{ background: '#1a0000' }}>
                 {ev.name} ({formatDate(ev.starts_at)})
               </option>
