@@ -8,8 +8,8 @@ export default function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-16 border-t border-white/10 text-white">
-      <div className="bg-gradient-to-b from-red-700 via-red-700 to-red-800">
+    <footer className="relative mt-16 w-full overflow-hidden border-t border-white/10 text-white">
+      <div className="w-full bg-gradient-to-b from-red-700 via-red-700 to-red-800">
         {/* Accent shimmer line */}
         <div
           aria-hidden
@@ -19,7 +19,7 @@ export default function Footer() {
         <div className="mx-auto w-full max-w-7xl px-4 py-10">
           <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
             {/* Brand */}
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-3">
                 <img src={logo} alt="CougarAI logo" className="h-9 w-9 rounded" />
                 <span className="text-lg font-semibold tracking-wide">CougarAI</span>
@@ -30,7 +30,7 @@ export default function Footer() {
             </div>
 
             {/* Explore */}
-            <nav className="md:col-span-2 grid grid-cols-2 gap-8">
+            <nav className="grid grid-cols-2 gap-8 md:col-span-2">
               <div>
                 <p className="mb-3 text-sm font-semibold text-white">Explore</p>
                 <ul className="space-y-2 text-sm">
@@ -106,16 +106,18 @@ export default function Footer() {
             </nav>
 
             {/* Actions */}
-            <div className="flex flex-col items-start gap-4">
+            <div className="flex min-w-0 flex-col items-start gap-4 max-sm:items-start">
               <a
                 href="mailto:cougaraicontact@gmail.com"
-                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
+                className="inline-flex max-w-full items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50 max-sm:w-full max-sm:max-w-[18.5rem] max-sm:justify-start max-sm:self-start max-sm:px-4 max-sm:py-3"
               >
-                <Mail className="h-4 w-4" />
-                cougaraicontact@gmail.com
+                <Mail className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 text-left text-[0.95rem] leading-snug max-sm:text-[0.82rem] sm:break-all">
+                  cougaraicontact@gmail.com
+                </span>
               </a>
 
-              <div className="flex items-center gap-2 text-white/90">
+              <div className="flex items-center gap-2 text-white/90 max-sm:justify-start">
                 <a
                   aria-label="Instagram"
                   href="https://www.instagram.com/cougar_ai/"
@@ -148,7 +150,7 @@ export default function Footer() {
               <button
                 type="button"
                 onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                className="mt-1 inline-flex items-center gap-2 text-xs text-white/90 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
+                className="mt-1 inline-flex items-center gap-2 text-xs text-white/90 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50 max-sm:self-start"
               >
                 <ArrowUp className="h-4 w-4" /> Back to top
               </button>

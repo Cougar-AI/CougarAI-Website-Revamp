@@ -27,6 +27,15 @@ def create_fund():
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name is required"}), 400
+    budget_limit = data.get("budget_limit")
+    if budget_limit is not None:
+        try:
+            budget_limit = float(budget_limit)
+        except (TypeError, ValueError):
+            return jsonify({"error": "budget_limit must be a number"}), 400
+        if budget_limit < 0:
+            return jsonify({"error": "budget_limit cannot be negative"}), 400
+        data["budget_limit"] = budget_limit
     svc = ReceiptService(get_db())
     fund_id, error = svc.create_fund({**data, "name": name})
     if error:
@@ -42,6 +51,13 @@ def update_fund(fund_id):
     updates = {k: v for k, v in data.items() if k in allowed}
     if not updates:
         return jsonify({"error": "No valid fields to update"}), 400
+    if "budget_limit" in updates and updates["budget_limit"] is not None:
+        try:
+            updates["budget_limit"] = float(updates["budget_limit"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "budget_limit must be a number"}), 400
+        if updates["budget_limit"] < 0:
+            return jsonify({"error": "budget_limit cannot be negative"}), 400
     svc = ReceiptService(get_db())
     success, error = svc.update_fund(fund_id, updates)
     if not success:

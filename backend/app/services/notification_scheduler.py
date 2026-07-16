@@ -76,7 +76,7 @@ def _send_progress_report_reminder(app, schedule_id):
                               COALESCE(p.first_name || ' ' || p.last_name, u.email) AS full_name
                        FROM users u
                        LEFT JOIN profile p ON p.user_id = u.user_id
-                       WHERE u.role IN ('officer', 'admin') AND u.is_deleted IS NOT TRUE"""
+                       WHERE u.role IN ('officer', 'admin') AND u.is_active = TRUE"""
                 )
                 officers = cur.fetchall()
 
@@ -151,7 +151,7 @@ def _send_event_reminders(app, schedule_id, hours_before, target_roles):
                 roles_list = target_roles if target_roles else ["officer", "admin"]
                 placeholders = ",".join(["%s"] * len(roles_list))
                 cur.execute(
-                    f"SELECT user_id, email FROM users WHERE role IN ({placeholders}) AND is_deleted IS NOT TRUE",
+                    f"SELECT user_id, email FROM users WHERE role IN ({placeholders}) AND is_active = TRUE",
                     roles_list,
                 )
                 recipients = cur.fetchall()

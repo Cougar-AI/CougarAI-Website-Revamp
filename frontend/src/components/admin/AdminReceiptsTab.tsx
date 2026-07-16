@@ -81,6 +81,7 @@ const glass = {
 function FundCard({ fund, onEdit, onDelete }: { fund: Fund; onEdit: () => void; onDelete: () => void }) {
   const pct = fund.budget_limit ? Math.min((fund.spent / fund.budget_limit) * 100, 100) : 0;
   const over90 = fund.budget_limit && pct >= 90;
+  const remaining = fund.budget_limit !== null ? Math.max(fund.budget_limit - fund.spent, 0) : null;
   return (
     <div className="rounded-xl p-4 flex flex-col gap-2" style={glass}>
       <div className="flex items-start justify-between gap-2">
@@ -116,7 +117,7 @@ function FundCard({ fund, onEdit, onDelete }: { fund: Fund; onEdit: () => void; 
       )}
       {fund.budget_limit && (
         <div className="text-xs" style={{ color: over90 ? 'rgba(248,113,113,.9)' : 'rgba(255,255,255,.4)' }}>
-          {over90 ? `⚠ ${pct.toFixed(0)}% used` : `$${(fund.budget_limit - fund.spent).toFixed(2)} remaining`}
+          {over90 ? `⚠ ${pct.toFixed(0)}% used` : `$${remaining?.toFixed(2)} remaining`}
         </div>
       )}
       {fund.description && <div className="text-white/40 text-xs">{fund.description}</div>}
@@ -138,10 +139,14 @@ function FundModal({ fund, onClose, onSaved }: { fund: Fund | null; onClose: () 
   async function save() {
     setSaving(true); setError('');
     try {
+      const parsedBudgetLimit = form.budget_limit === '' ? null : parseFloat(form.budget_limit);
+      if (parsedBudgetLimit !== null && (Number.isNaN(parsedBudgetLimit) || parsedBudgetLimit < 0)) {
+        throw new Error('Budget limit must be 0 or greater');
+      }
       const body = {
         name: form.name.trim(),
         description: form.description || null,
-        budget_limit: form.budget_limit ? parseFloat(form.budget_limit) : null,
+        budget_limit: parsedBudgetLimit,
         fiscal_year: form.fiscal_year ? parseInt(form.fiscal_year) : null,
       };
       if (fund) {
@@ -380,6 +385,7 @@ export default function AdminReceiptsTab() {
   const [filterEnd, setFilterEnd] = useState('');
   const [filterQ, setFilterQ] = useState('');
   const [fundsOpen, setFundsOpen] = useState(true);
+  const [fundError, setFundError] = useState('');
 
   const fundsQuery = useQuery<{ funds: Fund[] }>({
     queryKey: ['receipt-funds'],
@@ -415,7 +421,13 @@ export default function AdminReceiptsTab() {
 
   const deleteFund = useMutation({
     mutationFn: (id: number) => apiFetch(`/receipts/funds/${id}`, { method: 'DELETE' }),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setFundError('');
+      invalidate();
+    },
+    onError: (error: unknown) => {
+      setFundError(error instanceof Error ? error.message : 'Unable to delete fund');
+    },
   });
 
   const deleteReceipt = useMutation({
@@ -441,6 +453,10 @@ export default function AdminReceiptsTab() {
             <Plus size={13} /> New Fund
           </button>
         </div>
+
+        {fundError && (
+          <p className="text-red-400 text-xs">{fundError}</p>
+        )}
 
         {fundsOpen && (
           funds.length === 0 ? (
@@ -603,6 +619,7 @@ export default function AdminReceiptsTab() {
           </h2>
           {stats.by_fund.map(f => {
             const pct = f.budget_limit ? Math.min((f.spent / f.budget_limit) * 100, 100) : 0;
+            const remaining = f.budget_limit !== null ? Math.max(f.budget_limit - f.spent, 0) : null;
             return (
               <div key={f.fund_id} className="flex items-center gap-3">
                 <div className="text-white/60 text-xs w-32 shrink-0 truncate">{f.name}</div>
@@ -614,6 +631,9 @@ export default function AdminReceiptsTab() {
                     </div>
                     <div className="text-white text-xs w-32 text-right">
                       ${f.spent.toFixed(2)} / ${f.budget_limit.toFixed(2)}
+                    </div>
+                    <div className="text-white/40 text-xs w-28 text-right">
+                      ${remaining?.toFixed(2)} left
                     </div>
                   </>
                 ) : (
