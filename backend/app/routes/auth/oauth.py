@@ -19,7 +19,7 @@ from app.routes.auth import auth_bp
 from app.routes.auth._helpers import (
     _jwt_encode, _jwt_decode,
     _build_auth_response, _build_oauth_redirect_response,
-    _provision_oauth_user, _clear_refresh_cookie, _delete_refresh_by_jti,
+    _provision_oauth_user, _clear_refresh_cookie, _delete_refresh_by_jti, _normalize_email,
 )
 from app.utils.auth_decorators import require_authenticated
 
@@ -143,7 +143,7 @@ def google_login():
     except Exception:
         return jsonify({"error": "invalid_credentials"}), 401
 
-    email = (claims.get("email") or "").strip()
+    email = _normalize_email(claims.get("email") or "")
     if not email or not claims.get("email_verified"):
         return jsonify({"error": "invalid_credentials"}), 401
 
@@ -228,7 +228,7 @@ def microsoft_callback():
             return _microsoft_frontend_auth_redirect("invalid_credentials")
 
         profile = _microsoft_get_profile(access_token)
-        email = (profile.get("mail") or profile.get("userPrincipalName") or "").strip()
+        email = _normalize_email(profile.get("mail") or profile.get("userPrincipalName") or "")
         if not email:
             return _microsoft_frontend_auth_redirect("invalid_credentials")
 
@@ -445,7 +445,7 @@ def discord_callback():
         profile = _discord_get_profile(access_token)
         discord_user_id = str(profile.get("id") or "").strip()
         discord_username = (profile.get("username") or "").strip()
-        email = (profile.get("email") or "").strip()
+        email = _normalize_email(profile.get("email") or "")
         verified = profile.get("verified", False)
 
         if not discord_user_id:

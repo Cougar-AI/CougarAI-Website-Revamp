@@ -358,7 +358,7 @@ export default function Registration({
       const status = err?.status as number | undefined;
       const data = (err?.data ?? {}) as FieldErrors;
 
-      if (status === 422 && data.field_errors) {
+      if ((status === 422 || status === 409) && data.field_errors) {
         if (data.field_errors.email?.length) setServerEmailErrors(data.field_errors.email);
         if (data.field_errors.password?.length) setServerPwErrors(data.field_errors.password);
         // Field errors shown inline; no global banner needed
@@ -517,15 +517,19 @@ export default function Registration({
           </div>
 
           {/* Form */}
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate autoComplete="on">
             <div>
               <label htmlFor="email" className="text-sm font-medium text-white">
                 Email
               </label>
               <input
                 id="email"
+                name="email"
                 type="email"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="mt-2 block w-full rounded-xl border-0 bg-white/5 px-3 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/70"
@@ -562,8 +566,12 @@ export default function Registration({
               </div>
               <input
                 id="password"
+                name="password"
                 type={showPw ? "text" : "password"}
                 autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="mt-2 block w-full rounded-xl border-0 bg-white/5 px-3 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/70"
@@ -610,8 +618,12 @@ export default function Registration({
               </div>
               <input
                 id="confirm"
+                name="confirmPassword"
                 type={showConfirmPw ? "text" : "password"}
                 autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 className="mt-2 block w-full rounded-xl border-0 bg-white/5 px-3 py-2 text-white shadow-sm ring-1 ring-inset ring-white/10 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-500/70"

@@ -14,6 +14,7 @@ from app.routes.auth._helpers import (
     _delete_refresh_by_jti,
     _send_verify_email, _send_reset_email,
     _build_auth_response, _set_refresh_cookie, _clear_refresh_cookie,
+    _normalize_email,
 )
 from app.utils.passwords import validate_password, hash_password, verify_password
 from app.utils.auth_decorators import require_authenticated, caller_id
@@ -39,7 +40,7 @@ def _request_origin_allowed() -> bool:
 @auth_bp.post("/register")
 def register():
     data = request.get_json(silent=True) or {}
-    email_raw = (data.get("email") or "").strip()
+    email_raw = _normalize_email(data.get("email") or "")
     password = data.get("password") or ""
 
     if not email_raw:
@@ -64,9 +65,18 @@ def register():
 
         if not row:
             row = conn.execute(
-                text("SELECT user_id, email, email_verified_at FROM users WHERE email = :email"),
+                text("SELECT user_id, email, email_verified_at FROM users WHERE LOWER(email) = :email"),
                 {"email": email_raw}
             ).mappings().first()
+
+    if row and row.get("email_verified_at") is not None:
+        return jsonify({
+            "ok": False,
+            "error": "account_already_exists",
+            "field_errors": {
+                "email": ["An account with this email already exists. If you signed up with Google, use Google Sign-In or reset your password."]
+            },
+        }), 409
 
     try:
         _send_verify_email(row["user_id"], email_raw)
@@ -120,7 +130,7 @@ def verify_email():
 @auth_bp.post("/login")
 def login():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
+    email = _normalize_email(data.get("email") or "")
     password = data.get("password") or ""
 
     if not email or not password:
@@ -131,7 +141,7 @@ def login():
             text("""
                 SELECT user_id, email, password_hash, email_verified_at, is_active,
                        role, onboarding_completed_at
-                FROM users WHERE email = :email
+                FROM users WHERE LOWER(email) = :email
             """),
             {"email": email}
         ).mappings().first()
@@ -152,14 +162,14 @@ def login():
 @auth_bp.post("/resend-verification")
 def resend_verification():
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
+    email = _normalize_email(data.get("email") or "")
     if not email:
         return jsonify({"ok": True}), 200
 
     try:
         with db.engine.begin() as conn:
             user = conn.execute(
-                text("SELECT user_id, email_verified_at FROM users WHERE email = :email"),
+                text("SELECT user_id, email_verified_at FROM users WHERE LOWER(email) = :email"),
                 {"email": email}
             ).mappings().first()
         if user and user["email_verified_at"] is None:
@@ -174,13 +184,13 @@ def resend_verification():
 def forgot_password():
     _start = time.monotonic()
     data = request.get_json(silent=True) or {}
-    email = (data.get("email") or "").strip()
+    email = _normalize_email(data.get("email") or "")
 
     if email:
         try:
             with db.engine.begin() as conn:
                 user = conn.execute(
-                    text("SELECT user_id, email_verified_at FROM users WHERE email = :email"),
+                    text("SELECT user_id, email_verified_at FROM users WHERE LOWER(email) = :email"),
                     {"email": email}
                 ).mappings().first()
             if user and user["email_verified_at"] is not None:
