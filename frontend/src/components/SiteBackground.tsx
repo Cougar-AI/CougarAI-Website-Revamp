@@ -12,8 +12,8 @@ function NeuralCanvas() {
   useEffect(() => {
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext('2d')!;
-    const NODE_COUNT = 62;
-    const MAX_DIST = 190;
+    let nodeCount = 62;
+    let maxDist = 190;
     let W = 0, H = 0, animId = 0;
     const nodes: NetNode[] = [];
 
@@ -28,10 +28,13 @@ function NeuralCanvas() {
     }
 
     function resize() {
+      const isMobile = window.innerWidth < 768;
+      nodeCount = isMobile ? 34 : 62;
+      maxDist = isMobile ? 120 : 190;
       W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
+      H = canvas.height = window.visualViewport?.height ?? window.innerHeight;
       nodes.length = 0;
-      for (let i = 0; i < NODE_COUNT; i++) nodes.push(mkNode());
+      for (let i = 0; i < nodeCount; i++) nodes.push(mkNode());
     }
 
     let pTimer = 0;
@@ -55,8 +58,8 @@ function NeuralCanvas() {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
           const d = Math.hypot(dx, dy);
-          if (d < MAX_DIST) {
-            const a = (1 - d / MAX_DIST) * 0.38;
+          if (d < maxDist) {
+            const a = (1 - d / maxDist) * 0.38;
             ctx.beginPath();
             ctx.strokeStyle = `rgba(220,38,38,${a})`;
             ctx.lineWidth = 0.75;
@@ -90,18 +93,20 @@ function NeuralCanvas() {
     }
 
     window.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('resize', resize);
     resize();
     loop();
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('resize', resize);
     };
   }, []);
 
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none absolute inset-0 z-[1]"
+      className="pointer-events-none fixed inset-0 z-[1]"
       style={{ width: '100%', height: '100%' }}
     />
   );
@@ -109,7 +114,7 @@ function NeuralCanvas() {
 
 export default function SiteBackground() {
   return (
-    <div className="pointer-events-none absolute inset-0 z-0">
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {/* 1 — warm dark-red base */}
       <div
         className="absolute inset-0"
@@ -139,7 +144,7 @@ export default function SiteBackground() {
             linear-gradient(rgba(185,28,28,.08) 1px, transparent 1px),
             linear-gradient(90deg, rgba(185,28,28,.08) 1px, transparent 1px)
           `,
-          backgroundSize: '36px 36px',
+          backgroundSize: 'clamp(28px, 6vw, 36px) clamp(28px, 6vw, 36px)',
           WebkitMaskImage: 'radial-gradient(ellipse 88% 58% at 50% 28%, black 25%, transparent 78%)',
           maskImage: 'radial-gradient(ellipse 88% 58% at 50% 28%, black 25%, transparent 78%)',
         }}

@@ -49,8 +49,8 @@ def _mark_verified(app, email: str):
     with app.app_context():
         with db.engine.begin() as conn:
             conn.execute(
-                sqlt("UPDATE users SET email_verified_at = NOW() WHERE email = :e"),
-                {"e": email},
+                sqlt("UPDATE users SET email_verified_at = NOW() WHERE LOWER(email) = :e"),
+                {"e": email.lower()},
             )
 
 
@@ -104,14 +104,47 @@ class TestRegister:
         assert "password" in body.get("field_errors", {})
         assert len(body["field_errors"]["password"]) > 0
 
-    def test_register_duplicate_email(self, client, db_session):
-        """Duplicate registration is idempotent — returns 201 without leaking existence."""
+    def test_register_duplicate_email(self, client, app, db_session):
         email = _email()
         _register(client, email)
+        _mark_verified(app, email)
         with patch(PATCH_SEND):
             resp = client.post("/auth/register", json={"email": email, "password": STRONG_PW})
+        assert resp.status_code == 409
+        body = resp.get_json()
+        assert body["error"] == "account_already_exists"
+        assert "email" in body.get("field_errors", {})
+
+    def test_register_duplicate_email_is_case_insensitive(self, client, app, db_session):
+        email = _email()
+        upper = email.upper()
+        _register(client, upper)
+        _mark_verified(app, email)
+        with patch(PATCH_SEND):
+            resp = client.post("/auth/register", json={"email": email, "password": STRONG_PW})
+
+        assert resp.status_code == 409
+        assert resp.get_json()["error"] == "account_already_exists"
+
+        from sqlalchemy import text as sqlt
+        from app import db
+        with app.app_context():
+            with db.engine.begin() as conn:
+                count = conn.execute(
+                    sqlt("SELECT COUNT(*) FROM users WHERE LOWER(email) = :e"),
+                    {"e": email.lower()},
+                ).scalar_one()
+        assert count == 1
+
+    def test_register_duplicate_unverified_email_resends_verification(self, client, db_session):
+        email = _email()
+        _register(client, email)
+        with patch(PATCH_SEND) as mock_send:
+            resp = client.post("/auth/register", json={"email": email, "password": STRONG_PW})
+
         assert resp.status_code == 201
         assert resp.get_json()["ok"] is True
+        mock_send.assert_called_once()
 
     def test_register_empty_body(self, client, db_session):
         resp = client.post("/auth/register", json={})
@@ -159,6 +192,45 @@ class TestLogin:
         _mark_verified(app, email)
         resp = _login(client, email)
         assert resp.get_json()["user"]["role"] == "non-member"
+
+    def test_login_is_case_insensitive(self, client, app, db_session):
+        email = _email()
+        _register(client, email.upper())
+        _mark_verified(app, email.lower())
+        resp = _login(client, email.lower())
+        assert resp.status_code == 200
+        assert resp.get_json()["user"]["email"].lower() == email.lower()
+
+
+class TestOAuthProvisioning:
+    def test_provision_oauth_user_reuses_existing_email_case_insensitively(self, app, db_session):
+        email = _email()
+        mixed = email.upper()
+
+        from app.routes.auth._helpers import _provision_oauth_user
+        from sqlalchemy import text as sqlt
+        from app import db
+
+        with app.app_context():
+            with db.engine.begin() as conn:
+                user_id = conn.execute(
+                    sqlt("""
+                        INSERT INTO users (email, password_hash, email_verified_at)
+                        VALUES (:email, :password_hash, NOW())
+                        RETURNING user_id
+                    """),
+                    {"email": mixed, "password_hash": "hash"},
+                ).scalar_one()
+
+            user = _provision_oauth_user(email.lower())
+            assert user["user_id"] == user_id
+
+            with db.engine.begin() as conn:
+                count = conn.execute(
+                    sqlt("SELECT COUNT(*) FROM users WHERE LOWER(email) = :e"),
+                    {"e": email.lower()},
+                ).scalar_one()
+            assert count == 1
 
 
 # ---------------------------------------------------------------------------

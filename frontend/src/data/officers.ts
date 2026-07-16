@@ -37,8 +37,8 @@ export const departments: Department[] = [
     id: 'webmaster',
     name: 'Webmasters',
     officers: [
-      { id: 'isa', name: 'Isabella', position: 'Webmaster Director', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/isabella-truong/' },
-      { id: 'tj', name: 'TJ Papillion', position: 'Webmaster', photo: '/officerHeadshots/Theron Papillion.png', linkedin: 'https://www.linkedin.com/in/tpapillionjr/' },
+      { id: 'tj', name: 'TJ Papillion', position: 'Webmaster Director', photo: '/officerHeadshots/Theron Papillion.png', linkedin: 'https://www.linkedin.com/in/tpapillionjr/' },
+      { id: 'isa', name: 'Isabella', position: 'Webmaster', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/isabella-truong/' },
       { id: 'liz', name: 'Lizzie Sauseo', position: 'Webmaster', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/lizzie-saucedo-747b08334/' },
     ],
   },

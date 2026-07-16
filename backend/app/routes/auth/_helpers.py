@@ -24,6 +24,10 @@ def _sha256(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def _normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
 def _jwt_encode(claims: dict, secret: str, minutes: Optional[int] = None, delta: Optional[timedelta] = None) -> str:
     now = _utcnow()
     if delta is None and minutes is not None:
@@ -201,14 +205,15 @@ def _build_oauth_redirect_response(user_id: int, email: str, provider: str, role
 
 
 def _provision_oauth_user(email: str):
+    normalized_email = _normalize_email(email)
     with db.engine.begin() as conn:
         user = conn.execute(
             text("""
                 SELECT user_id, email, email_verified_at, is_active, role, onboarding_completed_at
                 FROM users
-                WHERE email = :email
+                WHERE LOWER(email) = :email
             """),
-            {"email": email}
+            {"email": normalized_email}
         ).mappings().first()
 
         if user and not user["is_active"]:
@@ -221,7 +226,7 @@ def _provision_oauth_user(email: str):
                     VALUES (:email, NOW())
                     RETURNING user_id, email, email_verified_at, is_active, role, onboarding_completed_at
                 """),
-                {"email": email}
+                {"email": normalized_email}
             ).mappings().first()
         elif user["email_verified_at"] is None:
             conn.execute(
