@@ -1,0 +1,2 @@
+This file checks whether the git sparse checkout works on the backend code for the server.
+Will remove once finished
