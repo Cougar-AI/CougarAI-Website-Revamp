@@ -468,6 +468,7 @@ function PhotoCard({
         <img
           src={resolveUrl(photo.url)}
           alt=""
+          referrerPolicy="no-referrer"
           style={{
             width: '100%', height: '100%', objectFit: 'cover',
             objectPosition: photo.object_position,
@@ -726,6 +727,7 @@ function PhotoDetailModal({
             <img
               src={resolveUrl(photo.url)}
               alt=""
+              referrerPolicy="no-referrer"
               style={{
                 width: '100%', height: '100%',
                 objectFit: 'cover',
@@ -1032,6 +1034,7 @@ function SlideshowPreview({ photos }: { photos: Photo[] }) {
         <img
           src={resolveUrl(photo.url)}
           alt=""
+          referrerPolicy="no-referrer"
           style={{
             width: '100%', height: '100%',
             objectFit: 'cover',

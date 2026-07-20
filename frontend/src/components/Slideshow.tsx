@@ -39,6 +39,7 @@ export default function Slideshow({ images = DEFAULT_IMAGES, objectPosition = 'c
               <img
                 src={src}
                 alt={`Slide ${i + 1}`}
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
                 style={{ objectPosition: pos }}
               />
