@@ -19,6 +19,7 @@ from app.routes.notifications import notifications_bp
 from app.routes.knowledge_base import knowledge_base_bp
 from app.routes.health import health_bp
 
+
 blueprints_with_prefixes = {
     discord_bp: '/discord',
     announcements_bp: '/announcements',
