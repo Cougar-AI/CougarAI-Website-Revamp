@@ -6,13 +6,10 @@ from app.utils.auth_decorators import require_officer
 
 workshop_proxy_bp = Blueprint('workshop_proxy', __name__)
 
-# Use the Tailscale IP or MagicDNS name here, e.g.
 WORKSHOP_API_URL = os.environ.get("WORKSHOP_API_URL")
 WORKSHOP_API_KEY = os.environ.get("WORKSHOP_API_KEY")
 
-DEFAULT_TIMEOUT = 15  # seconds — proxy calls should be fast; the workshop
-                       # API itself returns a job_id immediately and does
-                       # the real work in a background thread
+DEFAULT_TIMEOUT = 15  
 
 
 def _proxy(method, path, **kwargs):
@@ -41,7 +38,6 @@ def _proxy(method, path, **kwargs):
     except requests.exceptions.RequestException as e:
         return jsonify({"error": f"unexpected error contacting workshop host: {e}"}), 502
 
-    # Workshop API is expected to always return JSON; guard against it not.
     try:
         body = resp.json()
     except ValueError:
@@ -51,17 +47,27 @@ def _proxy(method, path, **kwargs):
 
 
 # ---------------------------------------------------------------------------
+# Pipeline
+# ---------------------------------------------------------------------------
+
+@workshop_proxy_bp.route('/admin/workshops/pipeline/run', methods=['POST'])
+@require_officer
+def pipeline_run():
+
+    data = request.get_json(silent=True) or {}
+    if 'num_containers' not in data:
+        return jsonify({"error": "num_containers is required"}), 400
+    return _proxy('POST', '/admin/workshops/pipeline/run', json=data)
+
+
+# ---------------------------------------------------------------------------
 # Provisioning lifecycle
 # ---------------------------------------------------------------------------
 
 @workshop_proxy_bp.route('/admin/workshops/provision', methods=['POST'])
 @require_officer
 def provision_workshop():
-    """
-    Body: { "repo_url": str|null, "packages": [str]|null,
-            "num_containers": int, "force_rebuild": bool (optional) }
-    Returns immediately with { "job_id": "..." }.
-    """
+
     data = request.get_json(silent=True) or {}
     if 'num_containers' not in data:
         return jsonify({"error": "num_containers is required"}), 400
@@ -71,7 +77,6 @@ def provision_workshop():
 @workshop_proxy_bp.route('/admin/workshops/teardown', methods=['POST'])
 @require_officer
 def teardown_workshop():
-    """Body: { "num_containers": int }"""
     data = request.get_json(silent=True) or {}
     if 'num_containers' not in data:
         return jsonify({"error": "num_containers is required"}), 400
@@ -81,7 +86,6 @@ def teardown_workshop():
 @workshop_proxy_bp.route('/admin/workshops/reset', methods=['POST'])
 @require_officer
 def reset_workshop():
-    """Body: { "num_containers": int }"""
     data = request.get_json(silent=True) or {}
     if 'num_containers' not in data:
         return jsonify({"error": "num_containers is required"}), 400
@@ -89,15 +93,25 @@ def reset_workshop():
 
 
 # ---------------------------------------------------------------------------
-# Job status polling — used by both the Discord bot and the website's
-# admin dashboard to show live progress ("building image" -> "provisioning
-# containers" -> "done").
+# Job status polling, history, and rerun
 # ---------------------------------------------------------------------------
+
+@workshop_proxy_bp.route('/admin/workshops/jobs', methods=['GET'])
+@require_officer
+def list_jobs():
+    return _proxy('GET', '/admin/workshops/jobs')
+
 
 @workshop_proxy_bp.route('/admin/workshops/jobs/<job_id>', methods=['GET'])
 @require_officer
 def job_status(job_id):
     return _proxy('GET', f'/admin/workshops/jobs/{job_id}')
+
+
+@workshop_proxy_bp.route('/admin/workshops/jobs/<job_id>/rerun', methods=['POST'])
+@require_officer
+def rerun_job(job_id):
+    return _proxy('POST', f'/admin/workshops/jobs/{job_id}/rerun')
 
 
 # ---------------------------------------------------------------------------
@@ -110,16 +124,52 @@ def get_requirements():
     return _proxy('GET', '/admin/workshops/requirements')
 
 
+@workshop_proxy_bp.route('/admin/workshops/requirements', methods=['PUT'])
+@require_officer
+def update_requirements():
+    data = request.get_json(silent=True) or {}
+    if 'packages' not in data:
+        return jsonify({"error": "packages is required"}), 400
+    return _proxy('PUT', '/admin/workshops/requirements', json=data)
+
+
+@workshop_proxy_bp.route('/admin/workshops/requirements/add', methods=['POST'])
+@require_officer
+def add_requirement():
+    data = request.get_json(silent=True) or {}
+    if 'package' not in data:
+        return jsonify({"error": "package is required"}), 400
+    return _proxy('POST', '/admin/workshops/requirements/add', json=data)
+
+
+@workshop_proxy_bp.route('/admin/workshops/requirements/remove', methods=['POST'])
+@require_officer
+def remove_requirement():
+    data = request.get_json(silent=True) or {}
+    if 'package' not in data:
+        return jsonify({"error": "package is required"}), 400
+    return _proxy('POST', '/admin/workshops/requirements/remove', json=data)
+
+
 @workshop_proxy_bp.route('/admin/workshops/requirements/preview', methods=['POST'])
 @require_officer
 def preview_requirements():
-    """Body: { "packages": [str] } — returns added/removed/unchanged diff."""
     data = request.get_json(silent=True) or {}
     return _proxy('POST', '/admin/workshops/requirements/preview', json=data)
 
 
 # ---------------------------------------------------------------------------
-# Live status — container list, counts, last build info
+# Clean up
+# ---------------------------------------------------------------------------
+
+@workshop_proxy_bp.route('/admin/workshops/image/prune', methods=['POST'])
+@require_officer
+def prune_images():
+    return _proxy('POST', '/admin/workshops/image/prune')
+
+
+# ---------------------------------------------------------------------------
+# Live status
 # ---------------------------------------------------------------------------
 
 @workshop_proxy_bp.route('/admin/workshops/status', methods=['GET'])
