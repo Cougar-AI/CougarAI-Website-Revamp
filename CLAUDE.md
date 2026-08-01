@@ -425,6 +425,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ Workshop admin tab — `/admin` now exposes a Workshop control panel for the new proxy routes, including job lookup/rerun, status, requirements editing, and container actions.
 - ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
 
 - ✅ API health route — public `GET /health` returns `{status: "ok", version: <env stamped or fallback>}` for uptime checks

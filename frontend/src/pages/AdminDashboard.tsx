@@ -18,9 +18,10 @@ import AdminReceiptsTab from '@/components/admin/AdminReceiptsTab';
 import AdminNotificationsTab from '@/components/admin/AdminNotificationsTab';
 import AdminBulkEmailTab from '@/components/admin/AdminBulkEmailTab';
 import AdminSlideshowTab from '@/components/admin/AdminSlideshowTab';
+import AdminWorkshopsTab from '@/components/admin/AdminWorkshopsTab';
 
 const ADMIN_TABS: AdminTab[] = ['overview', 'users', 'officers', 'sponsors', 'partners', 'event-types', 'receipts', 'notifications', 'bulk-email', 'slideshow'];
-const OFFICER_TABS: AdminTab[] = ['events', 'event-stats', 'points', 'members', 'progress', 'checkin'];
+const OFFICER_TABS: AdminTab[] = ['events', 'workshops', 'event-stats', 'points', 'members', 'progress', 'checkin'];
 const ALL_VALID_TABS: AdminTab[] = [...ADMIN_TABS, ...OFFICER_TABS];
 
 export default function AdminDashboard() {
@@ -67,6 +68,7 @@ export default function AdminDashboard() {
 
       {/* Officer tabs */}
       {activeTab === 'events'      && <AdminEventsTab />}
+      {activeTab === 'workshops'   && <AdminWorkshopsTab />}
       {activeTab === 'event-stats' && <AdminEventStatsTab />}
       {activeTab === 'points'      && <AdminPointsTab />}
       {activeTab === 'members'     && <AdminMemberDirectoryTab />}
