@@ -10,8 +10,6 @@ WORKSHOP_API_KEY = os.environ.get("WORKSHOP_API_KEY")
 
 DEFAULT_TIMEOUT = 15  
 
-def workshop_options(_subpath: str | None = None):
-    return '', 200
 
 def _proxy(method, path, **kwargs):
     """
@@ -51,7 +49,7 @@ def _proxy(method, path, **kwargs):
 # Pipeline
 # ---------------------------------------------------------------------------
 
-@admin_bp.route('/admin/workshops/pipeline/run', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/pipeline/run', methods=['POST', 'OPTIONS'])
 @require_officer
 def pipeline_run():
 
@@ -65,7 +63,7 @@ def pipeline_run():
 # Provisioning lifecycle
 # ---------------------------------------------------------------------------
 
-@admin_bp.route('/admin/workshops/provision', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/provision', methods=['POST', 'OPTIONS'])
 @require_officer
 def provision_workshop():
 
@@ -75,7 +73,7 @@ def provision_workshop():
     return _proxy('POST', '/admin/workshops/provision', json=data)
 
 
-@admin_bp.route('/admin/workshops/teardown', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/teardown', methods=['POST', 'OPTIONS'])
 @require_officer
 def teardown_workshop():
     data = request.get_json(silent=True) or {}
@@ -84,7 +82,7 @@ def teardown_workshop():
     return _proxy('POST', '/admin/workshops/teardown', json=data)
 
 
-@admin_bp.route('/admin/workshops/reset', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/reset', methods=['POST', 'OPTIONS'])
 @require_officer
 def reset_workshop():
     data = request.get_json(silent=True) or {}
@@ -97,19 +95,19 @@ def reset_workshop():
 # Job status polling, history, and rerun
 # ---------------------------------------------------------------------------
 
-@admin_bp.route('/admin/workshops/jobs', methods=['GET', 'OPTIONS'])
+@admin_bp.route('/workshops/jobs', methods=['GET', 'OPTIONS'])
 @require_officer
 def list_jobs():
     return _proxy('GET', '/admin/workshops/jobs')
 
 
-@admin_bp.route('/admin/workshops/jobs/<job_id>', methods=['GET', 'OPTIONS'])
+@admin_bp.route('/workshops/jobs/<job_id>', methods=['GET', 'OPTIONS'])
 @require_officer
 def job_status(job_id):
     return _proxy('GET', f'/admin/workshops/jobs/{job_id}')
 
 
-@admin_bp.route('/admin/workshops/jobs/<job_id>/rerun', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/jobs/<job_id>/rerun', methods=['POST', 'OPTIONS'])
 @require_officer
 def rerun_job(job_id):
     return _proxy('POST', f'/admin/workshops/jobs/{job_id}/rerun')
@@ -119,13 +117,13 @@ def rerun_job(job_id):
 # Requirements / package management
 # ---------------------------------------------------------------------------
 
-@admin_bp.route('/admin/workshops/requirements', methods=['GET', 'OPTIONS'])
+@admin_bp.route('/workshops/requirements', methods=['GET', 'OPTIONS'])
 @require_officer
 def get_requirements():
     return _proxy('GET', '/admin/workshops/requirements')
 
 
-@admin_bp.route('/admin/workshops/requirements', methods=['PUT', 'OPTIONS'])
+@admin_bp.route('/workshops/requirements', methods=['PUT', 'OPTIONS'])
 @require_officer
 def update_requirements():
     data = request.get_json(silent=True) or {}
@@ -134,7 +132,7 @@ def update_requirements():
     return _proxy('PUT', '/admin/workshops/requirements', json=data)
 
 
-@admin_bp.route('/admin/workshops/requirements/add', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/requirements/add', methods=['POST', 'OPTIONS'])
 @require_officer
 def add_requirement():
     data = request.get_json(silent=True) or {}
@@ -143,7 +141,7 @@ def add_requirement():
     return _proxy('POST', '/admin/workshops/requirements/add', json=data)
 
 
-@admin_bp.route('/admin/workshops/requirements/remove', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/requirements/remove', methods=['POST', 'OPTIONS'])
 @require_officer
 def remove_requirement():
     data = request.get_json(silent=True) or {}
@@ -152,7 +150,7 @@ def remove_requirement():
     return _proxy('POST', '/admin/workshops/requirements/remove', json=data)
 
 
-@admin_bp.route('/admin/workshops/requirements/preview', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/requirements/preview', methods=['POST', 'OPTIONS'])
 @require_officer
 def preview_requirements():
     data = request.get_json(silent=True) or {}
@@ -163,7 +161,7 @@ def preview_requirements():
 # Clean up
 # ---------------------------------------------------------------------------
 
-@admin_bp.route('/admin/workshops/image/prune', methods=['POST', 'OPTIONS'])
+@admin_bp.route('/workshops/image/prune', methods=['POST', 'OPTIONS'])
 @require_officer
 def prune_images():
     return _proxy('POST', '/admin/workshops/image/prune')
@@ -173,7 +171,7 @@ def prune_images():
 # Live status
 # ---------------------------------------------------------------------------
 
-@admin_bp.route('/admin/workshops/status', methods=['GET', 'OPTIONS'])
+@admin_bp.route('/workshops/status', methods=['GET', 'OPTIONS'])
 @require_officer
 def workshop_status():
     return _proxy('GET', '/admin/workshops/status')
