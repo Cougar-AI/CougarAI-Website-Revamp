@@ -12,6 +12,12 @@ WORKSHOP_API_KEY = os.environ.get("WORKSHOP_API_KEY")
 DEFAULT_TIMEOUT = 15  
 
 
+@workshop_proxy_bp.route('/admin/workshops/<path:_subpath>', methods=['OPTIONS'])
+@workshop_proxy_bp.route('/admin/workshops', methods=['OPTIONS'])
+def workshop_options(_subpath: str | None = None):
+    return '', 200
+
+
 def _proxy(method, path, **kwargs):
     """
     Forwards a request to the workshop API and normalizes failure modes
