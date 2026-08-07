@@ -657,10 +657,10 @@ export default function AdminWorkshopsTab() {
               <div className="p-2 rounded-lg" style={{ background: 'rgba(185,28,28,.15)' }}><Wrench size={16} className="text-red-300" /></div>
               <div>
                 <h2 className="font-['Oxanium'] text-2xl font-bold text-white">Workshops Control</h2>
-                <p className="text-sm text-white/40">Collapsible actions, live results, and student-based sizing for the remote workshop service.</p>
+                <p className="text-sm text-white/40">Create your workshop VM accessible through workshops.cougarai.org. This page allows you to cater your workshops to end users. Please do not use in a production environment as we do not have the neccessary resources to run 50+ VMs.</p>
               </div>
             </div>
-            <p className="text-xs text-white/35 max-w-3xl leading-relaxed">If the upstream service returns credentials, a login URL, access instructions, or package results, they will appear in the latest result card below.</p>
+            <p className="text-xs text-white/35 max-w-3xl leading-relaxed">History and current count of Virtual Machine open, and jobs ran.</p>
           </div>
 
           <button onClick={refreshAll} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm text-white/75 transition-colors" style={{ background: 'rgba(255,255,255,.06)' }}>
@@ -693,7 +693,7 @@ export default function AdminWorkshopsTab() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-6">
           <details open className="rounded-2xl p-5" style={glass}>
-            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 text-white font-semibold font-['Oxanium']"><span className="inline-flex items-center gap-2"><Activity size={16} className="text-red-300" /> Live Data</span><span className="text-xs uppercase tracking-wide text-white/35">status, results, logs</span></summary>
+            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 text-white font-semibold font-['Oxanium']"><span className="inline-flex items-center gap-2"><Activity size={16} className="text-red-300" /> Live Data (In Development)</span><span className="text-xs uppercase tracking-wide text-white/35">status, results, logs</span></summary>
             <div className="mt-4 space-y-4">
               <StatusCard data={statusQuery.data} />
               <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
