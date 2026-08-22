@@ -1,11 +1,12 @@
 import secrets
 from flask import Flask
 from flask_jwt_extended import JWTManager
-from app.routes.admin import admin_bp
-import app.routes.admin.workshop_proxy  # noqa: F401 — registers routes onto admin_bp
 
 
 def test_workshop_proxy_options_returns_200():
+    from app.routes.admin import admin_bp
+    import app.routes.admin.workshop_proxy  # noqa: F401 — registers routes onto admin_bp    
+
     app = Flask(__name__)
     app.config.update(
         TESTING=True,
