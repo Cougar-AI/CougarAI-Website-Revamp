@@ -5,7 +5,7 @@ from flask_jwt_extended import JWTManager
 
 def test_workshop_proxy_options_returns_200():
     from app.routes.admin import admin_bp
-    import app.routes.admin.workshop_proxy  # noqa: F401 — registers routes onto admin_bp    
+    import app.routes.admin.workshop_proxy  # noqa: F401 — registers routes onto admin_bp
 
     app = Flask(__name__)
     app.config.update(
@@ -14,7 +14,7 @@ def test_workshop_proxy_options_returns_200():
         JWT_ACCESS_TOKEN_EXPIRES=False,
     )
     JWTManager(app)
-    app.register_blueprint(admin_bp)
+    app.register_blueprint(admin_bp, url_prefix='/admin')
 
     client = app.test_client()
 
