@@ -1,19 +1,11 @@
-import importlib.util
 import secrets
-from pathlib import Path
-
 from flask import Flask
 from flask_jwt_extended import JWTManager
+from app.routes.admin import admin_bp
+import app.routes.admin.workshop_proxy  # noqa: F401 — registers routes onto admin_bp
 
 
 def test_workshop_proxy_options_returns_200():
-    module_path = Path(__file__).resolve().parents[2] / 'app' / 'routes' / 'admin' / 'workshop_proxy.py'
-    spec = importlib.util.spec_from_file_location('workshop_proxy_test_module', module_path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    workshop_proxy_bp = module.workshop_proxy_bp
-
     app = Flask(__name__)
     app.config.update(
         TESTING=True,
@@ -21,7 +13,7 @@ def test_workshop_proxy_options_returns_200():
         JWT_ACCESS_TOKEN_EXPIRES=False,
     )
     JWTManager(app)
-    app.register_blueprint(workshop_proxy_bp)
+    app.register_blueprint(admin_bp)
 
     client = app.test_client()
 
