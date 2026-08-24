@@ -997,7 +997,7 @@ export function EventModal({
   );
 }
 
-const FRONTEND_URL = import.meta.env.FRONTEND_URL ?? 'http://localhost:5173';
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL ?? 'http://localhost:5173';
 
 function QRPresentModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const checkInUrl = `${FRONTEND_URL}/checkin?code=${event.check_in_code}`;
