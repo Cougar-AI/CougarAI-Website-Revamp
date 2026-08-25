@@ -59,13 +59,10 @@ export function useGoogleSignIn(
 
       buttonRef.current.innerHTML = "";
 
-      if (!googleIdInitialized) {
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: (response) => onCredentialRef.current(response),
-        });
-        googleIdInitialized = true;
-      }
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: (response) => onCredentialRef.current(response),
+      });
 
       window.google.accounts.id.renderButton(buttonRef.current, BUTTON_OPTIONS);
     };
