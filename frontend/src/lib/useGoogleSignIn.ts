@@ -41,7 +41,7 @@ let googleIdInitialized = false;
  * Handles cleanup, SPA route changes, and iOS Safari bfcache restores.
  */
 export function useGoogleSignIn(
-  buttonRef: React.RefObject<HTMLDivElement>,
+  buttonRef: React.RefObject<HTMLDivElement | null>,
   onCredential: (response: GoogleCredentialResponse) => void,
   options?: { disabled?: boolean }
 ) {
