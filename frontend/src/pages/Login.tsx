@@ -68,6 +68,8 @@ declare global {
             parent: HTMLElement,
             options: Record<string, string | number | boolean>
           ) => void;
+          cancel: () => void;
+          disableAutoSelect: () => void;
         };
       };
     };
@@ -203,6 +205,9 @@ export default function Login({
       renderGoogleButton();
       return () => {
         cancelled = true;
+        if(window.google?.accounts?.id){
+          window.google.accounts.id.cancel()
+        }
       };
     }
 
