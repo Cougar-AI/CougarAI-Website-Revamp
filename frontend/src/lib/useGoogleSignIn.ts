@@ -32,9 +32,6 @@ const BUTTON_OPTIONS = {
   width: "320",
 } as const;
 
-// Module-level: GIS should only be initialize()'d once per page, ever.
-let googleIdInitialized = false;
-
 /**
  * Renders a Google Identity Services button into `buttonRef` and wires
  * it up to call `onCredential` with the latest closure every time.
