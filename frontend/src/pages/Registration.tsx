@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { persistAuthSession } from "@/lib/auth";
 import logo from "../assets/logo.png";
+import { useGoogleSignIn } from "@/lib/useGoogleSignIn";
 
 export type RegistrationPayload = {
   email: string;
@@ -62,24 +63,6 @@ function DiscordLogo() {
   );
 }
 
-declare global {
-  interface Window {
-    google?: {
-      accounts?: {
-        id?: {
-          initialize: (options: {
-            client_id: string;
-            callback: (response: { credential?: string }) => void;
-          }) => void;
-          renderButton: (
-            parent: HTMLElement,
-            options: Record<string, string | number | boolean>
-          ) => void;
-        };
-      };
-    };
-  }
-}
 
 async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -200,21 +183,15 @@ export default function Registration({
     window.location.href = `${API_BASE}/auth/discord/start?intent=register`;
   }
 
-  useEffect(() => {
-    if (oauthSlot || !GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
+  const handleGoogleCredential = async (response: { credential?: string }) => {
+    const credential = response.credential?.trim();
+    if (!credential) {
+      setLocalError("Google sign-in did not return a credential.");
+      return;
+    }
 
-    let cancelled = false;
-    let appendedScript: HTMLScriptElement | null = null;
-
-    const handleGoogleCredential = async (response: { credential?: string }) => {
-      const credential = response.credential?.trim();
-      if (!credential) {
-        setLocalError("Google sign-in did not return a credential.");
-        return;
-      }
-
-      try {
-        setSubmitting(true);
+    try {
+      setSubmitting(true);
         setLocalError(null);
         setServerEmailErrors(null);
         setServerPwErrors(null);
@@ -242,54 +219,8 @@ export default function Registration({
         setSubmitting(false);
       }
     };
-
-    const renderGoogleButton = () => {
-      if (cancelled || !googleButtonRef.current || !window.google?.accounts?.id) return;
-
-      googleButtonRef.current.innerHTML = "";
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleCredential,
-      });
-      window.google.accounts.id.renderButton(googleButtonRef.current, {
-        theme: "outline",
-        size: "large",
-        text: "continue_with",
-        shape: "pill",
-        width: "320",
-      });
-    };
-
-    if (window.google?.accounts?.id) {
-      renderGoogleButton();
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const existingScript = document.querySelector('script[data-google-identity="true"]') as HTMLScriptElement | null;
-    if (existingScript) {
-      existingScript.addEventListener("load", renderGoogleButton, { once: true });
-      return () => {
-        cancelled = true;
-        existingScript.removeEventListener("load", renderGoogleButton);
-      };
-    }
-
-    appendedScript = document.createElement("script");
-    appendedScript.src = "https://accounts.google.com/gsi/client";
-    appendedScript.async = true;
-    appendedScript.defer = true;
-    appendedScript.dataset.googleIdentity = "true";
-    appendedScript.addEventListener("load", renderGoogleButton, { once: true });
-    document.head.appendChild(appendedScript);
-
-    return () => {
-      cancelled = true;
-      appendedScript?.removeEventListener("load", renderGoogleButton);
-    };
-  }, [oauthSlot]);
-
+  useGoogleSignIn(googleButtonRef, handleGoogleCredential, {disabled: !!oauthSlot});
+  
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const id = window.setTimeout(() => setResendCooldown((c) => c - 1), 1000);

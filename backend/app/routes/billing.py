@@ -12,8 +12,8 @@ billing_bp = Blueprint("billing", __name__)
 
 # Server-side allowlist — never trust price_id from the client
 _ALLOWED_PRICE_IDS = {
-    "price_1S4sVLH2XIQuLIalBvif5rrs",   # Semester (live)
-    "price_1S0ylVH2XIQuLIalbpMXxrV9",   # Yearly   (live)
+    "price_1S0yepH2XIQuLIalId4TVcw3",   # Semester (live)
+    "price_1U7GcwH2XIQuLIalXjvkgC79",   # Yearly   (live)
     "price_1RPA0wQdq5f9y5dILdnU8jkY",   # Semester (test)
     "price_1RPA1MQdq5f9y5dIX6qzElLY",   # Yearly   (test)
 }

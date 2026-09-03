@@ -36,8 +36,8 @@ const SHIRT_ADDON_PRICE_ID = (
 ) as string | undefined;
 const SHIRT_ADDON_AVAILABLE = Boolean(SHIRT_ADDON_PRICE_ID);
 const PRICE_IDS = {
-  semester: { live: "price_1S4sVLH2XIQuLIalBvif5rrs", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
-  yearly:   { live: "price_1S0ylVH2XIQuLIalbpMXxrV9", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
+  semester: { live: "price_1S0yepH2XIQuLIalId4TVcw3", test: "price_1RPA0wQdq5f9y5dILdnU8jkY" },
+  yearly:   { live: "price_1U7GcwH2XIQuLIalXjvkgC79", test: "price_1RPA1MQdq5f9y5dIX6qzElLY" },
 };
 
 const PLANS = [

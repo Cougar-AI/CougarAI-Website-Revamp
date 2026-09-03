@@ -11,6 +11,8 @@ import 'leaflet/dist/leaflet.css';
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
 import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+
 const leafletIcon = L.icon({
   iconUrl: markerIconUrl,
   iconRetinaUrl: markerIconRetinaUrl,
@@ -123,8 +125,8 @@ function generateOccurrences(
 
   while (current <= untilDate) {
     occurrences.push({
-      starts_at: current.toISOString().slice(0, 16),
-      check_in_expires_at: currentEnd.toISOString().slice(0, 16),
+      starts_at: current.toISOString(),
+      check_in_expires_at: currentEnd.toISOString(),
     });
     advance(current);
     advance(currentEnd);
@@ -244,6 +246,11 @@ function defaultStartTime(): string {
   const d = new Date();
   d.setHours(d.getHours() + 1, 0, 0, 0);
   return toLocalISO(d);
+}
+
+function toUtcIso(dtLocal: string | null | undefined): string | null {
+  if (!dtLocal) return null;
+  return new Date(dtLocal).toISOString();
 }
 
 interface PickerItem {
@@ -446,24 +453,24 @@ export function EventModal({
     setError('');
     setSyncWarning('');
     try {
-      const payload: Record<string, unknown> = {
-        name: form.name,
-        event_type: form.event_type,
-        description: form.description || null,
-        location: form.location || null,
-        location_url: form.location_url || null,
-        starts_at: form.starts_at || null,
-        ends_at: form.ends_at || null,
-        capacity: form.capacity ? Number(form.capacity) : null,
-        points_value: Number(form.points_value) || 10,
-        check_in_enabled: form.check_in_enabled,
-        check_in_expires_at: form.check_in_expires_at || null,
-        require_location: form.require_location,
-        latitude: form.require_location && form.latitude ? Number(form.latitude) : null,
-        longitude: form.require_location && form.longitude ? Number(form.longitude) : null,
-        checkin_radius_m: form.require_location ? Number(form.checkin_radius_m) || 400 : 400,
-        rsvp_enabled: form.rsvp_enabled,
-      };
+        const payload: Record<string, unknown> = {
+          name: form.name,
+          event_type: form.event_type,
+          description: form.description || null,
+          location: form.location || null,
+          location_url: form.location_url || null,
+          starts_at: toUtcIso(form.starts_at),
+          ends_at: toUtcIso(form.ends_at),
+          capacity: form.capacity ? Number(form.capacity) : null,
+          points_value: Number(form.points_value) || 10,
+          check_in_enabled: form.check_in_enabled,
+          check_in_expires_at: toUtcIso(form.check_in_expires_at),
+          require_location: form.require_location,
+          latitude: form.require_location && form.latitude ? Number(form.latitude) : null,
+          longitude: form.require_location && form.longitude ? Number(form.longitude) : null,
+          checkin_radius_m: form.require_location ? Number(form.checkin_radius_m) || 400 : 400,
+          rsvp_enabled: form.rsvp_enabled,
+        };
 
       let savedEventId: number;
       if (event && event.event_id > 0) {
