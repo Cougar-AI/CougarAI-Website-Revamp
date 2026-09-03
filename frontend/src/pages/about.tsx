@@ -78,10 +78,6 @@ interface DeptData {
   officers: OfficerData[];
 }
 
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-}
-
 function resolveOfficerPhoto(url: string | null): string | null {
   if (!url) return null;
   if (url.startsWith("/admin/uploads/")) return `${BACKEND}${url}`;
@@ -91,39 +87,6 @@ function resolveOfficerPhoto(url: string | null): string | null {
 function resolveLogoUrl(logo_url: string | null): string | null {
   if (!logo_url) return null;
   return logo_url.startsWith("/admin/uploads/") ? `${BACKEND}${logo_url}` : logo_url;
-}
-
-// Build DeptData[] from DB directory response, sorted by position sort_order
-function buildDepsFromDB(officers: DBOfficer[]): DeptData[] {
-  const deptMap = new Map<string, { officers: OfficerData[]; minSort: number }>();
-
-  for (const o of officers) {
-    const deptName = o.position_department ?? "Other";
-    if (!deptMap.has(deptName)) {
-      deptMap.set(deptName, { officers: [], minSort: o.position_sort_order ?? 999 });
-    }
-    const entry = deptMap.get(deptName)!;
-    if ((o.position_sort_order ?? 999) < entry.minSort) {
-      entry.minSort = o.position_sort_order ?? 999;
-    }
-    const fullName = [o.first_name, o.last_name].filter(Boolean).join(" ") || "Unknown";
-    entry.officers.push({
-      id: slugify(fullName),
-      name: fullName,
-      position: o.position_title ?? "",
-      photoUrl: resolveOfficerPhoto(o.photo_url),
-      photoObjectPosition: o.photo_object_position ?? "50% 50%",
-      linkedinUrl: o.linkedin_url,
-    });
-  }
-
-  return Array.from(deptMap.entries())
-    .sort(([, a], [, b]) => a.minSort - b.minSort)
-    .map(([name, { officers }]) => ({
-      id: slugify(name),
-      name,
-      officers,
-    }));
 }
 
 // Build DeptData[] from static officers.ts (fallback / supplement)
@@ -159,42 +122,37 @@ function deptSortKey(name: string) {
   return DEPT_ORDER[name] ?? 999;
 }
 
-// Merge DB officers with static: DB data takes priority; static officers not
-// matched by name in the DB are appended to their departments so all officers
-// always appear even before they have accounts.
+// Merge DB officers with static: the frontend officer list is the source of
+// truth for who appears and which department/position they belong to. The DB
+// only enriches those entries with appearance/profile metadata when available.
 function buildDepsMerged(dbOfficers: DBOfficer[]): DeptData[] {
-  const depts = buildDepsFromDB(dbOfficers);
-
-  const dbNames = new Set(
-    dbOfficers.map((o) =>
-      [o.first_name, o.last_name].filter(Boolean).join(" ").toLowerCase()
-    )
+  const dbByName = new Map(
+    dbOfficers.map((o) => [
+      [o.first_name, o.last_name].filter(Boolean).join(" ").trim().toLowerCase(),
+      o,
+    ])
   );
 
-  for (const staticDept of staticDepartments) {
-    for (const o of staticDept.officers) {
-      if (dbNames.has(o.name.toLowerCase())) continue;
+  return buildDepsFromStatic().map((dept) => ({
+    ...dept,
+    officers: dept.officers.map((officer) => {
+      const dbOfficer = dbByName.get(officer.name.toLowerCase());
+      if (!dbOfficer) return officer;
 
-      const officerData: OfficerData = {
-        id: o.id,
-        name: o.name,
-        position: o.position,
-        photoUrl: o.photo !== "/officer_photo_blank.png" ? o.photo : null,
-        photoObjectPosition: "50% 50%",
-        linkedinUrl: o.linkedin !== "https://linkedin.com" ? o.linkedin : null,
+      const dbLinkedIn = dbOfficer.linkedin_url?.trim() || null;
+      const staticLinkedIn = officer.linkedinUrl?.trim() || null;
+
+      return {
+        ...officer,
+        photoUrl: resolveOfficerPhoto(dbOfficer.photo_url) ?? officer.photoUrl,
+        photoObjectPosition: dbOfficer.photo_object_position ?? officer.photoObjectPosition,
+        linkedinUrl:
+          dbLinkedIn && dbLinkedIn !== "https://linkedin.com"
+            ? dbLinkedIn
+            : staticLinkedIn,
       };
-
-      const existing = depts.find((d) => d.name === staticDept.name);
-      if (existing) {
-        existing.officers.push(officerData);
-      } else {
-        depts.push({ id: staticDept.id, name: staticDept.name, officers: [officerData] });
-      }
-    }
-  }
-
-  depts.sort((a, b) => deptSortKey(a.name) - deptSortKey(b.name));
-  return depts;
+    }),
+  }));
 }
 
 const glass: React.CSSProperties = {
