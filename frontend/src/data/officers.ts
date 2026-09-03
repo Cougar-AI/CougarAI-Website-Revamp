@@ -51,7 +51,6 @@ export const departments: Department[] = [
     id: 'corporate-relations',
     name: 'Corporate Relations',
     officers: [
-      { id: 'christian', name: 'Christian Brubaker', position: 'Corporate Relations', photo: '/officerHeadshots/Christian Brubaker.jpeg', linkedin: 'https://www.linkedin.com/in/christbru/' },
       { id: 'gideon', name: 'Gideon Amoah', position: 'Corporate Relations', photo: '/officerHeadshots/Gideon Amoah.jpeg', linkedin: 'https://www.linkedin.com/in/gideonamoah74/' },
     ],
   },
@@ -66,6 +65,7 @@ export const departments: Department[] = [
     id: 'workshops-projects',
     name: 'Workshops / Projects',
     officers: [
+      { id: 'christian', name: 'Christian Brubaker', position: 'Projects Director', photo: '/officerHeadshots/Christian Brubaker.jpeg', linkedin: 'https://www.linkedin.com/in/christbru/' },
       { id: 'alaric', name: 'Alaric Varghese', position: 'Project Officer', photo: '/officerHeadshots/Alaric Varghese.jpeg', linkedin: 'https://www.linkedin.com/in/alaric-varghese' },
       { id: 'saleh', name: 'Saleh Khan', position: 'Projects Officer', photo: '/officerHeadshots/Saleh Khan.jpeg', linkedin: 'https://www.linkedin.com/in/khansaleh' },
     ],

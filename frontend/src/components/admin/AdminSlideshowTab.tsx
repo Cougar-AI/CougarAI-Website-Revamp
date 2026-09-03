@@ -40,7 +40,7 @@ const HP_DEFAULTS = [
 ];
 const AU_DEFAULTS = [
   { url: '/au_nasav2.jpg',   object_position: 'top' },
-  { url: '/au_officer.jpeg', object_position: 'center' },
+  { url: '/au_officer.jpeg', object_position: '50% 25%' },
   { url: '/au_nasav1.jpg',   object_position: 'center' },
   { url: '/au_hctra.jpg',    object_position: 'center' },
   { url: '/au_group.png',    object_position: 'top' },

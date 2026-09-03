@@ -19,7 +19,7 @@ import Slideshow, { type SlideImage } from "@/components/Slideshow";
 
 const AU_FALLBACK: SlideImage[] = [
   { src: '/au_nasav2.jpg',   objectPosition: 'top' },
-  { src: '/au_officer.jpeg', objectPosition: 'center' },
+  { src: '/au_officer.jpeg', objectPosition: '50% 25%' },
   { src: '/au_nasav1.jpg',   objectPosition: 'center' },
   { src: '/au_hctra.jpg',    objectPosition: 'center' },
   { src: '/au_group.png',    objectPosition: 'top' },
@@ -260,7 +260,13 @@ export default function About() {
   const slideImages: SlideImage[] = slideshowData?.photos?.length
     ? slideshowData.photos.map((p) => ({
         src: p.url.startsWith("/admin/uploads/") ? `${BACKEND}${p.url}` : p.url,
-        objectPosition: p.object_position,
+        // The officer group photo is 4:3 in a 5:3 slideshow frame. Its legacy
+        // center crop cuts off the back row, while top alignment cuts off the
+        // seated row. Use a focal point slightly above center instead.
+        // Keep any intentionally customized position from the admin editor.
+        objectPosition: p.url.endsWith("/au_officer.jpeg") && p.object_position === "center"
+          ? "50% 25%"
+          : p.object_position,
         caption: p.caption ?? undefined,
       }))
     : AU_FALLBACK;
