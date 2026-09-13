@@ -4,7 +4,8 @@
 // Coordinates are OpenStreetMap building-footprint centroids (WGS84), verified
 // against the UH campus map and official UH building-number list. They are
 // accurate to well within ~100m — suitable for map-centering and geofenced
-// check-in. (TU2 is a best-effort estimate; see note.)
+// check-in. (TU2 is sourced from a named Apple Maps POI rather than an OSM
+// building footprint; see note.)
 
 export interface UhClassroomBuilding {
   code: string;
@@ -49,9 +50,14 @@ export const UH_CLASSROOM_BUILDINGS: UhClassroomBuilding[] = [
   { code: 'SR2', name: 'Science & Research 2', lat: 29.72389, lon: -95.34477 },
   { code: 'STAD', name: 'TDECU Stadium', lat: 29.72193, lon: -95.34932 },
   { code: 'SW', name: 'Graduate School of Social Work', lat: 29.72287, lon: -95.34378 },
-  // TU2: no OSM feature carries the "Teaching Unit 2" name; coordinate is a
-  // best-effort estimate at its known NE-corner location (near Bates Law).
-  { code: 'TU2', name: 'Teaching Unit 2', lat: 29.72445, lon: -95.33861 },
+  // TU2: no OSM feature carries the "Teaching Unit 2" name. Verified via Apple
+  // Maps POI "Teaching Unit 2 Building" (place-id IBEAC311CD7D280FE; address
+  // 4604 Martin Luther King Blvd, Houston, TX 77004), which sits immediately
+  // next to Bates Law in the NE corner of campus — consistent with UH's own
+  // description of TU2 adjoining Bates Law/Elgin St. Garage (Hobby School of
+  // Public Affairs tenant). Confidence: moderate-high (named POI, cross-
+  // checked geographically; not an OSM building-footprint centroid).
+  { code: 'TU2', name: 'Teaching Unit 2', lat: 29.72423, lon: -95.33782 },
   { code: 'T2', name: 'College of Liberal Arts and Social Sciences', lat: 29.72331, lon: -95.34261 },
   { code: 'WT', name: 'C.W. Mitchell Center for the Arts/Wortham Theater', lat: 29.72437, lon: -95.34407 },
 ];
