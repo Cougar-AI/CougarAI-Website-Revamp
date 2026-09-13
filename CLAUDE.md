@@ -396,14 +396,17 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 > **Instruction for Claude:** After finishing any task in this project, update this section — move completed items to **Done** and add new items to **Todo**. Keep entries as single bullet lines. No summaries, no paragraphs, no date headers.
 
+> **Docs:** see `HANDOFF.md` (latest work summary + how to run the isolated local test DB) and `docs/` (e.g. `docs/verification-2026-09.md` — E2E verification + classroom coordinate methodology).
+
 ### Todo
 
 - **Run DB migrations on prod** — `bash backend/run_migrations.sh`; includes `add_officers_display_name.sql` and `reorder_officer_departments.sql`; safe to re-run (all use `IF NOT EXISTS` or idempotent UPDATEs)
 - **Google OAuth frontend** — backend done; navbar auth link already visible; needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env` for full end-to-end test.
 - **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
-- **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
 - **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
 - **Event RSVP enhancements** — email reminder 24h before (wire through notification scheduler), RSVP list drawer in admin Events tab
+- **Classroom coordinates** — `TU2` in `frontend/src/data/uhClassrooms.ts` is a best-effort estimate (no OSM footprint by that name); refine against an authoritative UH GIS source if tight geofencing is needed. Auto-filled building coords only persist when an event's `require_location` is enabled (pre-existing save gate); revisit if the map pin should persist without geofencing.
+- **Events/RSVP integration tests** — the integration harness only applies the auth schema; base `events`/`profile`/`points`/`event_rsvps` tables have no committed DDL (see reconstructed `backend/tests/local_base_schema.sql`). Expand the harness to cover event routes (RSVP, check-in).
 - **Admin Audit Log** — `audit_log` table; searchable log tab in Admin Tools
 - **Officer Task Board** — To Do / In Progress / Done kanban; `officer_tasks` table
 - **Meeting Notes** — per-meeting notes (title, date, attendees, agenda, action items); `meeting_notes` table
