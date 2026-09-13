@@ -425,7 +425,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
-- ✅ QR scan camera fix — `CheckInTab.tsx` hardens the html5-qrcode scanner effect against StrictMode double-mount races and shows clear camera-permission/HTTPS/no-camera errors instead of a blank box; `AdminEventsTab.tsx` QR codes now fall back to `window.location.origin` instead of hardcoded `localhost:5173` when `VITE_FRONTEND_URL` is unset.
+- ✅ QR scan camera fix — `CheckInTab.tsx` hardens the html5-qrcode scanner effect against StrictMode double-mount races and shows clear camera-permission/HTTPS/no-camera errors instead of a blank box; `AdminEventsTab.tsx` QR codes now fall back to `window.location.origin` instead of hardcoded `localhost:5173` when `VITE_FRONTEND_URL` is unset. Closed a follow-up hole: a rapid close→reopen where the pending `start()` ultimately rejected (permission denied/NotFoundError/insecure context/dismissed prompt) left `scannerSession` un-bumped on the reject path, causing a permanent blank `#qr-reader` until full unmount; the `.catch` cancelled branch now bumps `scannerSession` too, and all three bump sites (success-cancelled, reject-cancelled, cleanup teardown) are gated on ref ownership so a single teardown can't double-bump.
 - ✅ Workshop admin tab — `/admin` now exposes a Workshop control panel for the new proxy routes, including job lookup/rerun, status, requirements editing, and container actions.
 - ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
 

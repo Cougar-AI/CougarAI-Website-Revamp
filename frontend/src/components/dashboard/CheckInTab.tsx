@@ -212,18 +212,33 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
           // double-invoke, or a rapid close before the permission prompt was
           // answered) — stop immediately so we don't leak a live camera.
           stopScanner().finally(() => {
-            if (scannerRef.current === scanner) scannerRef.current = null;
+            // Gate on ownership so only whichever teardown path actually
+            // still owns the ref performs the null + retry bump. This keeps
+            // a single teardown from bumping `scannerSession` twice if the
+            // cleanup's own teardown (below) races with this one.
+            const owned = scannerRef.current === scanner;
+            if (owned) scannerRef.current = null;
             // If the user has since reopened the scanner (scanning is true
             // again), the effect for that open bailed out earlier because
             // this scanner was still occupying scannerRef. Now that it's
             // torn down, force a fresh effect run to actually start a camera.
-            if (scanningRef.current) setScannerSession((n) => n + 1);
+            if (owned && scanningRef.current) setScannerSession((n) => n + 1);
           });
         }
       })
       .catch((err: unknown) => {
-        if (scannerRef.current === scanner) scannerRef.current = null;
-        if (cancelled) return;
+        const owned = scannerRef.current === scanner;
+        if (owned) scannerRef.current = null;
+        if (cancelled) {
+          // Mirror the success-path retry above: the reject can win the
+          // reaction race against the cleanup's `startPromise.finally`
+          // teardown, so without this the effect never re-runs and the
+          // reopened scanner is stuck permanently blank. Only bump if this
+          // catch actually owned the ref, so a given teardown bumps at most
+          // once even under re-entrant races.
+          if (owned && scanningRef.current) setScannerSession((n) => n + 1);
+          return;
+        }
         const message = err instanceof Error ? err.message : String(err ?? "");
         if (!window.isSecureContext) {
           setError("Camera requires a secure (HTTPS) connection. Enter the code manually instead.");
@@ -234,6 +249,8 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
         } else {
           setError("Unable to start camera. Enter the code manually instead.");
         }
+        // Non-cancelled (normal) attempt: terminate here, do not retry, so a
+        // genuine permission-denied/no-camera error can't loop.
         setScanning(false);
       });
 
@@ -241,13 +258,15 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
       cancelled = true;
       startPromise.finally(() => {
         // Only attempt to stop once start() has settled, and only if this
-        // effect instance still owns the scanner.
+        // effect instance still owns the scanner (the .then/.catch handlers
+        // above may have already torn it down and bumped the session).
         if (scannerRef.current === scanner) {
           stopScanner().finally(() => {
-            if (scannerRef.current === scanner) scannerRef.current = null;
-            // See comment above: retry the open if the user re-opened the
+            const owned = scannerRef.current === scanner;
+            if (owned) scannerRef.current = null;
+            // See comments above: retry the open if the user re-opened the
             // scanner while this one was still tearing down.
-            if (scanningRef.current) setScannerSession((n) => n + 1);
+            if (owned && scanningRef.current) setScannerSession((n) => n + 1);
           });
         }
       });
