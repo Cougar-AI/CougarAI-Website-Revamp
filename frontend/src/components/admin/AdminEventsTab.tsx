@@ -537,11 +537,16 @@ export function EventModal({
   }, [existingSponsorsData]);
 
   const [syncWarning, setSyncWarning] = useState('');
+  // Tracks the last location string the classroom picker itself wrote, so we
+  // can tell whether the admin has since hand-edited the Location field. If
+  // they have, we stop overwriting their manual text/coords on room changes.
+  const lastPickerLocationRef = useRef<string | null>(null);
 
   function applyClassroomSelection(building: UhClassroomBuilding, room: string) {
     const locationText = room.trim()
       ? `${building.name} (${building.code}) ${room.trim()}`
       : `${building.name} (${building.code})`;
+    lastPickerLocationRef.current = locationText;
     setForm((f) => ({
       ...f,
       location: locationText,
@@ -559,7 +564,13 @@ export function EventModal({
   function handleRoomChange(room: string) {
     setClassroomRoom(room);
     const building = UH_CLASSROOM_BUILDINGS.find((b) => b.code === selectedBuildingCode);
-    if (building) applyClassroomSelection(building, room);
+    if (!building) return;
+    // Only re-apply the templated location/coords if the admin hasn't
+    // manually diverged from the last string the picker wrote. Otherwise,
+    // just track the room value without clobbering their manual edits.
+    if (lastPickerLocationRef.current === null || form.location === lastPickerLocationRef.current) {
+      applyClassroomSelection(building, room);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
