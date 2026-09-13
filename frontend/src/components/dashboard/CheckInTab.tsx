@@ -150,12 +150,20 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scanningRef = useRef(scanning);
+  scanningRef.current = scanning;
+  // Bumped whenever a stale scanner (from a cancelled open) finishes tearing
+  // down while a newer open request is still pending, so the effect below
+  // re-runs even though `scanning` itself didn't change (it was already true).
+  const [scannerSession, setScannerSession] = useState(0);
 
   useEffect(() => {
     if (!scanning) return;
 
     // Guard against StrictMode double-invoke / re-entrancy: never create a
-    // second Html5Qrcode instance while one is already attached.
+    // second Html5Qrcode instance while one is already attached. If one is
+    // still attached here, it's mid-teardown from a prior cancelled open —
+    // its cleanup will bump `scannerSession` to retry once it's done.
     if (scannerRef.current) return;
 
     let cancelled = false;
@@ -201,9 +209,15 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
       .then(() => {
         if (cancelled) {
           // Effect was cleaned up before start() resolved (e.g. StrictMode
-          // double-invoke) — stop immediately so we don't leak a live camera.
+          // double-invoke, or a rapid close before the permission prompt was
+          // answered) — stop immediately so we don't leak a live camera.
           stopScanner().finally(() => {
             if (scannerRef.current === scanner) scannerRef.current = null;
+            // If the user has since reopened the scanner (scanning is true
+            // again), the effect for that open bailed out earlier because
+            // this scanner was still occupying scannerRef. Now that it's
+            // torn down, force a fresh effect run to actually start a camera.
+            if (scanningRef.current) setScannerSession((n) => n + 1);
           });
         }
       })
@@ -231,11 +245,14 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
         if (scannerRef.current === scanner) {
           stopScanner().finally(() => {
             if (scannerRef.current === scanner) scannerRef.current = null;
+            // See comment above: retry the open if the user re-opened the
+            // scanner while this one was still tearing down.
+            if (scanningRef.current) setScannerSession((n) => n + 1);
           });
         }
       });
     };
-  }, [scanning]);
+  }, [scanning, scannerSession]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
