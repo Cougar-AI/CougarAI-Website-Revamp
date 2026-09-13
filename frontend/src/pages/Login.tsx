@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { persistAuthSession, consumePendingCheckinCode } from "@/lib/auth";
+import { persistAuthSession } from "@/lib/auth";
 import logo from "../assets/logo.png";
 import { useGoogleSignIn } from "@/lib/useGoogleSignIn";
 
@@ -58,18 +58,20 @@ function DiscordLogo() {
 
 /**
  * Returning-but-logged-out users who scan a check-in QR get bounced here via
- * ProtectedRoute with `state.from = "/checkin?code=X"`. Also honor a code
- * persisted in sessionStorage (survives the register/verify-email chain) so a
- * user who lands on /login directly (not via ProtectedRoute) is still routed
- * back to finish their check-in after signing in.
+ * ProtectedRoute with `state.from = "/checkin?code=X"` — that `from` is the
+ * ONLY trigger we use to redirect back to /checkin after login. It survives
+ * the single login hop reliably, so there's no need (and real risk) in also
+ * consuming the sessionStorage-persisted pending code here: a code stashed
+ * during an abandoned scan (user never reached /checkin or /onboarding) would
+ * otherwise hijack a later, completely unrelated login and force an
+ * unintended auto-check-in. The stored pending code is only meant for the
+ * new-user signup chain, where Onboarding.handleFinish consumes it after
+ * account creation completes — Login must leave it untouched so that flow
+ * still works.
  */
 function resolvePostLoginDestination(from: string | undefined): string {
-  const pendingCode = consumePendingCheckinCode();
   if (from && from.startsWith("/checkin")) {
     return from;
-  }
-  if (pendingCode) {
-    return `/checkin?code=${encodeURIComponent(pendingCode)}`;
   }
   return from && from !== "/login" ? from : "/dashboard?tab=overview";
 }
