@@ -36,7 +36,15 @@ export function ProtectedRoute({ children, skipOnboardingCheck, requiredRole }: 
   const location = useLocation();
 
   if (!isAuthenticated) {
-    return <Navigate to="/auth?mode=login" state={{ from: location.pathname }} replace />;
+    // Preserve the full path + query string (not just pathname) so a pending
+    // check-in code (e.g. /checkin?code=X) survives the redirect through login.
+    return (
+      <Navigate
+        to="/auth?mode=login"
+        state={{ from: location.pathname + location.search }}
+        replace
+      />
+    );
   }
 
   // Non-default roles imply onboarding was already completed at some point.

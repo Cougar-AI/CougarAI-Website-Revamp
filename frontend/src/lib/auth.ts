@@ -8,6 +8,7 @@ export type StoredUser = {
 
 const AUTH_EVENT = "cougarai-auth-changed";
 const AUTH_NOTICE_KEY = "cougarai-auth-notice";
+const PENDING_CHECKIN_CODE_KEY = "cougarai:pendingCheckinCode";
 
 function preferredStore(remember: boolean) {
   return remember ? window.localStorage : window.sessionStorage;
@@ -105,6 +106,29 @@ export function consumeAuthNotice() {
     if (!message) return null;
     window.sessionStorage.removeItem(AUTH_NOTICE_KEY);
     return message;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Persist a pending check-in code so it survives the register -> verify-email ->
+ * login -> onboarding hop chain (all of which can drop query params or open new tabs).
+ */
+export function setPendingCheckinCode(code: string) {
+  try {
+    window.sessionStorage.setItem(PENDING_CHECKIN_CODE_KEY, code);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+export function consumePendingCheckinCode(): string | null {
+  try {
+    const code = window.sessionStorage.getItem(PENDING_CHECKIN_CODE_KEY);
+    if (!code) return null;
+    window.sessionStorage.removeItem(PENDING_CHECKIN_CODE_KEY);
+    return code;
   } catch {
     return null;
   }

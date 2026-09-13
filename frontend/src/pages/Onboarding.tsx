@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiPatch, apiPost } from "@/lib/api";
-import { getAccessToken, getStoredUser, persistAuthSession } from "@/lib/auth";
+import { getAccessToken, getStoredUser, persistAuthSession, consumePendingCheckinCode } from "@/lib/auth";
 import logo from "../assets/logo.png";
 
 type Step = 1 | 2 | 3;
@@ -67,7 +67,16 @@ export default function Onboarding() {
         persistAuthSession(token, { ...stored, onboarding_completed: true }, remember);
       }
 
-      navigate("/dashboard?tab=overview", { replace: true });
+      // If this onboarding flow started from a scanned check-in QR (the code
+      // was persisted before the register -> verify-email -> login hop chain),
+      // finish the loop by routing straight to the check-in page so it
+      // auto-submits instead of dropping the user on the dashboard.
+      const pendingCode = consumePendingCheckinCode();
+      if (pendingCode) {
+        navigate(`/checkin?code=${encodeURIComponent(pendingCode)}`, { replace: true });
+      } else {
+        navigate("/dashboard?tab=overview", { replace: true });
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSaving(false);
