@@ -425,6 +425,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ RSVP member state fix — dashboard `RsvpSection` now reads state from `GET /events/my-rsvps` instead of the officer-only `GET /events/<id>/rsvp` (was 403ing for members, so the button never flipped to "RSVPed"); Calendar `toggleRsvp` now surfaces RSVP failures inline and reverts optimistic state instead of silently swallowing errors; caveat: users are only auto-promoted to `member` via Stripe payment, so a `non-member` role still gets 403 on `POST /events/<id>/rsvp` by design (`RSVP_ROLES` excludes non-member) — unchanged, noted for follow-up
 - ✅ Workshop admin tab — `/admin` now exposes a Workshop control panel for the new proxy routes, including job lookup/rerun, status, requirements editing, and container actions.
 - ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
 
