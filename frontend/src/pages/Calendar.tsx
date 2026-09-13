@@ -20,7 +20,7 @@ import type {
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const YEARS = [2026, 2025, 2024, 2023] as const;
-const RSVP_ROLES = ["member", "officer", "admin", "partner"];
+const RSVP_ROLES = ["non-member", "member", "officer", "admin", "partner"];
 const OFFICER_ROLES = ["officer", "admin"];
 const FALLBACK_COLOR = "#b91c1c";
 
