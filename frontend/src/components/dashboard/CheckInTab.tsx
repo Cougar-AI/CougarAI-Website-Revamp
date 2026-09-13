@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QrCode, CheckCircle, Camera, X, CalendarCheck, Loader2 } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { apiPost, apiDelete } from "@/lib/api";
 import { formatDate, formatTime } from "@/lib/dates";
 import type { MeResponse } from "@/pages/Dashboard";
@@ -154,10 +154,30 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
   useEffect(() => {
     if (!scanning) return;
 
+    // Guard against StrictMode double-invoke / re-entrancy: never create a
+    // second Html5Qrcode instance while one is already attached.
+    if (scannerRef.current) return;
+
+    let cancelled = false;
     const scanner = new Html5Qrcode("qr-reader");
     scannerRef.current = scanner;
 
-    scanner
+    const stopScanner = async () => {
+      try {
+        if (scanner.getState && scanner.getState() === Html5QrcodeScannerState.SCANNING) {
+          await scanner.stop();
+        }
+      } catch {
+        // benign: "scanner is not running" / already stopped
+      }
+      try {
+        scanner.clear();
+      } catch {
+        // ignore — container may already be empty
+      }
+    };
+
+    const startPromise = scanner
       .start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
@@ -170,20 +190,50 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
           } catch {
             // not a URL — use raw text
           }
-          scanner.stop().catch(() => {});
-          scannerRef.current = null;
+          stopScanner().finally(() => {
+            if (scannerRef.current === scanner) scannerRef.current = null;
+          });
           setScanning(false);
           setCode(extracted);
         },
         () => {}
       )
-      .catch(() => {
-        setError("Camera access denied or unavailable.");
+      .then(() => {
+        if (cancelled) {
+          // Effect was cleaned up before start() resolved (e.g. StrictMode
+          // double-invoke) — stop immediately so we don't leak a live camera.
+          stopScanner().finally(() => {
+            if (scannerRef.current === scanner) scannerRef.current = null;
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        if (scannerRef.current === scanner) scannerRef.current = null;
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err ?? "");
+        if (!window.isSecureContext) {
+          setError("Camera requires a secure (HTTPS) connection. Enter the code manually instead.");
+        } else if (/permission|denied|NotAllowedError/i.test(message)) {
+          setError("Camera permission denied. Allow camera access or enter the code manually.");
+        } else if (/NotFoundError|no camera/i.test(message)) {
+          setError("No camera found on this device. Enter the code manually instead.");
+        } else {
+          setError("Unable to start camera. Enter the code manually instead.");
+        }
         setScanning(false);
       });
 
     return () => {
-      scanner.stop().catch(() => {});
+      cancelled = true;
+      startPromise.finally(() => {
+        // Only attempt to stop once start() has settled, and only if this
+        // effect instance still owns the scanner.
+        if (scannerRef.current === scanner) {
+          stopScanner().finally(() => {
+            if (scannerRef.current === scanner) scannerRef.current = null;
+          });
+        }
+      });
     };
   }, [scanning]);
 
