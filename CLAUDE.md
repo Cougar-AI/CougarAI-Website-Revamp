@@ -426,6 +426,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 ### Done
 
 - ✅ Guest QR check-in signup flow — `?code=` from a scanned check-in QR now survives the full register → verify-email → login → onboarding chain via a `setPendingCheckinCode`/`consumePendingCheckinCode` sessionStorage pair in `lib/auth.ts`; `ProtectedRoute` preserves `pathname+search` in its `from` state; `Onboarding.handleFinish` and `Login` (Google + credentials) redirect back to `/checkin?code=` to auto-check-in once the account exists; cross-device email verification (link opened in a different browser/tab) remains a known limitation since sessionStorage doesn't carry across browsing contexts.
+- ✅ Guest QR check-in bugfixes — `ProtectedRoute` now calls `setPendingCheckinCode` itself (reading `?code=` off `location.search`) before redirecting a logged-out or not-yet-onboarded visitor away from `/checkin`, since `CheckIn.tsx` never mounts (and thus never captures the code) for a logged-out scan; `CheckIn.tsx` now clears the pending code in a `finally` block on both success AND failure so a failed check-in no longer leaves a stale code that hijacks a later, unrelated login's post-login redirect.
 - ✅ Workshop admin tab — `/admin` now exposes a Workshop control panel for the new proxy routes, including job lookup/rerun, status, requirements editing, and container actions.
 - ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
 
