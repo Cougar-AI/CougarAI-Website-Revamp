@@ -425,6 +425,7 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 ### Done
 
+- ✅ UH classroom searchable dropdown — admin event modal has a searchable UH building picker (`frontend/src/data/uhClassrooms.ts`) plus optional room field; selecting a building sets `location` text and auto-fills/recenters `latitude`/`longitude` for geofenced check-in (does not force-enable `require_location`)
 - ✅ Workshop admin tab — `/admin` now exposes a Workshop control panel for the new proxy routes, including job lookup/rerun, status, requirements editing, and container actions.
 - ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
 
