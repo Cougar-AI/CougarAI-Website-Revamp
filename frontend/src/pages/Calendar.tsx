@@ -20,7 +20,7 @@ import type {
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const YEARS = [2026, 2025, 2024, 2023] as const;
-const RSVP_ROLES = ["member", "officer", "admin", "partner"];
+const RSVP_ROLES = ["non-member", "member", "officer", "admin", "partner"];
 const OFFICER_ROLES = ["officer", "admin"];
 const FALLBACK_COLOR = "#b91c1c";
 
@@ -417,6 +417,7 @@ function EventDetailModal({
 
   const [rsvpStatus, setRsvpStatus] = useState<"loading" | "yes" | "no" | "unavailable">("loading");
   const [rsvpBusy, setRsvpBusy] = useState(false);
+  const [rsvpError, setRsvpError] = useState<string | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -436,6 +437,8 @@ function EventDetailModal({
   const toggleRsvp = async () => {
     if (!ev.dbEventId || rsvpBusy) return;
     setRsvpBusy(true);
+    setRsvpError(null);
+    const previousStatus = rsvpStatus;
     try {
       if (rsvpStatus === "yes") {
         await apiDelete(`/events/${ev.dbEventId}/rsvp`);
@@ -446,7 +449,10 @@ function EventDetailModal({
         setRsvpStatus("yes");
         onRsvpChange(ev.dbEventId, true);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      setRsvpStatus(previousStatus);
+      setRsvpError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    }
     setRsvpBusy(false);
   };
 
@@ -539,6 +545,11 @@ function EventDetailModal({
                 </span>
               )}
             </div>
+          )}
+          {rsvpError && (
+            <p style={{ marginTop: 8, fontSize: 12.5, color: "rgba(248,113,113,.9)", fontFamily: "Oxanium,sans-serif" }}>
+              {rsvpError}
+            </p>
           )}
 
           {/* Footer: Edit (officers/admins) + Add to Google Calendar */}
