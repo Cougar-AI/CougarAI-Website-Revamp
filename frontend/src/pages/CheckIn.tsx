@@ -51,14 +51,18 @@ export default function CheckIn() {
       setStatus('loading');
       try {
         const res = await apiPost<CheckInResult>('/events/checkin', { code, ...geoPayload });
-        // Clear it now that it's actually been consumed by a successful check-in.
-        consumePendingCheckinCode();
         setResult(res);
         setStatus('success');
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : 'Check-in failed. The code may be invalid or expired.';
         setErrorMsg(msg);
         setStatus('error');
+      } finally {
+        // Clear the stored pending code once a check-in attempt has been made
+        // (success or failure) so it can't hijack a later, unrelated login.
+        // The URL still carries ?code=, so the user can still retry from this
+        // page itself — we only stop the STORED code from lingering.
+        consumePendingCheckinCode();
       }
     }
 
