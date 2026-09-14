@@ -1153,7 +1153,11 @@ export function EventModal({
   );
 }
 
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL ?? 'http://localhost:5173';
+// Falls back to the runtime origin (not a hardcoded localhost URL) so QR codes
+// generated in a deployed build without VITE_FRONTEND_URL set still resolve
+// to the real site. This is a client-only Vite SPA, so window is always
+// available here.
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL ?? window.location.origin;
 
 function QRPresentModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const checkInUrl = `${FRONTEND_URL}/checkin?code=${event.check_in_code}`;
