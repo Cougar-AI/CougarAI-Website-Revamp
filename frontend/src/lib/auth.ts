@@ -8,6 +8,12 @@ export type StoredUser = {
 
 const AUTH_EVENT = "cougarai-auth-changed";
 const AUTH_NOTICE_KEY = "cougarai-auth-notice";
+const PENDING_CHECKIN_CODE_KEY = "cougarai:pendingCheckinCode";
+// Defense-in-depth: a pending check-in code left over from an abandoned scan
+// (user never mounted /checkin, so nothing ever cleared it) should not be
+// usable indefinitely. Bound its lifetime so a stale code can't resurface
+// during some unrelated future login.
+const PENDING_CHECKIN_CODE_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 function preferredStore(remember: boolean) {
   return remember ? window.localStorage : window.sessionStorage;
@@ -108,4 +114,59 @@ export function consumeAuthNotice() {
   } catch {
     return null;
   }
+}
+
+/**
+ * Persist a pending check-in code so it survives the register -> verify-email ->
+ * login -> onboarding hop chain (all of which can drop query params or open new tabs).
+ * Stored alongside a timestamp so a code left behind by an abandoned scan
+ * (see consumePendingCheckinCode) doesn't linger forever.
+ */
+export function setPendingCheckinCode(code: string) {
+  try {
+    window.sessionStorage.setItem(
+      PENDING_CHECKIN_CODE_KEY,
+      JSON.stringify({ code, storedAt: Date.now() })
+    );
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+/**
+ * Reads + clears the stored pending check-in code without any TTL check.
+ * Internal helper shared by consumePendingCheckinCode and any future peek.
+ */
+function readAndClearPendingCheckinCode(): { code: string; storedAt: number } | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_CHECKIN_CODE_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(PENDING_CHECKIN_CODE_KEY);
+
+    // Support the legacy plain-string format (pre-TTL) as a bare code with no
+    // timestamp, so any code already in storage from before this change isn't
+    // silently dropped.
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object" && typeof parsed.code === "string") {
+        return { code: parsed.code, storedAt: Number(parsed.storedAt) || 0 };
+      }
+    } catch {
+      // Not JSON — treat as legacy plain string.
+    }
+    return { code: raw, storedAt: 0 };
+  } catch {
+    return null;
+  }
+}
+
+export function consumePendingCheckinCode(): string | null {
+  const entry = readAndClearPendingCheckinCode();
+  if (!entry) return null;
+  const age = Date.now() - entry.storedAt;
+  if (!entry.storedAt || age > PENDING_CHECKIN_CODE_TTL_MS) {
+    // Expired (or legacy entry with no timestamp we can't trust) — drop it.
+    return null;
+  }
+  return entry.code;
 }

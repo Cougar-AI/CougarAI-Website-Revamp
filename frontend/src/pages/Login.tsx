@@ -56,6 +56,26 @@ function DiscordLogo() {
   );
 }
 
+/**
+ * Returning-but-logged-out users who scan a check-in QR get bounced here via
+ * ProtectedRoute with `state.from = "/checkin?code=X"` — that `from` is the
+ * ONLY trigger we use to redirect back to /checkin after login. It survives
+ * the single login hop reliably, so there's no need (and real risk) in also
+ * consuming the sessionStorage-persisted pending code here: a code stashed
+ * during an abandoned scan (user never reached /checkin or /onboarding) would
+ * otherwise hijack a later, completely unrelated login and force an
+ * unintended auto-check-in. The stored pending code is only meant for the
+ * new-user signup chain, where Onboarding.handleFinish consumes it after
+ * account creation completes — Login must leave it untouched so that flow
+ * still works.
+ */
+function resolvePostLoginDestination(from: string | undefined): string {
+  if (from && from.startsWith("/checkin")) {
+    return from;
+  }
+  return from && from !== "/login" ? from : "/dashboard?tab=overview";
+}
+
 async function postJSON<T>(path: string, body: any, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -143,7 +163,7 @@ export default function Login({
 
       persistAuthSession(data.access_token, { ...data.user, provider: "google" }, remember);
       const from = (location.state as any)?.from as string | undefined;
-      navigate(from && from !== "/login" ? from : "/dashboard?tab=overview", { replace: true });
+      navigate(resolvePostLoginDestination(from), { replace: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
       if (status === 401) {
@@ -198,7 +218,7 @@ export default function Login({
       persistAuthSession(data.access_token, { ...data.user, provider: "credentials" }, remember);
       setLocalError(null);
       const from = (location.state as any)?.from as string | undefined;
-      navigate(from && from !== "/login" ? from : "/dashboard?tab=overview", { replace: true });
+      navigate(resolvePostLoginDestination(from), { replace: true });
     } catch (err: any) {
       const status = err?.status as number | undefined;
       if (status === 401) {

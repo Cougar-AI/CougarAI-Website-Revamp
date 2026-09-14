@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Loader2, LayoutDashboard } from 'lucide-react';
 import { apiPost } from '@/lib/api';
+import { setPendingCheckinCode, consumePendingCheckinCode } from '@/lib/auth';
 
 interface CheckInResult {
   event_name: string;
@@ -27,6 +28,14 @@ export default function CheckIn() {
       return;
     }
 
+    // Persist the code before anything else runs so it survives a bounce to
+    // /auth (via ProtectedRoute) or the register -> verify-email -> login ->
+    // onboarding chain. This page itself is wrapped in ProtectedRoute, so by
+    // the time this effect fires the user is already authenticated+onboarded
+    // — but we still stash it defensively in case that ever changes, and it
+    // is what allows Onboarding/Login to redirect back here afterward.
+    setPendingCheckinCode(code);
+
     async function doCheckIn() {
       // Try to get location; proceed without it if unavailable (server decides if required)
       let geoPayload: { lat?: number; lon?: number } = {};
@@ -48,6 +57,12 @@ export default function CheckIn() {
         const msg = err instanceof Error ? err.message : 'Check-in failed. The code may be invalid or expired.';
         setErrorMsg(msg);
         setStatus('error');
+      } finally {
+        // Clear the stored pending code once a check-in attempt has been made
+        // (success or failure) so it can't hijack a later, unrelated login.
+        // The URL still carries ?code=, so the user can still retry from this
+        // page itself — we only stop the STORED code from lingering.
+        consumePendingCheckinCode();
       }
     }
 
