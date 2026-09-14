@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { formatDate, formatTime, formatDateTimeFull } from '@/lib/dates';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch, apiDelete } from '@/lib/api';
-import { Plus, Edit2, Trash2, Users, Copy, RefreshCw, X, CheckCircle, XCircle, QrCode, Files, Link, Calendar, CalendarX, Download, Radio, ChevronUp, ChevronDown, MapPin, Navigation } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, Copy, RefreshCw, X, CheckCircle, XCircle, QrCode, Files, Link, Calendar, CalendarX, Download, Radio, ChevronUp, ChevronDown, MapPin, Navigation, Building2 } from 'lucide-react';
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { UH_CLASSROOM_BUILDINGS, type UhClassroomBuilding } from '@/data/uhClassrooms';
 
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
 import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
@@ -364,6 +365,98 @@ function MultiSelectDropdown({
   );
 }
 
+function ClassroomPicker({
+  selectedCode,
+  onSelect,
+}: {
+  selectedCode: string | null;
+  onSelect: (building: UhClassroomBuilding) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  const selected = UH_CLASSROOM_BUILDINGS.find((b) => b.code === selectedCode) ?? null;
+
+  const filtered = UH_CLASSROOM_BUILDINGS.filter((b) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return b.code.toLowerCase().includes(q) || b.name.toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="flex flex-col gap-1.5" ref={ref}>
+      <label className="text-xs text-white/50 flex items-center gap-1">
+        <Building2 size={12} className="text-white/40 shrink-0" />
+        UH Classroom Building
+      </label>
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all"
+        style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)', color: selected ? 'rgba(255,255,255,.85)' : 'rgba(255,255,255,.35)' }}
+      >
+        <span className="truncate">{selected ? `${selected.code} — ${selected.name}` : 'Search a building…'}</span>
+        <ChevronDown
+          size={13}
+          className="transition-transform shrink-0"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="flex flex-col rounded-lg overflow-hidden"
+          style={{ background: 'rgba(8,0,0,.98)', border: '1px solid rgba(185,28,28,.2)' }}
+        >
+          <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: '1px solid rgba(185,28,28,.15)' }}>
+            <Search size={13} className="text-white/30 shrink-0" />
+            <input
+              autoFocus
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search code or name…"
+              className="flex-1 bg-transparent text-xs text-white/85 outline-none placeholder:text-white/25"
+            />
+          </div>
+          <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <p className="text-xs text-white/30 px-3 py-2">No matching buildings</p>
+            )}
+            {filtered.map((b) => {
+              const isSelected = b.code === selectedCode;
+              return (
+                <button
+                  key={b.code}
+                  type="button"
+                  onClick={() => { onSelect(b); setOpen(false); setQuery(''); }}
+                  className="flex items-center gap-2.5 px-3 py-2 text-left w-full transition-all hover:bg-white/5"
+                  style={isSelected ? { background: 'rgba(185,28,28,.12)' } : {}}
+                >
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="text-xs text-white/85 truncate">{b.code} — {b.name}</span>
+                  </div>
+                  {isSelected && <CheckCircle size={12} className="shrink-0" style={{ color: 'rgba(248,113,113,.8)' }} />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function EventModal({
   event,
   types,
@@ -410,6 +503,8 @@ export function EventModal({
   const [recurUntil, setRecurUntil] = useState('');
   const [mapUrlInput, setMapUrlInput] = useState('');
   const [mapUrlError, setMapUrlError] = useState('');
+  const [selectedBuildingCode, setSelectedBuildingCode] = useState<string | null>(null);
+  const [classroomRoom, setClassroomRoom] = useState('');
   const [mapCenter, setMapCenter] = useState<[number, number]>(() => {
     if (event?.latitude && event?.longitude) return [event.latitude, event.longitude];
     return UH_CENTER;
@@ -442,6 +537,41 @@ export function EventModal({
   }, [existingSponsorsData]);
 
   const [syncWarning, setSyncWarning] = useState('');
+  // Tracks the last location string the classroom picker itself wrote, so we
+  // can tell whether the admin has since hand-edited the Location field. If
+  // they have, we stop overwriting their manual text/coords on room changes.
+  const lastPickerLocationRef = useRef<string | null>(null);
+
+  function applyClassroomSelection(building: UhClassroomBuilding, room: string) {
+    const locationText = room.trim()
+      ? `${building.name} (${building.code}) ${room.trim()}`
+      : `${building.name} (${building.code})`;
+    lastPickerLocationRef.current = locationText;
+    setForm((f) => ({
+      ...f,
+      location: locationText,
+      latitude: building.lat.toFixed(6),
+      longitude: building.lon.toFixed(6),
+    }));
+    setMapCenter([building.lat, building.lon]);
+  }
+
+  function handleBuildingSelect(building: UhClassroomBuilding) {
+    setSelectedBuildingCode(building.code);
+    applyClassroomSelection(building, classroomRoom);
+  }
+
+  function handleRoomChange(room: string) {
+    setClassroomRoom(room);
+    const building = UH_CLASSROOM_BUILDINGS.find((b) => b.code === selectedBuildingCode);
+    if (!building) return;
+    // Only re-apply the templated location/coords if the admin hasn't
+    // manually diverged from the last string the picker wrote. Otherwise,
+    // just track the room value without clobbering their manual edits.
+    if (lastPickerLocationRef.current === null || form.location === lastPickerLocationRef.current) {
+      applyClassroomSelection(building, room);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -607,12 +737,31 @@ export function EventModal({
               />
             </div>
 
+            {/* UH Classroom picker | Room */}
+            <div className="col-span-2 grid grid-cols-3 gap-4">
+              <div className="col-span-2">
+                <ClassroomPicker selectedCode={selectedBuildingCode} onSelect={handleBuildingSelect} />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-white/50">Room (optional)</label>
+                <input
+                  value={classroomRoom}
+                  onChange={(e) => handleRoomChange(e.target.value)}
+                  placeholder="e.g. 232"
+                  disabled={!selectedBuildingCode}
+                  className="rounded-lg px-3 py-2 text-sm disabled:opacity-40"
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+
             {/* Location | Location URL */}
             <div className="flex flex-col gap-1">
               <label className="text-xs text-white/50">Location</label>
               <input
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
+                placeholder="Free-text override or fallback"
                 className="rounded-lg px-3 py-2 text-sm"
                 style={inputStyle}
               />
@@ -1004,7 +1153,11 @@ export function EventModal({
   );
 }
 
-const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL ?? 'http://localhost:5173';
+// Falls back to the runtime origin (not a hardcoded localhost URL) so QR codes
+// generated in a deployed build without VITE_FRONTEND_URL set still resolve
+// to the real site. This is a client-only Vite SPA, so window is always
+// available here.
+const FRONTEND_URL = import.meta.env.VITE_FRONTEND_URL ?? window.location.origin;
 
 function QRPresentModal({ event, onClose }: { event: Event; onClose: () => void }) {
   const checkInUrl = `${FRONTEND_URL}/checkin?code=${event.check_in_code}`;
