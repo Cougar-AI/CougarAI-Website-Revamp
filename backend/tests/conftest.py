@@ -52,7 +52,6 @@ def _postgres_url(docker_services):
 @pytest.fixture(scope="session")
 def app(_postgres_url):
     import os
-    from sqlalchemy import text as sqlt
     from app import create_app, db
 
     application = create_app("config.TestConfig")
@@ -98,8 +97,21 @@ def app(_postgres_url):
     root = os.path.join(os.path.dirname(__file__), "..")
     schema_files = [
         os.path.join(root, "db-init", "001_auth.sql"),
+        # events/points/payments base tables (never captured as a migration —
+        # they only exist in prod). Applied right after 001_auth.sql, alongside
+        # the profile/officers bootstrap_schema below.
+        os.path.join(root, "tests", "db-init_base.sql"),
         os.path.join(root, "migrations", "add_users_dashboard_fields.sql"),
+        os.path.join(root, "migrations", "add_profile_dashboard_fields.sql"),
         os.path.join(root, "migrations", "add_non_member_default_role.sql"),
+        os.path.join(root, "migrations", "add_events_checkin_fields.sql"),
+        os.path.join(root, "migrations", "add_events_location_url.sql"),
+        os.path.join(root, "migrations", "add_events_geolocation.sql"),
+        os.path.join(root, "migrations", "add_event_types_table.sql"),
+        os.path.join(root, "migrations", "add_events_rsvp.sql"),
+        os.path.join(root, "migrations", "fix_events_event_name_nullable.sql"),
+        os.path.join(root, "migrations", "add_points_admin_fields.sql"),
+        os.path.join(root, "migrations", "add_points_unique_constraint.sql"),
         os.path.join(root, "migrations", "add_slideshow_photos.sql"),
         os.path.join(root, "migrations", "add_officer_positions_table.sql"),
         os.path.join(root, "migrations", "add_officer_photos.sql"),
@@ -108,11 +120,18 @@ def app(_postgres_url):
     ]
     with application.app_context():
         with db.engine.begin() as conn:
+            # Use the raw psycopg2 cursor so migration DDL runs verbatim — no
+            # SQLAlchemy bind-parameter parsing (migration files legitimately
+            # contain ':' in JSON defaults like {"k":true} and '%' literals).
+            raw = conn.connection
             for idx, path in enumerate(schema_files):
                 with open(path) as f:
-                    conn.execute(sqlt(f.read()))
+                    sql = f.read()
+                with raw.cursor() as cur:
+                    cur.execute(sql)
                 if idx == 0:
-                    conn.execute(sqlt(bootstrap_schema))
+                    with raw.cursor() as cur:
+                        cur.execute(bootstrap_schema)
 
     return application
 
