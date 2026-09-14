@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams, Link } from "react-router-dom";
-import { GraduationCap, FlaskConical, Users, Crown, BookOpen, Megaphone, CalendarDays, Wrench, Globe, Briefcase, Camera, type LucideIcon } from "lucide-react";
+import { GraduationCap, FlaskConical, Users, Crown, BookOpen, Megaphone, CalendarDays, Wrench, Globe, Briefcase, Camera, Cog, type LucideIcon } from "lucide-react";
 
 const DEPT_ICON_MAP: Record<string, LucideIcon> = {
   "Executive Board":      Crown,
@@ -11,6 +11,7 @@ const DEPT_ICON_MAP: Record<string, LucideIcon> = {
   "Events Directors":     CalendarDays,
   "Workshops / Projects": Wrench,
   "Historians":           Camera,
+  "Technical Officers":   Cog,
 };
 
 import { useQuery } from "@tanstack/react-query";
@@ -116,6 +117,7 @@ const DEPT_ORDER: Record<string, number> = {
   "Events Directors":     6,
   "Workshops / Projects": 7,
   "Historians":           8,
+  "Technical Officers":   9,
 };
 
 function deptSortKey(name: string) {

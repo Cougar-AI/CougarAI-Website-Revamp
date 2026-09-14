@@ -20,6 +20,7 @@ export const departments: Department[] = [
       { id: 'issac', name: 'Isaac Gonzalez', position: 'President', photo: '/officerHeadshots/Isaac Gonzalez.png', linkedin: 'https://www.linkedin.com/in/issac-gonzalez28/' },
       { id: 'chuck', name: 'Truc "Chuck" Le', position: 'Vice President Internal', photo: '/officerHeadshots/Truc Le.jpeg', linkedin: 'https://www.linkedin.com/in/franklinstyle' },
       { id: 'ashley', name: 'Ashley Nguyen', position: 'Vice President External', photo: '/officerHeadshots/Ashley Nguyen.jpeg', linkedin: 'https://linkedin.com/in/ashleynguyencs/' },
+      { id: 'eian', name: ' Eian Papillion', position: 'Secretary', photo: '/officerHeadshots/Eian Papillion.png', linkedin: 'https://www.linkedin.com/in/' },
     ],
   },
   {
@@ -38,13 +39,14 @@ export const departments: Department[] = [
     name: 'Webmasters',
     officers: [
       { id: 'tj', name: 'TJ Papillion', position: 'Webmaster Director', photo: '/officerHeadshots/Theron Papillion.png', linkedin: 'https://www.linkedin.com/in/tpapillionjr/' },
-      { id: 'liz', name: 'Lizzie Saucedo', position: 'Webmaster', photo: '/officer_photo_blank.png', linkedin: 'https://www.linkedin.com/in/lizzie-saucedo-747b08334/' },
+      { id: 'liz', name: 'Lizzie Saucedo', position: 'Webmaster', photo: '/officerHeadshots/Lizzie Saucedo.png', linkedin: 'https://www.linkedin.com/in/lizzie-saucedo-747b08334/' },
     ],
   },
   {
     id: 'marketing',
     name: 'Marketing',
     officers: [
+      {id: 'kenny', name: 'Kenny Truong', position: 'Marketing Director', photo: '/officerHeadshots/Kenny Truong.jpeg', linkedin: 'https://www.linkedin.com/in/kenny-truong-34a53225a/'},
     ],
   },
   {
@@ -77,4 +79,11 @@ export const departments: Department[] = [
       { id: 'leon', name: 'Leon Lu', position: 'Historian', photo: '/officerHeadshots/Leon_Professional_Headshot.png', linkedin: 'https://www.linkedin.com/in/leon-l-24794a329/' },
     ],
   },
+  {
+    id: 'technical officers',
+    name: 'Technical Officers',
+    officers: [
+      { id: 'zain', name: 'Zain Asif', position: 'Technical Officer', photo: '/officerHeadshots/Zain Asif.jpeg', linkedin: 'https://www.linkedin.com/in/zainasif7/' },
+    ],
+  }
 ];

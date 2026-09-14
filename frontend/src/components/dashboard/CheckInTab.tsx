@@ -17,9 +17,8 @@ interface UpcomingEvent {
   rsvp_count: number;
 }
 
-interface RsvpList {
-  rsvps: { user_id: number }[];
-  count: number;
+interface MyRsvpsResponse {
+  rsvped_event_ids: number[];
 }
 
 function authHeaders(): Record<string, string> {
@@ -64,22 +63,14 @@ function RsvpSection({ userId }: { userId?: number }) {
 
   const rsvpEvents = data?.events ?? [];
 
-  const myRsvps = useQuery<RsvpList[]>({
-    queryKey: ["my-rsvps", rsvpEvents.map(e => e.event_id)],
-    queryFn: async () => {
-      return Promise.all(rsvpEvents.map(e => fetchJson<RsvpList>(`/events/${e.event_id}/rsvp`)));
-    },
+  const myRsvps = useQuery<MyRsvpsResponse>({
+    queryKey: ["my-rsvps"],
+    queryFn: () => fetchJson<MyRsvpsResponse>(`/events/my-rsvps`),
     enabled: rsvpEvents.length > 0 && !!userId,
     staleTime: 30_000,
   });
 
-  const rsvpedSet = new Set<number>();
-  if (myRsvps.data && userId) {
-    rsvpEvents.forEach((ev, i) => {
-      const list = myRsvps.data![i];
-      if (list?.rsvps?.some(r => r.user_id === userId)) rsvpedSet.add(ev.event_id);
-    });
-  }
+  const rsvpedSet = new Set<number>(myRsvps.data?.rsvped_event_ids ?? []);
 
   const createRsvp = useMutation({
     mutationFn: (eventId: number) => apiPost(`/events/${eventId}/rsvp`, {}),

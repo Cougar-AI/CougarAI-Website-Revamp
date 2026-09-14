@@ -396,14 +396,17 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 
 > **Instruction for Claude:** After finishing any task in this project, update this section — move completed items to **Done** and add new items to **Todo**. Keep entries as single bullet lines. No summaries, no paragraphs, no date headers.
 
+> **Docs:** see `HANDOFF.md` (latest work summary + how to run the isolated local test DB) and `docs/` (e.g. `docs/verification-2026-09.md` — E2E verification + classroom coordinate methodology).
+
 ### Todo
 
 - **Run DB migrations on prod** — `bash backend/run_migrations.sh`; includes `add_officers_display_name.sql` and `reorder_officer_departments.sql`; safe to re-run (all use `IF NOT EXISTS` or idempotent UPDATEs)
 - **Google OAuth frontend** — backend done; navbar auth link already visible; needs `GOOGLE_OAUTH_CLIENT_ID` in backend `.env` for full end-to-end test.
 - **Google Calendar service account** — must have `calendar.events` scope (not `calendar.readonly`) in GCP for write endpoints
-- **Pre-existing TypeScript build errors** — `AdminEventTypesTab.tsx`, `AdminPartnersTab.tsx`, `AdminProgressTab.tsx`, `AdminSponsorsTab.tsx`, `AdminUsersTab.tsx`, `AdminDashboard.tsx` have unused-import/type errors; clean up before production build
 - **Officer photos** — a few officers still use `/officer_photo_blank.png`; swap in real headshots when available
 - **Event RSVP enhancements** — email reminder 24h before (wire through notification scheduler), RSVP list drawer in admin Events tab
+- **Classroom coordinates** — `TU2` in `frontend/src/data/uhClassrooms.ts` is a best-effort estimate (no OSM footprint by that name); refine against an authoritative UH GIS source if tight geofencing is needed. Auto-filled building coords only persist when an event's `require_location` is enabled (pre-existing save gate); revisit if the map pin should persist without geofencing.
+- **Events/RSVP integration tests** — the integration harness only applies the auth schema; base `events`/`profile`/`points`/`event_rsvps` tables have no committed DDL (see reconstructed `backend/tests/local_base_schema.sql`). Expand the harness to cover event routes (RSVP, check-in).
 - **Admin Audit Log** — `audit_log` table; searchable log tab in Admin Tools
 - **Officer Task Board** — To Do / In Progress / Done kanban; `officer_tasks` table
 - **Meeting Notes** — per-meeting notes (title, date, attendees, agenda, action items); `meeting_notes` table
@@ -426,6 +429,9 @@ All auth code lives in `backend/app/routes/auth.py` (blueprint prefix `/auth`). 
 ### Done
 
 - ✅ UH classroom searchable dropdown — admin event modal has a searchable UH building picker (`frontend/src/data/uhClassrooms.ts`) plus optional room field; selecting a building sets `location` text and auto-fills/recenters `latitude`/`longitude` for geofenced check-in (does not force-enable `require_location`)
+- ✅ RSVP member state fix — dashboard `RsvpSection` now reads state from `GET /events/my-rsvps` instead of the officer-only `GET /events/<id>/rsvp` (was 403ing for members, so the button never flipped to "RSVPed"); Calendar `toggleRsvp` now surfaces RSVP failures inline and reverts optimistic state instead of silently swallowing errors
+- ✅ RSVP open to non-members — `POST /events/<id>/rsvp` (`backend/app/routes/events/rsvp.py`) `@require_role` allowlist now includes `non-member`; frontend `RSVP_ROLES` in `Calendar.tsx` now includes `non-member` so the RSVP button (and not the "Members only" gate) shows for any authenticated user, since new registrations default to `non-member` and RSVP is just an attendance-intent signal, not a paid-membership perk
+- ✅ RSVP integration tests — `tests/integration/test_events_rsvp.py` (13 tests, all green) covers member/non-member/officer POST → 2xx, `GET /events/my-rsvps` reflects the RSVP, DELETE removes it, idempotent re-POST, RSVP-disabled + nonexistent-event errors, officer-only `GET /events/<id>/rsvp` roster (403 for member/non-member, 2xx for officer), and unauthenticated rejection; the non-member POST case is the key new coverage for the follow-up fix; integration harness now provisions the events/points/payments base schema — committed `tests/db-init_base.sql` (CREATE TABLE IF NOT EXISTS for the prod-only base tables) is applied in `tests/conftest.py::app` ahead of the events/RSVP migrations (`add_events_*`, `add_event_types_table`, `add_events_rsvp`, `add_profile_dashboard_fields`, `add_points_*`); schema files now run via the raw psycopg2 cursor so migration DDL with `:`/`%` (e.g. JSONB defaults) executes verbatim; verified with `pytest tests/integration/ -v` (82 passed, no regressions) against a local Postgres (Docker image pull was stalled), `pytest tests/unit/` (123 passed), `pytest --collect-only` clean (207)
 - ✅ Workshop admin tab — `/admin` now exposes a Workshop control panel for the new proxy routes, including job lookup/rerun, status, requirements editing, and container actions.
 - ✅ Backend status banner — checks once on load instead of polling, and ignores 429 health-check quota responses so the free-tier request cap does not trigger a false outage banner.
 

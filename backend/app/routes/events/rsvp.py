@@ -72,7 +72,7 @@ def event_rsvp_stats(event_id):
 
 
 @events_bp.route("/<int:event_id>/rsvp", methods=["POST", "OPTIONS"])
-@require_role("member", "officer", "admin", "partner")
+@require_role("non-member", "member", "officer", "admin", "partner")
 def create_rsvp(event_id):
     user_id = int(get_jwt_identity())
     conn = get_db()
