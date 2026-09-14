@@ -112,13 +112,13 @@ function generateOccurrences(
   freq: 'weekly' | 'monthly',
 ): Array<{ starts_at: string; check_in_expires_at: string }> {
   const occurrences = [];
-  const untilDate = new Date(until + 'T23:59:59');
-  const current = new Date(startsAt);
-  const currentEnd = new Date(expiresAt || startsAt);
+  const untilDate = new Date(toUtcIso(until + 'T23:59') ?? until + 'T23:59:59');
+  const current = new Date(toUtcIso(startsAt) ?? startsAt);
+  const currentEnd = new Date(toUtcIso(expiresAt || startsAt) ?? (expiresAt || startsAt));
 
   const advance = (d: Date) => {
-    if (freq === 'weekly') d.setDate(d.getDate() + 7);
-    else d.setMonth(d.getMonth() + 1);
+    if (freq === 'weekly') d.setUTCDate(d.getUTCDate() + 7);
+    else d.setUTCMonth(d.getUTCMonth() + 1);
   };
 
   advance(current);
@@ -224,34 +224,74 @@ function ConfirmModal({ message, confirmLabel = 'Confirm', danger = false, onCon
 }
 
 const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
+const CHICAGO_TIME_ZONE = 'America/Chicago';
 
 const _pad = (n: number) => String(n).padStart(2, '0');
 
-function toLocalISO(d: Date): string {
-  return `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}T${_pad(d.getHours())}:${_pad(d.getMinutes())}`;
+function datePartsInChicago(d: Date): Record<string, string> {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: CHICAGO_TIME_ZONE,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(d)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+}
+
+function toChicagoDatetimeLocal(d: Date): string {
+  const parts = datePartsInChicago(d);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+function parseDatetimeLocal(value: string): { year: number; month: number; day: number; hour: number; minute: number } | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day, hour, minute] = match;
+  return { year: Number(year), month: Number(month), day: Number(day), hour: Number(hour), minute: Number(minute) };
+}
+
+function chicagoOffsetMs(date: Date): number {
+  const parts = datePartsInChicago(date);
+  const chicagoAsUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute),
+  );
+  return chicagoAsUtc - date.getTime();
 }
 
 function toDatetimeLocal(ts: string | null | undefined): string {
   if (!ts) return '';
   const d = new Date(ts);
-  return isNaN(d.getTime()) ? '' : toLocalISO(d);
+  return isNaN(d.getTime()) ? '' : toChicagoDatetimeLocal(d);
 }
 
 function addMinutes(dtLocal: string, m: number): string {
-  const d = new Date(dtLocal);
+  const parts = parseDatetimeLocal(dtLocal);
+  if (!parts) return dtLocal;
+  const d = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute));
   d.setMinutes(d.getMinutes() + m);
-  return toLocalISO(d);
+  return `${d.getUTCFullYear()}-${_pad(d.getUTCMonth() + 1)}-${_pad(d.getUTCDate())}T${_pad(d.getUTCHours())}:${_pad(d.getUTCMinutes())}`;
 }
 
 function defaultStartTime(): string {
-  const d = new Date();
-  d.setHours(d.getHours() + 1, 0, 0, 0);
-  return toLocalISO(d);
+  const current = toChicagoDatetimeLocal(new Date());
+  const nextHour = current.replace(/:\d{2}$/, ':00');
+  return addMinutes(nextHour, 60);
 }
 
 function toUtcIso(dtLocal: string | null | undefined): string | null {
   if (!dtLocal) return null;
-  return new Date(dtLocal).toISOString();
+  const parts = parseDatetimeLocal(dtLocal);
+  if (!parts) return null;
+
+  // Convert a wall-clock Chicago time to UTC without relying on the browser's
+  // own timezone. Repeat once to account for the CST/CDT offset transition.
+  const wallClockMs = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute);
+  let instant = new Date(wallClockMs);
+  instant = new Date(wallClockMs - chicagoOffsetMs(instant));
+  instant = new Date(wallClockMs - chicagoOffsetMs(instant));
+  return instant.toISOString();
 }
 
 interface PickerItem {
