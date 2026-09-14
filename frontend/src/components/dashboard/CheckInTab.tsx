@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QrCode, CheckCircle, Camera, X, CalendarCheck, Loader2 } from "lucide-react";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
 import { apiPost, apiDelete } from "@/lib/api";
 import { formatDate, formatTime } from "@/lib/dates";
 import type { MeResponse } from "@/pages/Dashboard";
@@ -141,14 +141,42 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scanningRef = useRef(scanning);
+  scanningRef.current = scanning;
+  // Bumped whenever a stale scanner (from a cancelled open) finishes tearing
+  // down while a newer open request is still pending, so the effect below
+  // re-runs even though `scanning` itself didn't change (it was already true).
+  const [scannerSession, setScannerSession] = useState(0);
 
   useEffect(() => {
     if (!scanning) return;
 
+    // Guard against StrictMode double-invoke / re-entrancy: never create a
+    // second Html5Qrcode instance while one is already attached. If one is
+    // still attached here, it's mid-teardown from a prior cancelled open —
+    // its cleanup will bump `scannerSession` to retry once it's done.
+    if (scannerRef.current) return;
+
+    let cancelled = false;
     const scanner = new Html5Qrcode("qr-reader");
     scannerRef.current = scanner;
 
-    scanner
+    const stopScanner = async () => {
+      try {
+        if (scanner.getState && scanner.getState() === Html5QrcodeScannerState.SCANNING) {
+          await scanner.stop();
+        }
+      } catch {
+        // benign: "scanner is not running" / already stopped
+      }
+      try {
+        scanner.clear();
+      } catch {
+        // ignore — container may already be empty
+      }
+    };
+
+    const startPromise = scanner
       .start(
         { facingMode: "environment" },
         { fps: 10, qrbox: { width: 220, height: 220 } },
@@ -161,22 +189,80 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
           } catch {
             // not a URL — use raw text
           }
-          scanner.stop().catch(() => {});
-          scannerRef.current = null;
+          stopScanner().finally(() => {
+            if (scannerRef.current === scanner) scannerRef.current = null;
+          });
           setScanning(false);
           setCode(extracted);
         },
         () => {}
       )
-      .catch(() => {
-        setError("Camera access denied or unavailable.");
+      .then(() => {
+        if (cancelled) {
+          // Effect was cleaned up before start() resolved (e.g. StrictMode
+          // double-invoke, or a rapid close before the permission prompt was
+          // answered) — stop immediately so we don't leak a live camera.
+          stopScanner().finally(() => {
+            // Gate on ownership so only whichever teardown path actually
+            // still owns the ref performs the null + retry bump. This keeps
+            // a single teardown from bumping `scannerSession` twice if the
+            // cleanup's own teardown (below) races with this one.
+            const owned = scannerRef.current === scanner;
+            if (owned) scannerRef.current = null;
+            // If the user has since reopened the scanner (scanning is true
+            // again), the effect for that open bailed out earlier because
+            // this scanner was still occupying scannerRef. Now that it's
+            // torn down, force a fresh effect run to actually start a camera.
+            if (owned && scanningRef.current) setScannerSession((n) => n + 1);
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        const owned = scannerRef.current === scanner;
+        if (owned) scannerRef.current = null;
+        if (cancelled) {
+          // Mirror the success-path retry above: the reject can win the
+          // reaction race against the cleanup's `startPromise.finally`
+          // teardown, so without this the effect never re-runs and the
+          // reopened scanner is stuck permanently blank. Only bump if this
+          // catch actually owned the ref, so a given teardown bumps at most
+          // once even under re-entrant races.
+          if (owned && scanningRef.current) setScannerSession((n) => n + 1);
+          return;
+        }
+        const message = err instanceof Error ? err.message : String(err ?? "");
+        if (!window.isSecureContext) {
+          setError("Camera requires a secure (HTTPS) connection. Enter the code manually instead.");
+        } else if (/permission|denied|NotAllowedError/i.test(message)) {
+          setError("Camera permission denied. Allow camera access or enter the code manually.");
+        } else if (/NotFoundError|no camera/i.test(message)) {
+          setError("No camera found on this device. Enter the code manually instead.");
+        } else {
+          setError("Unable to start camera. Enter the code manually instead.");
+        }
+        // Non-cancelled (normal) attempt: terminate here, do not retry, so a
+        // genuine permission-denied/no-camera error can't loop.
         setScanning(false);
       });
 
     return () => {
-      scanner.stop().catch(() => {});
+      cancelled = true;
+      startPromise.finally(() => {
+        // Only attempt to stop once start() has settled, and only if this
+        // effect instance still owns the scanner (the .then/.catch handlers
+        // above may have already torn it down and bumped the session).
+        if (scannerRef.current === scanner) {
+          stopScanner().finally(() => {
+            const owned = scannerRef.current === scanner;
+            if (owned) scannerRef.current = null;
+            // See comments above: retry the open if the user re-opened the
+            // scanner while this one was still tearing down.
+            if (owned && scanningRef.current) setScannerSession((n) => n + 1);
+          });
+        }
+      });
     };
-  }, [scanning]);
+  }, [scanning, scannerSession]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
