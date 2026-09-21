@@ -6,6 +6,17 @@ from app.utils.query_handler import build_sql_querys
 from app.utils.auth_decorators import require_officer
 
 points_bp = Blueprint('points', __name__)
+
+# A public leaderboard participant must have an active account, have opted in,
+# and have a displayable name. Keep this in the query rather than filtering in
+# the client so inactive or anonymous accounts are never returned by the API.
+_LEADERBOARD_ELIGIBILITY_SQL = """
+    leaderboard_user.is_active = TRUE
+    AND profile.is_public = TRUE
+    AND NULLIF(BTRIM(COALESCE(profile.first_name, '')), '') IS NOT NULL
+    AND NULLIF(BTRIM(COALESCE(profile.last_name, '')), '') IS NOT NULL
+"""
+
 @points_bp.route("/", methods=["GET"])
 def getPoints():
     connection = get_db()
@@ -73,7 +84,7 @@ def getLeaderboard():
 
     connection = get_db()
     with connection.cursor() as cur:
-        # Public leaderboard — only is_public profiles
+        # Only opted-in, named users with active accounts can be returned publicly.
         cur.execute(
             f"""
             SELECT profile.student_id,
@@ -85,7 +96,8 @@ def getLeaderboard():
                    SUM(points.points) AS total_points
             FROM points
             JOIN profile ON profile.student_id = points.student_id
-            WHERE profile.is_public = TRUE {date_filter}
+            JOIN users AS leaderboard_user ON leaderboard_user.user_id = profile.user_id
+            WHERE {_LEADERBOARD_ELIGIBILITY_SQL} {date_filter}
             GROUP BY profile.student_id, profile.first_name, profile.last_name,
                      profile.avatar_url, profile.current_streak, profile.max_streak
             ORDER BY total_points DESC
@@ -95,7 +107,9 @@ def getLeaderboard():
         )
         results = cur.fetchall()
 
-        # Caller's own rank (always returned, even if private)
+        # Only return a rank when the caller is eligible for this public
+        # leaderboard. This keeps an inactive/private/anonymous account from
+        # seeing a rank based on entries that are not publicly displayed.
         my_rank = None
         my_total = None
         if caller_user_id:
@@ -117,17 +131,32 @@ def getLeaderboard():
 
                 cur.execute(
                     f"""
-                    SELECT COUNT(*) + 1 AS rank FROM (
-                        SELECT student_id, SUM(points) AS pts
-                        FROM points {("WHERE date >= %s" if start_date else "")}
-                        {("AND date <= %s" if end_date else "")}
-                        GROUP BY student_id
-                    ) sub WHERE sub.pts > %s
+                    SELECT 1
+                    FROM profile
+                    JOIN users AS leaderboard_user ON leaderboard_user.user_id = profile.user_id
+                    WHERE profile.user_id = %s AND {_LEADERBOARD_ELIGIBILITY_SQL}
                     """,
-                    tuple(date_params + [my_total]),
+                    (caller_user_id,),
                 )
-                rank_row = cur.fetchone()
-                my_rank = rank_row["rank"] if rank_row else None
+                is_eligible = cur.fetchone() is not None
+
+                if is_eligible:
+                    cur.execute(
+                        f"""
+                        SELECT COUNT(*) + 1 AS rank FROM (
+                            SELECT points.student_id, SUM(points.points) AS pts
+                            FROM points
+                            JOIN profile ON profile.student_id = points.student_id
+                            JOIN users AS leaderboard_user ON leaderboard_user.user_id = profile.user_id
+                            WHERE {_LEADERBOARD_ELIGIBILITY_SQL} {date_filter}
+                            GROUP BY points.student_id
+                        ) eligible_entries
+                        WHERE eligible_entries.pts > %s
+                        """,
+                        tuple(date_params + [my_total]),
+                    )
+                    rank_row = cur.fetchone()
+                    my_rank = rank_row["rank"] if rank_row else None
 
     return jsonify({
         "entries": results,
@@ -338,7 +367,8 @@ def getStreakLeaderboard():
             SELECT first_name, last_name, current_streak, max_streak,
                    student_id
             FROM profile
-            WHERE is_public = TRUE
+            JOIN users AS leaderboard_user ON leaderboard_user.user_id = profile.user_id
+            WHERE {_LEADERBOARD_ELIGIBILITY_SQL}
             ORDER BY current_streak DESC, max_streak DESC
             LIMIT 100
             """

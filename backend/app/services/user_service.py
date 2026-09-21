@@ -60,7 +60,7 @@ class UserService(BaseService):
             "total_points_awarded": total_points,
         }
 
-    def list_users(self, page: int, limit: int, search: str, role_filter, membership_filter) -> tuple:
+    def list_users(self, page: int, limit: int, search: str, role_filter, membership_filter, account_status=None) -> tuple:
         offset = (page - 1) * limit
         with self.cursor() as cur:
             conditions = []
@@ -77,6 +77,11 @@ class UserService(BaseService):
             if role_filter:
                 conditions.append("u.role = %s")
                 params.append(role_filter)
+
+            if account_status == "active":
+                conditions.append("u.is_active = TRUE")
+            elif account_status == "inactive":
+                conditions.append("u.is_active = FALSE")
 
             where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

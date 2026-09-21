@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { apiGet } from "@/lib/api";
 import type { MeResponse } from "@/pages/Dashboard";
 
@@ -113,6 +114,10 @@ export default function LeaderboardTab({ meData }: Props) {
 
   const callerRank = pointsData?.caller_rank;
   const callerTotal = pointsData?.caller_total;
+  const profile = meData?.profile;
+  const hasDisplayName = Boolean(profile?.first_name?.trim() && profile?.last_name?.trim());
+  const hasLeaderboardActivity = (meData?.points_summary.total ?? 0) > 0 || (profile?.current_streak ?? 0) > 0;
+  const needsLeaderboardName = hasLeaderboardActivity && !hasDisplayName;
 
   return (
     <div
@@ -120,6 +125,24 @@ export default function LeaderboardTab({ meData }: Props) {
       style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(185,28,28,.22)" }}
     >
       <h2 className="mb-5 font-['Oxanium'] text-lg font-semibold text-white">Leaderboard</h2>
+
+      {needsLeaderboardName && (
+        <div
+          className="mb-5 rounded-xl px-4 py-3"
+          style={{ background: "rgba(185,28,28,.12)", border: "1px solid rgba(185,28,28,.3)" }}
+        >
+          <p className="text-sm font-medium text-white">You have leaderboard activity.</p>
+          <p className="mt-1 text-sm text-white/60">
+            Add your first and last name to appear on the leaderboard. You can also control visibility in your profile.
+          </p>
+          <Link
+            to="/dashboard?tab=profile"
+            className="mt-3 inline-flex rounded-lg bg-red-700 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-800"
+          >
+            Add your name
+          </Link>
+        </div>
+      )}
 
       {/* Sub-tab toggle */}
       <div className="mb-4 flex gap-2">

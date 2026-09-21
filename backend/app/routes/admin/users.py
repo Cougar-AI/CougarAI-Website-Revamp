@@ -23,9 +23,13 @@ def list_users():
     search = (request.args.get("search") or "").strip()
     role_filter = request.args.get("role") or None
     membership_filter = request.args.get("membership_status") or None
+    account_status = request.args.get("account_status") or None
+
+    if account_status not in {None, "active", "inactive"}:
+        return jsonify({"error": "account_status must be active or inactive"}), 400
 
     svc = UserService(get_db())
-    users, total = svc.list_users(page, limit, search, role_filter, membership_filter)
+    users, total = svc.list_users(page, limit, search, role_filter, membership_filter, account_status)
 
     return jsonify({
         "users": users,

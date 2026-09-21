@@ -57,6 +57,8 @@ interface UsersResponse {
   pages: number;
 }
 
+type AccountTab = 'active' | 'inactive';
+
 const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
   admin: { bg: 'rgba(185,28,28,.25)', text: 'rgba(248,113,113,.9)' },
   officer: { bg: 'rgba(29,78,216,.2)', text: 'rgba(96,165,250,.9)' },
@@ -375,6 +377,7 @@ export default function AdminUsersTab() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [membershipFilter, setMembershipFilter] = useState('');
+  const [accountTab, setAccountTab] = useState<AccountTab>('active');
   const [page, setPage] = useState(1);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
@@ -394,10 +397,11 @@ export default function AdminUsersTab() {
     ...(debouncedSearch && { search: debouncedSearch }),
     ...(roleFilter && { role: roleFilter }),
     ...(membershipFilter && { membership_status: membershipFilter }),
+    account_status: accountTab,
   });
 
   const { data, isLoading, error } = useQuery<UsersResponse>({
-    queryKey: ['admin-users', page, debouncedSearch, roleFilter, membershipFilter],
+    queryKey: ['admin-users', page, debouncedSearch, roleFilter, membershipFilter, accountTab],
     queryFn: () => apiGet<UsersResponse>(`/admin/users?${params}`),
     staleTime: 30_000,
   });
@@ -428,6 +432,26 @@ export default function AdminUsersTab() {
       )}
 
       <div className="flex flex-col gap-4">
+        {/* Account status tabs */}
+        <div className="flex gap-2 border-b border-white/10">
+          {([
+            { id: 'active', label: 'Active Users' },
+            { id: 'inactive', label: 'Inactive Users' },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { setAccountTab(tab.id); setPage(1); }}
+              className="border-b-2 px-3 py-2 text-sm font-medium transition-colors"
+              style={{
+                borderColor: accountTab === tab.id ? '#ef4444' : 'transparent',
+                color: accountTab === tab.id ? '#fff' : 'rgba(255,255,255,.45)',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {/* Filter bar */}
         <div className="flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
