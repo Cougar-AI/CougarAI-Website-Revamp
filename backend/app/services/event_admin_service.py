@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import string
 import secrets
+from datetime import datetime, timedelta
 from app.services.base_service import BaseService
+from app.utils.query_handler import chicago_day_start_utc
 
 
 _EVENT_TYPE_CANONICAL_NAMES = {
@@ -110,11 +112,13 @@ class EventAdminService(BaseService):
             params: list = []
 
             if start_date:
-                conditions.append("e.starts_at >= %s::date")
-                params.append(start_date)
+                start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+                conditions.append("e.starts_at >= %s")
+                params.append(chicago_day_start_utc(start_dt))
             if end_date:
-                conditions.append("e.starts_at < (%s::date + INTERVAL '1 day')")
-                params.append(end_date)
+                end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+                conditions.append("e.starts_at < %s")
+                params.append(chicago_day_start_utc(end_dt) + timedelta(days=1))
 
             where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
