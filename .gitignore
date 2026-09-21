@@ -59,3 +59,4 @@ __pycache__/
 /.claude
 frontend/env (6)
 .vercel
+package-lock.json

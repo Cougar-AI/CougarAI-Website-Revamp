@@ -6,6 +6,7 @@ from app.utils.date_validation import is_valid_date
 from app.utils.query_handler import build_sql_querys
 from app.utils.auth_decorators import require_admin, require_officer
 from app.services.event_admin_service import EventAdminService
+from app.routes.events.integrations import schedule_google_sync, remove_event_from_google_best_effort
 
 
 @events_bp.route("/event-types", methods=["GET", "OPTIONS"])
@@ -66,6 +67,7 @@ def getEvents():
 def deleteEvent(event_id):
     try:
         connection = get_db()
+        remove_event_from_google_best_effort(connection, event_id)
         with connection.cursor() as cur:
             cur.execute("DELETE FROM events WHERE event_id = %s", (event_id,))
             if cur.rowcount == 0:
@@ -110,6 +112,7 @@ def addEvent():
             cur.execute(query, tuple(params))
             event_id = cur.fetchone()["event_id"]
             connection.commit()
+            schedule_google_sync(event_id)
             return jsonify({"message": "Success", "event_id": event_id}), 201
 
     except Exception as e:
@@ -205,6 +208,7 @@ def updateEvent(event_id):
                 return jsonify({"error": f"Event ID {event_id} not found"}), 404
 
             connection.commit()
+            schedule_google_sync(event_id)
             return jsonify({"message": "Event updated successfully"}), 200
     except Exception as e:
         connection.rollback()
