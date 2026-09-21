@@ -51,7 +51,7 @@ def getEvents():
                 "(SELECT COUNT(*) FROM event_rsvps WHERE event_rsvps.event_id = events.event_id) AS rsvp_count, "
                 "(SELECT color FROM event_types WHERE LOWER(TRIM(name)) = LOWER(TRIM(events.event_type)) LIMIT 1) AS type_color "
                 "FROM events",
-                filter_dict, date_column="starts_at"
+                filter_dict, date_column="starts_at", tz_aware=True
             )
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
@@ -148,7 +148,7 @@ def getAttendance():
             JOIN profile ON points.student_id = profile.student_id
             """
 
-            query, params = build_sql_querys(base_query, filter_dict, date_column="events.starts_at")
+            query, params = build_sql_querys(base_query, filter_dict, date_column="events.starts_at", tz_aware=True)
             query += """
                 GROUP BY
                     points.points_id,

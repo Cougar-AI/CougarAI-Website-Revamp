@@ -1,6 +1,23 @@
 from app.utils.date_validation import is_valid_date
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import re
+
+_CHICAGO = ZoneInfo("America/Chicago")
+_UTC = ZoneInfo("UTC")
+
+
+def chicago_day_start_utc(d):
+    """Naive UTC datetime marking the start of `d` (a date) in Chicago local time.
+
+    Timestamp columns like events.starts_at are stored as naive UTC values
+    converted from a Chicago wall-clock time at creation (see frontend's
+    toUtcIso()). An evening event can therefore land on the *next* UTC
+    calendar day — comparing it against a plain UTC date range misses it.
+    This converts the filter boundary the same way, so both sides line up.
+    """
+    local_midnight = datetime(d.year, d.month, d.day, tzinfo=_CHICAGO)
+    return local_midnight.astimezone(_UTC).replace(tzinfo=None)
 
 # Only allow simple identifiers: letters, digits, underscores, no leading digit
 _SAFE_COLUMN_RE = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
@@ -24,7 +41,7 @@ def _parse_date(date_str: str):
             return datetime.strptime(date_str, fmt).date()
     raise ValueError("Invalid date format. Use MM-DD-YYYY or YYYY-MM-DD.")
 
-def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC", group_by=None): # mainly for get queries
+def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC", group_by=None, tz_aware=False): # mainly for get queries
     filters = [] # stores the SQL Filters
     params = [] # stores the variables
     mode = mode.upper()
@@ -59,18 +76,26 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
         if start_date and end_date:
             start = _parse_date(start_date)
             end = _parse_date(end_date)
-            filters.append(f"{date_column} BETWEEN %s AND %s")
-            params.extend([start, end])
+            if tz_aware:
+                filters.append(f"{date_column} >= %s AND {date_column} < %s")
+                params.extend([chicago_day_start_utc(start), chicago_day_start_utc(end) + timedelta(days=1)])
+            else:
+                filters.append(f"{date_column} BETWEEN %s AND %s")
+                params.extend([start, end])
 
         elif start_date:
             start = _parse_date(start_date)
             filters.append(f"{date_column} >= %s")
-            params.append(start)
+            params.append(chicago_day_start_utc(start) if tz_aware else start)
 
         elif end_date:
             end = _parse_date(end_date)
-            filters.append(f"{date_column} <= %s")
-            params.append(end)
+            if tz_aware:
+                filters.append(f"{date_column} < %s")
+                params.append(chicago_day_start_utc(end) + timedelta(days=1))
+            else:
+                filters.append(f"{date_column} <= %s")
+                params.append(end)
 
     query = base_query
 
