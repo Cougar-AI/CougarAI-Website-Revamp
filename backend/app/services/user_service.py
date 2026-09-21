@@ -60,7 +60,10 @@ class UserService(BaseService):
             "total_points_awarded": total_points,
         }
 
-    def list_users(self, page: int, limit: int, search: str, role_filter, membership_filter, account_status=None) -> tuple:
+    def list_users(
+        self, page: int, limit: int, search: str, role_filter, membership_filter,
+        account_status=None, grade_level=None, sort_by="joined_desc",
+    ) -> tuple:
         offset = (page - 1) * limit
         with self.cursor() as cur:
             conditions = []
@@ -82,6 +85,10 @@ class UserService(BaseService):
                 conditions.append("u.is_active = TRUE")
             elif account_status == "inactive":
                 conditions.append("u.is_active = FALSE")
+
+            if grade_level:
+                conditions.append("LOWER(p.grade_level) = LOWER(%s)")
+                params.append(grade_level)
 
             where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
@@ -118,6 +125,17 @@ class UserService(BaseService):
             elif membership_filter == "none":
                 having_clause = "AND mem.expires_at IS NULL"
 
+            # These clauses are server-owned constants, never raw query input.
+            # NULLS LAST keeps users without a login at the end of that sort.
+            sort_clause = {
+                "joined_desc": "u.created_at DESC NULLS LAST",
+                "joined_asc": "u.created_at ASC NULLS LAST",
+                "last_login_desc": "u.last_login DESC NULLS LAST",
+                "points_desc": "pts.total_points DESC, u.created_at DESC",
+                "events_desc": "pts.events_attended DESC, u.created_at DESC",
+                "checkins_desc": "chk.checkin_count DESC, u.created_at DESC",
+            }.get(sort_by, "u.created_at DESC NULLS LAST")
+
             count_params = list(params)
             cur.execute(
                 f"""
@@ -153,7 +171,7 @@ class UserService(BaseService):
                 {checkins_join}
                 {where_clause}
                 {"AND" if where_clause else "WHERE"} TRUE {having_clause}
-                ORDER BY u.created_at DESC
+                ORDER BY {sort_clause}
                 LIMIT %s OFFSET %s
                 """,
                 count_params + [limit, offset],

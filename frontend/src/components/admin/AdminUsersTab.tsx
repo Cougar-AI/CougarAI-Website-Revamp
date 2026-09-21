@@ -74,6 +74,15 @@ const MEMBERSHIP_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 const ALL_ROLES = ['admin', 'officer', 'partner', 'member', 'non-member'];
+const GRADE_LEVELS = ['freshman', 'sophomore', 'junior', 'senior', 'graduate', 'alumni', 'other'];
+const USER_SORTS = [
+  { value: 'joined_desc', label: 'Joined: newest first' },
+  { value: 'joined_asc', label: 'Joined: oldest first' },
+  { value: 'last_login_desc', label: 'Last login: newest first' },
+  { value: 'points_desc', label: 'Points: highest first' },
+  { value: 'events_desc', label: 'Events attended: highest first' },
+  { value: 'checkins_desc', label: 'Check-ins: highest first' },
+];
 
 function Badge({ value, colorMap }: { value: string; colorMap: Record<string, { bg: string; text: string }> }) {
   const style = colorMap[value] ?? colorMap['non-member'];
@@ -378,6 +387,8 @@ export default function AdminUsersTab() {
   const [roleFilter, setRoleFilter] = useState('');
   const [membershipFilter, setMembershipFilter] = useState('');
   const [accountTab, setAccountTab] = useState<AccountTab>('active');
+  const [gradeFilter, setGradeFilter] = useState('');
+  const [sortBy, setSortBy] = useState('joined_desc');
   const [page, setPage] = useState(1);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
 
@@ -397,11 +408,13 @@ export default function AdminUsersTab() {
     ...(debouncedSearch && { search: debouncedSearch }),
     ...(roleFilter && { role: roleFilter }),
     ...(membershipFilter && { membership_status: membershipFilter }),
+    ...(gradeFilter && { grade_level: gradeFilter }),
     account_status: accountTab,
+    sort_by: sortBy,
   });
 
   const { data, isLoading, error } = useQuery<UsersResponse>({
-    queryKey: ['admin-users', page, debouncedSearch, roleFilter, membershipFilter, accountTab],
+    queryKey: ['admin-users', page, debouncedSearch, roleFilter, membershipFilter, accountTab, gradeFilter, sortBy],
     queryFn: () => apiGet<UsersResponse>(`/admin/users?${params}`),
     staleTime: 30_000,
   });
@@ -488,6 +501,34 @@ export default function AdminUsersTab() {
             <option value="active" style={{ background: '#1a0000' }}>Active</option>
             <option value="expired" style={{ background: '#1a0000' }}>Expired</option>
             <option value="none" style={{ background: '#1a0000' }}>None</option>
+          </select>
+
+          <select
+            value={gradeFilter}
+            onChange={(e) => { setGradeFilter(e.target.value); setPage(1); }}
+            className="rounded-lg px-3 py-2 text-sm text-white"
+            style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)' }}
+          >
+            <option value="" style={{ background: '#1a0000' }}>All grade levels</option>
+            {GRADE_LEVELS.map((grade) => (
+              <option key={grade} value={grade} style={{ background: '#1a0000' }}>
+                {grade.charAt(0).toUpperCase() + grade.slice(1)}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
+            className="rounded-lg px-3 py-2 text-sm text-white"
+            style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)' }}
+            aria-label="Sort users"
+          >
+            {USER_SORTS.map((sort) => (
+              <option key={sort.value} value={sort.value} style={{ background: '#1a0000' }}>
+                {sort.label}
+              </option>
+            ))}
           </select>
 
           {data && (

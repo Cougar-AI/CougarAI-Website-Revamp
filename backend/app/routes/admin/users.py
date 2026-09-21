@@ -24,12 +24,18 @@ def list_users():
     role_filter = request.args.get("role") or None
     membership_filter = request.args.get("membership_status") or None
     account_status = request.args.get("account_status") or None
+    grade_level = request.args.get("grade_level") or None
+    sort_by = request.args.get("sort_by") or "joined_desc"
 
     if account_status not in {None, "active", "inactive"}:
         return jsonify({"error": "account_status must be active or inactive"}), 400
+    if sort_by not in {"joined_desc", "joined_asc", "last_login_desc", "points_desc", "events_desc", "checkins_desc"}:
+        return jsonify({"error": "Invalid sort_by value"}), 400
 
     svc = UserService(get_db())
-    users, total = svc.list_users(page, limit, search, role_filter, membership_filter, account_status)
+    users, total = svc.list_users(
+        page, limit, search, role_filter, membership_filter, account_status, grade_level, sort_by
+    )
 
     return jsonify({
         "users": users,
