@@ -76,6 +76,21 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Keep mobile browser chrome and Safari's rubber-band/overscroll area aligned
+   with the site. Without a dark document background, iOS exposes the default
+   white canvas above the navbar and behind its address bar. */
+html {
+  min-height: 100%;
+  background: #050101;
+  color-scheme: dark;
+}
+
+body,
+#root {
+  min-height: 100dvh;
+  background: #050101;
+}
+
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -115,6 +130,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background: #050101;
   }
 }

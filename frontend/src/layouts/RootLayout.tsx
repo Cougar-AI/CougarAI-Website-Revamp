@@ -6,7 +6,7 @@ import BackendStatusBanner from '@/components/BackendStatusBanner';
 
 export default function RootLayout() {
   return (
-    <div className="relative flex min-h-screen flex-col bg-[#050101] text-white">
+    <div className="relative flex min-h-[100dvh] flex-col bg-[#050101] text-white">
       <SiteBackground />
 
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 rounded bg-white px-3 py-1 text-black z-50">
@@ -29,4 +29,3 @@ export default function RootLayout() {
     </div>
   );
 }
-
