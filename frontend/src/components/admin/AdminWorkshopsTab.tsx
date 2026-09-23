@@ -139,6 +139,53 @@ function describeWorkshopAction(path: string): string {
   return 'Workshop Action';
 }
 
+const JOB_TYPE_LABELS = ['Provision', 'Teardown', 'Full Pipeline', 'Reset'] as const;
+
+function normalizeJobType(job: AnyRecord): string {
+  const raw = (pickString(job, ['type', 'job_type', 'task', 'action', 'name', 'job_name', 'title']) ?? '').toLowerCase();
+  if (raw.includes('pipeline')) return 'Full Pipeline';
+  if (raw.includes('provision')) return 'Provision';
+  if (raw.includes('teardown')) return 'Teardown';
+  if (raw.includes('reset')) return 'Reset';
+  return JOB_TYPE_LABELS.find((label) => label.toLowerCase() === raw) ?? (raw ? raw.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Workshop Job');
+}
+
+type JobStatusTone = 'success' | 'failure' | 'pending';
+
+function normalizeJobStatus(status: string): { label: string; tone: JobStatusTone } {
+  const raw = status.toLowerCase();
+  if (['success', 'succeeded', 'completed', 'complete', 'done', 'ok'].some((s) => raw.includes(s))) {
+    return { label: status, tone: 'success' };
+  }
+  if (['fail', 'error', 'cancelled', 'canceled'].some((s) => raw.includes(s))) {
+    return { label: status, tone: 'failure' };
+  }
+  return { label: status, tone: 'pending' };
+}
+
+// Same success/failure/pending hex values used elsewhere in this file
+// (ActionResultCard, StatusCard) and across the admin dashboard:
+// success = #22c55e / #86efac, failure = #ef4444 / #f87171, pending = #f59e0b / #fde68a
+const JOB_STATUS_STYLES: Record<JobStatusTone, { background: string; border: string; color: string }> = {
+  success: { background: 'rgba(34,197,94,.14)', border: 'rgba(34,197,94,.24)', color: 'rgba(134,239,172,.95)' },
+  failure: { background: 'rgba(239,68,68,.16)', border: 'rgba(239,68,68,.28)', color: 'rgba(248,113,113,.95)' },
+  pending: { background: 'rgba(245,158,11,.16)', border: 'rgba(245,158,11,.28)', color: 'rgba(253,230,138,.9)' },
+};
+
+function groupJobsById(jobs: AnyRecord[]): Array<{ jobId: string; entries: AnyRecord[] }> {
+  const order: string[] = [];
+  const groups = new Map<string, AnyRecord[]>();
+  jobs.forEach((job, index) => {
+    const jobId = pickString(job, ['job_id', 'id', 'uuid', 'task_id']) ?? `unknown-${index}`;
+    if (!groups.has(jobId)) {
+      order.push(jobId);
+      groups.set(jobId, []);
+    }
+    groups.get(jobId)!.push(job);
+  });
+  return order.map((jobId) => ({ jobId, entries: groups.get(jobId)! }));
+}
+
 function collectLogLines(value: unknown): string[] {
   const record = isRecord(value) ? value : null;
   const candidates = extractStringList(record, ['logs', 'log_lines', 'log_output', 'stdout', 'stderr', 'history']);
@@ -398,10 +445,16 @@ function ActionResultCard({ result }: { result: ActionResult | null }) {
   );
 }
 
-function JobCard({ job, onRerun }: { job: AnyRecord; onRerun: (jobId: string) => void }) {
-  const jobId = pickString(job, ['job_id', 'id', 'uuid', 'task_id']);
-  const title = pickString(job, ['name', 'job_name', 'title', 'task', 'type']) ?? (jobId ? `Job ${jobId}` : 'Job');
-  const status = pickString(job, ['status', 'state', 'phase']) ?? 'unknown';
+// One collapsible dropdown per Job ID. Only the summary row (Job ID, Job Type,
+// Status, Timestamp) renders when collapsed — full details (stage, args, logs,
+// rerun, raw JSON) only render once expanded, so the list stays scannable as
+// jobs accumulate instead of turning into a wall of always-open logs.
+function JobGroupCard({ jobId, entries, onRerun }: { jobId: string; entries: AnyRecord[]; onRerun: (jobId: string) => void }) {
+  const job = entries[0];
+  const jobType = normalizeJobType(job);
+  const rawStatus = pickString(job, ['status', 'state', 'phase']) ?? 'unknown';
+  const { tone } = normalizeJobStatus(rawStatus);
+  const statusStyle = JOB_STATUS_STYLES[tone];
   const started = formatMaybeDate(job.started_at ?? job.created_at);
   const updated = formatMaybeDate(job.updated_at ?? job.finished_at ?? job.completed_at);
   const error = pickString(job, ['error', 'error_message', 'message']);
@@ -409,57 +462,73 @@ function JobCard({ job, onRerun }: { job: AnyRecord; onRerun: (jobId: string) =>
   const stageIndex = pickNumber(job, ['stage_index']);
   const totalStages = pickNumber(job, ['total_stages']);
   const args = isRecord(job.args) ? job.args : null;
+  const extraEntries = entries.slice(1);
 
   return (
-    <div className="rounded-xl p-4 space-y-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="text-sm font-semibold text-white">{title}</h4>
-          <p className="text-xs text-white/35 mt-0.5">{jobId ? `ID ${jobId}` : 'No job identifier returned'}</p>
+    <details className="rounded-xl group" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
+      <summary className="cursor-pointer list-none p-4 flex flex-wrap items-center gap-3 justify-between">
+        <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+          <span className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border shrink-0" style={{ background: 'rgba(185,28,28,.12)', color: 'rgba(248,113,113,.95)', borderColor: 'rgba(185,28,28,.18)' }}>{jobType}</span>
+          <span className="text-sm font-semibold text-white truncate">Job {jobId}</span>
+          <span className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border shrink-0" style={{ background: statusStyle.background, color: statusStyle.color, borderColor: statusStyle.border }}>{rawStatus}</span>
         </div>
-        <span className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border shrink-0" style={{ background: 'rgba(185,28,28,.12)', color: 'rgba(248,113,113,.95)', borderColor: 'rgba(185,28,28,.18)' }}>{status}</span>
-      </div>
+        <span className="text-xs text-white/35 shrink-0">{started || updated || 'n/a'}</span>
+      </summary>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-        <div>
-          <div className="text-white/30 uppercase tracking-wide">Started</div>
-          <div className="text-white/75 mt-1">{started || 'n/a'}</div>
+      <div className="px-4 pb-4 pt-1 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,.05)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-3">
+          <div>
+            <div className="text-white/30 uppercase tracking-wide">Started</div>
+            <div className="text-white/75 mt-1">{started || 'n/a'}</div>
+          </div>
+          <div>
+            <div className="text-white/30 uppercase tracking-wide">Updated</div>
+            <div className="text-white/75 mt-1">{updated || 'n/a'}</div>
+          </div>
         </div>
-        <div>
-          <div className="text-white/30 uppercase tracking-wide">Updated</div>
-          <div className="text-white/75 mt-1">{updated || 'n/a'}</div>
-        </div>
-      </div>
 
-      {(stage || stageIndex || totalStages) && (
-        <div className="rounded-lg p-3 text-xs" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
-          <div className="text-white/30 uppercase tracking-wide">Stage</div>
-          <div className="text-white/75 mt-1">{stage || 'n/a'}{stageIndex || totalStages ? ` (${stageIndex ?? 'n/a'} / ${totalStages ?? 'n/a'})` : ''}</div>
-        </div>
-      )}
+        {(stage || stageIndex || totalStages) && (
+          <div className="rounded-lg p-3 text-xs" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
+            <div className="text-white/30 uppercase tracking-wide">Stage</div>
+            <div className="text-white/75 mt-1">{stage || 'n/a'}{stageIndex || totalStages ? ` (${stageIndex ?? 'n/a'} / ${totalStages ?? 'n/a'})` : ''}</div>
+          </div>
+        )}
 
-      {args && (
-        <details className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
-          <summary className="cursor-pointer text-xs text-white/45 uppercase tracking-wide">Job args</summary>
-          <pre className="mt-3 overflow-auto text-[11px] text-white/70 leading-relaxed max-h-48 whitespace-pre-wrap break-words">{stringifyJson(args)}</pre>
-        </details>
-      )}
+        {trimLogs(collectLogLines(job)).length > 0 && (
+          <div className="rounded-lg p-3" style={{ background: 'rgba(0,0,0,.25)', border: '1px solid rgba(255,255,255,.06)' }}>
+            <div className="text-white/30 uppercase tracking-wide text-xs">Logs</div>
+            <pre className="mt-2 overflow-auto text-[11px] text-white/70 leading-relaxed max-h-56 whitespace-pre-wrap break-words">{trimLogs(collectLogLines(job)).join('\n')}</pre>
+          </div>
+        )}
 
-      {error && <p className="text-xs text-rose-300/80">{error}</p>}
+        {args && (
+          <details className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
+            <summary className="cursor-pointer text-xs text-white/45 uppercase tracking-wide">Job args</summary>
+            <pre className="mt-3 overflow-auto text-[11px] text-white/70 leading-relaxed max-h-48 whitespace-pre-wrap break-words">{stringifyJson(args)}</pre>
+          </details>
+        )}
 
-      <div className="flex items-center gap-2">
-        {jobId && (
+        {error && <p className="text-xs text-rose-300/80">{error}</p>}
+
+        <div className="flex items-center gap-2">
           <button onClick={() => onRerun(jobId)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-all" style={{ background: 'rgba(185,28,28,.2)', border: '1px solid rgba(185,28,28,.28)' }}>
             <RotateCcw size={12} /> Rerun
           </button>
+        </div>
+
+        <details className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
+          <summary className="cursor-pointer text-xs text-white/45 uppercase tracking-wide">Raw job JSON</summary>
+          <pre className="mt-3 overflow-auto text-[11px] text-white/70 leading-relaxed max-h-56 whitespace-pre-wrap break-words">{stringifyJson(job)}</pre>
+        </details>
+
+        {extraEntries.length > 0 && (
+          <details className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
+            <summary className="cursor-pointer text-xs text-white/45 uppercase tracking-wide">{extraEntries.length} earlier {extraEntries.length === 1 ? 'entry' : 'entries'} for this Job ID</summary>
+            <pre className="mt-3 overflow-auto text-[11px] text-white/70 leading-relaxed max-h-56 whitespace-pre-wrap break-words">{stringifyJson(extraEntries)}</pre>
+          </details>
         )}
       </div>
-
-      <details className="rounded-lg p-3" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.05)' }}>
-        <summary className="cursor-pointer text-xs text-white/45 uppercase tracking-wide">Raw job JSON</summary>
-        <pre className="mt-3 overflow-auto text-[11px] text-white/70 leading-relaxed max-h-56 whitespace-pre-wrap break-words">{stringifyJson(job)}</pre>
-      </details>
-    </div>
+    </details>
   );
 }
 
@@ -656,9 +725,7 @@ export default function AdminWorkshopsTab() {
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg" style={{ background: 'rgba(185,28,28,.15)' }}><Wrench size={16} className="text-red-300" /></div>
               <div>
-                <h2 className="font-['Oxanium'] text-2xl font-bold text-white">Workshops Control</h2>
-                <p className="text-sm text-white/40">Create your workshop VM accessible through workshops.cougarai.org. This page allows you to cater your workshops to end users. Please do not use in a production environment as we do not have the neccessary resources to run 50+ VMs.</p>
-              </div>
+                <h2 className="font-['Oxanium'] text-2xl font-bold text-white">Workshops Control</h2>              </div>
             </div>
             <p className="text-xs text-white/35 max-w-3xl leading-relaxed">History and current count of Virtual Machine open, and jobs ran.</p>
           </div>
@@ -693,7 +760,7 @@ export default function AdminWorkshopsTab() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="space-y-6">
           <details open className="rounded-2xl p-5" style={glass}>
-            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 text-white font-semibold font-['Oxanium']"><span className="inline-flex items-center gap-2"><Activity size={16} className="text-red-300" /> Live Data (In Development)</span><span className="text-xs uppercase tracking-wide text-white/35">status, results, logs</span></summary>
+            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 text-white font-semibold font-['Oxanium']"><span className="inline-flex items-center gap-2"><Activity size={16} className="text-red-300" /> Live Data</span><span className="text-xs uppercase tracking-wide text-white/35">status, results, logs</span></summary>
             <div className="mt-4 space-y-4">
               <StatusCard data={statusQuery.data} />
               <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
@@ -769,7 +836,7 @@ export default function AdminWorkshopsTab() {
             <div className="mt-4 space-y-4">
               <div className="flex gap-3">
                 <input type="text" value={jobLookupInput} onChange={(e) => setJobLookupInput(e.target.value)} placeholder="Enter job id" className={inputCls} style={{ background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.08)' }} />
-                <button onClick={lookupJob} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all" style={{ background: 'rgba(185,28,28,.78)', boxShadow: '0 0 20px rgba(185,28,28,.25)' }}><Search size={14} /> Load</button>
+                <button onClick={lookupJob} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all" style={{ background: 'rgba(185,28,28,.78)', boxShadow: '0 0 20px rgba(185,28,28,.25)' }}><Search size={14} /> Search</button>
               </div>
 
               {selectedJobId && (
@@ -806,12 +873,13 @@ export default function AdminWorkshopsTab() {
               <div className="space-y-3 max-h-[34rem] overflow-auto pr-1">
                 {jobsQuery.isLoading && <p className="text-sm text-white/40">Loading jobs…</p>}
                 {!jobsQuery.isLoading && jobs.length === 0 && <p className="text-sm text-white/40">No jobs returned by the service.</p>}
-                {jobs.map((job, index) => (
-                  <JobCard
-                    key={pickString(job, ['job_id', 'id', 'uuid', 'task_id']) ?? `${index}`}
-                    job={job}
-                    onRerun={(jobId) => {
-                      workshopMutation.mutate({ method: 'POST', path: `/admin/workshops/jobs/${encodeURIComponent(jobId)}/rerun` }, { onSuccess: () => setNotice(`Queued rerun for ${jobId}.`) });
+                {groupJobsById(jobs).map(({ jobId, entries }) => (
+                  <JobGroupCard
+                    key={jobId}
+                    jobId={jobId}
+                    entries={entries}
+                    onRerun={(id) => {
+                      workshopMutation.mutate({ method: 'POST', path: `/admin/workshops/jobs/${encodeURIComponent(id)}/rerun` }, { onSuccess: () => setNotice(`Queued rerun for ${id}.`) });
                     }}
                   />
                 ))}
