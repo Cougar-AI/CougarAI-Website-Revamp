@@ -1,14 +1,12 @@
 import os
-import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-from flask import request, jsonify, current_app
+from flask import request, jsonify
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from app.routes.events import events_bp
-from app.raw_db import get_db, connect as db_connect
+from app.raw_db import get_db
 from app.utils.auth_decorators import require_officer
-from app.services.notification_scheduler import scheduler
 
 _CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
@@ -37,135 +35,81 @@ def _to_rfc3339(dt_str: str) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _sync_event_to_google(conn, event_id: int) -> str:
-    """Create or update the Google Calendar event mirroring `events` row `event_id`.
+@events_bp.route("/google", methods=["GET"])
+def getGoogleCalendarEvents():
+    try:
+        creds_path = _resolve_creds_path("GOOGLE_CALENDAR_CREDS_PATH")
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+        if not creds_path:
+            return jsonify({"error": "GOOGLE_CALENDAR_CREDS_PATH is not configured"}), 500
 
-    Raises on failure (not found, Google API error, missing credentials) — callers
-    decide whether that should surface as an HTTP error or be swallowed as best-effort.
-    """
-    with conn.cursor() as cur:
-        cur.execute(
-            "SELECT name, description, location, starts_at, ends_at, google_event_id FROM events WHERE event_id = %s",
-            (event_id,),
+        creds = service_account.Credentials.from_service_account_file(
+            creds_path,
+            scopes=_CALENDAR_SCOPES,
         )
-        ev = cur.fetchone()
-    if not ev:
-        raise ValueError(f"Event {event_id} not found")
-
-    service = _get_calendar_service()
-    calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
-
-    starts_at = _to_rfc3339(str(ev["starts_at"]))
-    ends_at = _to_rfc3339(str(ev["ends_at"])) if ev["ends_at"] else None
-    if not ends_at:
-        start_dt = datetime.fromisoformat(str(ev["starts_at"]))
-        ends_at = (start_dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    body = {
-        "summary": ev["name"],
-        "description": ev["description"] or "",
-        "location": ev["location"] or "",
-        "start": {"dateTime": starts_at, "timeZone": "America/Chicago"},
-        "end": {"dateTime": ends_at, "timeZone": "America/Chicago"},
-    }
-
-    existing_google_id = ev["google_event_id"]
-    if existing_google_id:
-        result = service.events().patch(
-            calendarId=calendar_id, eventId=existing_google_id, body=body
+        service = build("calendar", "v3", credentials=creds)
+        result = service.events().list(
+            calendarId=calendar_id,
+            timeMin="2022-08-08T00:00:00Z",
+            maxResults=500,
+            singleEvents=True,
+            orderBy="startTime",
         ).execute()
-    else:
-        result = service.events().insert(calendarId=calendar_id, body=body).execute()
-
-    google_event_id = result["id"]
-    with conn.cursor() as cur:
-        cur.execute(
-            "UPDATE events SET google_event_id = %s WHERE event_id = %s",
-            (google_event_id, event_id),
-        )
-        conn.commit()
-
-    return google_event_id
-
-
-def sync_event_to_google_best_effort(conn, event_id: int) -> Optional[str]:
-    """Same as _sync_event_to_google, but never raises — logs and returns None on
-    failure. The DB is the source of truth; a Google Calendar hiccup should never
-    fail the event create/update request itself."""
-    try:
-        return _sync_event_to_google(conn, event_id)
-    except Exception:
-        current_app.logger.exception("Best-effort Google Calendar sync failed for event_id=%s", event_id)
-        return None
-
-
-def _run_scheduled_sync(app, event_id: int) -> None:
-    with app.app_context():
-        conn = db_connect()
-        try:
-            sync_event_to_google_best_effort(conn, event_id)
-        finally:
-            conn.close()
-
-
-def schedule_google_sync(event_id: int) -> None:
-    """Fire-and-forget: sync this event to Google Calendar shortly after the
-    current request returns, instead of the caller (an officer saving an
-    event) waiting on a live Google API round-trip inside their request.
-    Uses its own DB connection (raw_db.connect()), never the request-scoped
-    one from get_db() — that connection is closed as soon as this request
-    ends, well before this job runs.
-    """
-    try:
-        app = current_app._get_current_object()
-        scheduler.add_job(
-            id=f"gcal-sync-{event_id}-{uuid.uuid4().hex[:8]}",
-            func=_run_scheduled_sync,
-            args=[app, event_id],
-            trigger="date",
-            run_date=datetime.now() + timedelta(seconds=1),
-            misfire_grace_time=60,
-        )
-    except Exception:
-        current_app.logger.exception("Failed to schedule Google Calendar sync for event_id=%s", event_id)
-
-
-def remove_event_from_google_best_effort(conn, event_id: int) -> None:
-    """Delete the Google Calendar event mirroring `events` row `event_id`, if any.
-    Best-effort — a Google API failure here never blocks the caller."""
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT google_event_id FROM events WHERE event_id = %s", (event_id,))
-            ev = cur.fetchone()
-        if not ev or not ev["google_event_id"]:
-            return
-
-        google_event_id = ev["google_event_id"]
-        try:
-            service = _get_calendar_service()
-            calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
-            service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
-        except Exception:
-            pass  # event row may be about to be deleted anyway; don't block on Google
-
-        with conn.cursor() as cur:
-            cur.execute("UPDATE events SET google_event_id = NULL WHERE event_id = %s", (event_id,))
-            conn.commit()
-    except Exception:
-        current_app.logger.exception("Best-effort Google Calendar removal failed for event_id=%s", event_id)
+        return jsonify(result.get("items", [])), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @events_bp.route("/<int:event_id>/sync-to-google", methods=["POST", "OPTIONS"])
 @require_officer
 def sync_to_google(event_id):
     conn = get_db()
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT name, description, location, starts_at, ends_at, google_event_id FROM events WHERE event_id = %s",
+            (event_id,),
+        )
+        ev = cur.fetchone()
+        if not ev:
+            return jsonify({"error": "Event not found"}), 404
+
     try:
-        google_event_id = _sync_event_to_google(conn, event_id)
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 404
+        service = _get_calendar_service()
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+
+        starts_at = _to_rfc3339(str(ev["starts_at"]))
+        ends_at = _to_rfc3339(str(ev["ends_at"])) if ev["ends_at"] else None
+        if not ends_at:
+            start_dt = datetime.fromisoformat(str(ev["starts_at"]))
+            ends_at = (start_dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        body = {
+            "summary": ev["name"],
+            "description": ev["description"] or "",
+            "location": ev["location"] or "",
+            "start": {"dateTime": starts_at, "timeZone": "America/Chicago"},
+            "end": {"dateTime": ends_at, "timeZone": "America/Chicago"},
+        }
+
+        existing_google_id = ev["google_event_id"]
+        if existing_google_id:
+            result = service.events().patch(
+                calendarId=calendar_id, eventId=existing_google_id, body=body
+            ).execute()
+        else:
+            result = service.events().insert(calendarId=calendar_id, body=body).execute()
+
+        google_event_id = result["id"]
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE events SET google_event_id = %s WHERE event_id = %s",
+                (google_event_id, event_id),
+            )
+            conn.commit()
+
+        return jsonify({"google_event_id": google_event_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    return jsonify({"google_event_id": google_event_id}), 200
 
 
 @events_bp.route("/<int:event_id>/sync-to-google", methods=["DELETE", "OPTIONS"])
@@ -177,10 +121,22 @@ def remove_from_google(event_id):
         ev = cur.fetchone()
         if not ev:
             return jsonify({"error": "Event not found"}), 404
-        if not ev["google_event_id"]:
+
+        google_event_id = ev["google_event_id"]
+        if not google_event_id:
             return jsonify({"error": "Event is not synced to Google Calendar"}), 400
 
-    remove_event_from_google_best_effort(conn, event_id)
+    try:
+        service = _get_calendar_service()
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+        service.events().delete(calendarId=calendar_id, eventId=google_event_id).execute()
+    except Exception:
+        pass
+
+    with conn.cursor() as cur:
+        cur.execute("UPDATE events SET google_event_id = NULL WHERE event_id = %s", (event_id,))
+        conn.commit()
+
     return jsonify({"ok": True}), 200
 
 

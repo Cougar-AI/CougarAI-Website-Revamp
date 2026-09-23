@@ -6,7 +6,6 @@ from app.utils.date_validation import is_valid_date
 from app.utils.query_handler import build_sql_querys
 from app.utils.auth_decorators import require_admin, require_officer
 from app.services.event_admin_service import EventAdminService
-from app.routes.events.integrations import schedule_google_sync, remove_event_from_google_best_effort
 
 
 @events_bp.route("/event-types", methods=["GET", "OPTIONS"])
@@ -52,7 +51,7 @@ def getEvents():
                 "(SELECT COUNT(*) FROM event_rsvps WHERE event_rsvps.event_id = events.event_id) AS rsvp_count, "
                 "(SELECT color FROM event_types WHERE LOWER(TRIM(name)) = LOWER(TRIM(events.event_type)) LIMIT 1) AS type_color "
                 "FROM events",
-                filter_dict, date_column="starts_at", tz_aware=True
+                filter_dict, date_column="starts_at"
             )
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
@@ -67,7 +66,6 @@ def getEvents():
 def deleteEvent(event_id):
     try:
         connection = get_db()
-        remove_event_from_google_best_effort(connection, event_id)
         with connection.cursor() as cur:
             cur.execute("DELETE FROM events WHERE event_id = %s", (event_id,))
             if cur.rowcount == 0:
@@ -112,7 +110,6 @@ def addEvent():
             cur.execute(query, tuple(params))
             event_id = cur.fetchone()["event_id"]
             connection.commit()
-            schedule_google_sync(event_id)
             return jsonify({"message": "Success", "event_id": event_id}), 201
 
     except Exception as e:
@@ -151,7 +148,7 @@ def getAttendance():
             JOIN profile ON points.student_id = profile.student_id
             """
 
-            query, params = build_sql_querys(base_query, filter_dict, date_column="events.starts_at", tz_aware=True)
+            query, params = build_sql_querys(base_query, filter_dict, date_column="events.starts_at")
             query += """
                 GROUP BY
                     points.points_id,
@@ -208,7 +205,6 @@ def updateEvent(event_id):
                 return jsonify({"error": f"Event ID {event_id} not found"}), 404
 
             connection.commit()
-            schedule_google_sync(event_id)
             return jsonify({"message": "Event updated successfully"}), 200
     except Exception as e:
         connection.rollback()

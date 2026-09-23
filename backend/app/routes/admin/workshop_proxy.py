@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 WORKSHOP_API_URL = os.environ.get("WORKSHOP_API_URL")
 WORKSHOP_API_KEY = os.environ.get("WORKSHOP_API_KEY")
 
-DEFAULT_TIMEOUT = 15
+DEFAULT_TIMEOUT = 15  
 
 
 _GITHUB_REPO_SSH_RE = re.compile(r'^git@github\.com:(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$')

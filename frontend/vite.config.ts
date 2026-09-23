@@ -5,7 +5,7 @@ import { defineConfig } from "vite"
 import { copyFileSync } from "fs"
 import { resolve } from "path"
 
-const backendTarget = process.env.VITE_PROXY_TARGET || "http://127.0.0.1:5001"
+const backendTarget = process.env.VITE_PROXY_TARGET || "http://127.0.0.1:5000"
 console.log("🔍 VITE_BACKEND_API_URL:", process.env.VITE_BACKEND_API_URL)
 console.log("🔍 VITE_PROXY_TARGET:", process.env.VITE_PROXY_TARGET)
 

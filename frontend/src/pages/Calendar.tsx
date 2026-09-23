@@ -7,7 +7,6 @@ import {
   formatTimeRange,
   formatWeekdayShort,
   todayKeyCT,
-  dateKeyFromUtc,
 } from "@/lib/dates";
 import { EventModal } from "@/components/admin/AdminEventsTab";
 import type {
@@ -33,7 +32,7 @@ interface MergedEvent {
   key: string;
   title: string;
   type: string;       // raw DB type name, lowercased
-  typeColor: string | null;  // DB-resolved color
+  typeColor: string | null;  // DB-resolved color (null for GCal-only events)
   dateKey: string;    // "YYYY-MM-DD"
   startDt: string | null;
   endDt: string | null;
@@ -84,6 +83,16 @@ function getTypeColor(typeName: string, colorMap: TypeColorMap, override?: strin
   return fuzzy ? fuzzy[1] : FALLBACK_COLOR;
 }
 
+// For GCal-only events where we must infer the type from the title
+function inferTypeFromTitle(title: string): string {
+  const l = title.toLowerCase();
+  if (l.includes("workshop")) return "workshop";
+  if (l.includes("meeting")) return "meeting";
+  if (l.includes("social")) return "social";
+  if (l.includes("hackathon")) return "hackathon";
+  return "other";
+}
+
 function toDateKey(year: number, month0: number, day: number) {
   return `${year}-${String(month0 + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
@@ -123,7 +132,7 @@ function buildGCalUrl(ev: MergedEvent): string {
 function dbToMerged(db: DbEvent): MergedEvent {
   const startDt = db.starts_at ? db.starts_at.replace(" ", "T") : null;
   const endDt = db.ends_at ? db.ends_at.replace(" ", "T") : null;
-  const dateKey = dateKeyFromUtc(db.starts_at);
+  const dateKey = (startDt ?? db.starts_at).slice(0, 10);
   return {
     key: `db-${db.event_id}`,
     title: db.name,
@@ -143,17 +152,59 @@ function dbToMerged(db: DbEvent): MergedEvent {
   };
 }
 
-// The `events` table is the single source of truth for the site's calendar —
-// Google Calendar is a one-way, best-effort export (see backend
-// sync_event_to_google_best_effort), never a second thing this page reads
-// from. That avoids the two sources drifting apart (stale titles/times after
-// an edit, "ghost" events created directly in Google Calendar with no DB
-// row / no points / no RSVP, and a page that broke entirely if the Google
-// API was unreachable even though every field it needed already lived here).
-function normalizeDbEvents(dbEvents: DbEvent[]): MergedEvent[] {
-  return dbEvents
-    .filter((db) => db.starts_at && db.starts_at.slice(0, 10).length >= 10)
-    .map(dbToMerged);
+function mergeEvents(gcalRaw: Record<string, unknown>[], dbEvents: DbEvent[]): MergedEvent[] {
+  const dbByGcalId = new Map<string, DbEvent>();
+  const dbNoGcal: DbEvent[] = [];
+  for (const db of dbEvents) {
+    if (db.google_event_id) dbByGcalId.set(db.google_event_id, db);
+    else dbNoGcal.push(db);
+  }
+
+  const gcalIds = new Set(gcalRaw.map((g) => g.id as string));
+  const merged: MergedEvent[] = [];
+
+  for (const g of gcalRaw) {
+    const start = g.start as Record<string, string> | undefined;
+    if (!start) continue;
+    const startRaw = start.dateTime ?? start.date ?? "";
+    const dateKey = startRaw.slice(0, 10);
+    if (dateKey.length < 10) continue;
+    const db = dbByGcalId.get(g.id as string) ?? null;
+    const end = g.end as Record<string, string> | undefined;
+    const title = (g.summary as string | undefined) ?? "Untitled";
+    const startDt = start.dateTime ?? null;
+    const endDt = end?.dateTime ?? null;
+    merged.push({
+      key: `gcal-${g.id}`,
+      title,
+      // DB type takes priority; fall back to title inference for GCal-only events
+      type: db ? db.event_type.toLowerCase().trim() : inferTypeFromTitle(title),
+      typeColor: db?.type_color ?? null,
+      dateKey,
+      startDt,
+      endDt,
+      description: db?.description ?? (g.description as string | undefined) ?? null,
+      location: db?.location ?? (g.location as string | undefined) ?? null,
+      locationUrl: db?.location_url ?? null,
+      dbEventId: db?.event_id ?? null,
+      rsvpEnabled: db?.rsvp_enabled ?? false,
+      rsvpCount: db?.rsvp_count ?? 0,
+      pointsValue: db ? db.points_value : null,
+      isPast: computeIsPast(startDt, endDt, dateKey),
+    });
+  }
+
+  for (const [gcalId, db] of dbByGcalId) {
+    if (!gcalIds.has(gcalId)) {
+      if (db.starts_at.slice(0, 10).length >= 10) merged.push(dbToMerged(db));
+    }
+  }
+
+  for (const db of dbNoGcal) {
+    if (db.starts_at.slice(0, 10).length >= 10) merged.push(dbToMerged(db));
+  }
+
+  return merged;
 }
 
 // ── CalendarGrid ──────────────────────────────────────────────────────────────
@@ -544,6 +595,7 @@ export default function Calendar() {
   const [showPastInList, setShowPastInList] = useState(false);
   const [listSearch, setListSearch] = useState("");
 
+  const [gcalRaw, setGcalRaw] = useState<Record<string, unknown>[]>([]);
   const [dbEvents, setDbEvents] = useState<DbEvent[]>([]);
   const [eventTypes, setEventTypes] = useState<EventTypeOption[]>([]);
   const [userRsvpIds, setUserRsvpIds] = useState<Set<number>>(new Set());
@@ -561,10 +613,12 @@ export default function Calendar() {
   // Load events + event types in parallel
   useEffect(() => {
     Promise.all([
+      fetch(`${API_BASE}/events/google`).then((r) => r.json()).catch(() => []),
       fetch(`${API_BASE}/events/`).then(async (r) => { const d = await r.json(); return Array.isArray(d) ? d : []; }).catch(() => []),
       fetch(`${API_BASE}/events/event-types`).then(async (r) => { const d = await r.json(); return Array.isArray(d.event_types) ? d.event_types : []; }).catch(() => []),
     ])
-      .then(([db, types]) => {
+      .then(([gcal, db, types]) => {
+        setGcalRaw(Array.isArray(gcal) ? gcal : []);
         setDbEvents(Array.isArray(db) ? db : []);
         // Public endpoint only returns active types; mark them so EventModal's filter works
         setEventTypes(Array.isArray(types) ? types.map((t: EventTypeOption) => ({ ...t, is_active: true })) : []);
@@ -607,7 +661,7 @@ export default function Calendar() {
     })),
   ], [eventTypes]);
 
-  const allEvents = useMemo(() => normalizeDbEvents(dbEvents), [dbEvents]);
+  const allEvents = useMemo(() => mergeEvents(gcalRaw, dbEvents), [gcalRaw, dbEvents]);
 
   const filteredEvents = useMemo(() => {
     let evs = type === "all" ? allEvents : allEvents.filter((e) => e.type === type);
@@ -834,7 +888,7 @@ export default function Calendar() {
                   fontFamily: "Oxanium,sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all .15s", whiteSpace: "nowrap",
                 }}
               >
-                {showPastInList ? "✓ " : ""}Show Past Events
+                {showPastInList ? "✓ " : ""}Past Events
               </button>
             </div>
           )}
@@ -842,6 +896,7 @@ export default function Calendar() {
           <div style={{ fontSize: 12.5, color: "rgba(255,255,255,.38)", fontFamily: "Oxanium,sans-serif", marginBottom: 16, textAlign: "right", wordBreak: "break-word" }}>
             {displayCount} event{displayCount !== 1 ? "s" : ""}
             {showMyRsvpsOnly && " · My RSVPs only"}
+            {viewMode === "list" && showPastInList && " · Incl. past"}
           </div>
 
           {viewMode === "calendar" ? (

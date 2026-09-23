@@ -6,22 +6,11 @@
 
 const CTZ = "America/Chicago";
 
-/**
- * Parse a backend timestamp string into a Date, correctly as an absolute instant.
- *
- * PostgreSQL TIMESTAMP (naive) columns come back with no timezone suffix, but
- * they're always UTC under the hood (see toUtcIso() on the write side) — so a
- * bare string here is explicitly marked UTC before parsing. Without this,
- * `new Date(...)` treats an unsuffixed string as the *browser's* local time,
- * which only coincidentally matches Central Time for a Central-Time viewer
- * and is wrong everywhere else. TIMESTAMPTZ columns already include an
- * offset/Z suffix and are left as-is.
- */
+/** Parse a date string that may use a space separator (PostgreSQL naive timestamps).  */
 export function parseIso(s: string | null | undefined): Date | null {
   if (!s) return null;
-  const iso = s.replace(" ", "T");
-  const hasZone = /[Zz]|[+-]\d{2}:\d{2}$/.test(iso);
-  const d = new Date(hasZone ? iso : `${iso}Z`);
+  // Replace space separator with T to make it valid ISO 8601
+  const d = new Date(s.replace(" ", "T"));
   return isNaN(d.getTime()) ? null : d;
 }
 
@@ -160,18 +149,6 @@ export function formatDateFromKey(dateKey: string): string {
  */
 export function todayKeyCT(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: CTZ }); // en-CA gives YYYY-MM-DD
-}
-
-/**
- * Convert a naive backend timestamp (stored as UTC, no timezone suffix, e.g.
- * PostgreSQL's "2026-09-15T00:30:00") into a "YYYY-MM-DD" calendar-day key in
- * Central Time. Without this, an evening CT event whose UTC date rolls over
- * to the next day gets placed under the wrong day on the calendar grid.
- */
-export function dateKeyFromUtc(s: string | null | undefined): string {
-  const d = parseIso(s);
-  if (!d) return s ? s.slice(0, 10) : "";
-  return d.toLocaleDateString("en-CA", { timeZone: CTZ });
 }
 
 /**
