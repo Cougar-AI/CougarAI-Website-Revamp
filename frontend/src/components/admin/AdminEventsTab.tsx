@@ -1694,7 +1694,8 @@ export default function AdminEventsTab() {
   const [typeFilter, setTypeFilter] = useState('');
   const [dateFrom, setDateFrom] = useState(eventCutoff);
   const [dateTo, setDateTo] = useState('');
-  const [sortDesc, setSortDesc] = useState(true);
+  // Show the next event first; the Date header still lets admins reverse it.
+  const [sortDesc, setSortDesc] = useState(false);
   const [confirmState, setConfirmState] = useState<{ message: string; confirmLabel: string; onConfirm: () => void } | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [attendanceEventId, setAttendanceEventId] = useState<number | null>(null);
