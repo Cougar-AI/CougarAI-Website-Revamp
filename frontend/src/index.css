@@ -133,4 +133,11 @@ body,
     @apply text-foreground;
     background: #050101;
   }
+  select {
+    color-scheme: dark;
+  }
+  select option {
+    background-color: #0a0a0a;
+    color: #fff;
+  }
 }
