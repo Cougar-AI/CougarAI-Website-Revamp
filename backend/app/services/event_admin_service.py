@@ -55,24 +55,55 @@ class EventAdminService(BaseService):
 
             cur.execute(
                 """
+                WITH attendance AS (
+                    -- Current check-in records.
+                    SELECT
+                        ec.checkin_id::text AS attendance_id,
+                        ec.checked_in_at,
+                        ec.student_id::text AS student_id,
+                        ec.user_id,
+                        'checkin' AS source
+                    FROM event_checkins ec
+                    WHERE ec.event_id = %s
+
+                    UNION ALL
+
+                    -- Older events recorded attendance by awarding an
+                    -- event-linked points row before event_checkins existed.
+                    -- Do not duplicate members who also have a newer check-in.
+                    SELECT
+                        ('points-' || pt.points_id::text) AS attendance_id,
+                        pt.date::timestamp AS checked_in_at,
+                        pt.student_id::text AS student_id,
+                        legacy_profile.user_id,
+                        'historical_points' AS source
+                    FROM points pt
+                    LEFT JOIN profile legacy_profile ON legacy_profile.student_id = pt.student_id
+                    WHERE pt.event_id = %s
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM event_checkins current_checkin
+                          WHERE current_checkin.event_id = pt.event_id
+                            AND current_checkin.student_id::text = pt.student_id::text
+                      )
+                )
                 SELECT
-                    ec.checkin_id, ec.checked_in_at,
-                    ec.student_id, ec.user_id,
+                    attendance.attendance_id, attendance.checked_in_at,
+                    attendance.student_id, attendance.user_id, attendance.source,
                     p.first_name, p.last_name, p.avatar_url,
                     pt.points
-                FROM event_checkins ec
-                LEFT JOIN profile p ON p.student_id = ec.student_id
-                LEFT JOIN points pt ON pt.student_id = ec.student_id AND pt.event_id = ec.event_id
-                WHERE ec.event_id = %s
-                ORDER BY ec.checked_in_at ASC
+                FROM attendance
+                LEFT JOIN profile p ON p.student_id::text = attendance.student_id
+                LEFT JOIN points pt ON pt.student_id::text = attendance.student_id AND pt.event_id = %s
+                ORDER BY attendance.checked_in_at ASC NULLS LAST
                 """,
-                (event_id,),
+                (event_id, event_id, event_id),
             )
             rows = cur.fetchall()
 
         attendees = [
             {
-                "checkin_id": r["checkin_id"],
+                "checkin_id": r["attendance_id"],
                 "checked_in_at": r["checked_in_at"].isoformat() if r["checked_in_at"] else None,
                 "student_id": r["student_id"],
                 "user_id": r["user_id"],
@@ -80,6 +111,7 @@ class EventAdminService(BaseService):
                 "last_name": r["last_name"],
                 "avatar_url": r["avatar_url"],
                 "points": r["points"],
+                "source": r["source"],
             }
             for r in rows
         ]
@@ -128,11 +160,31 @@ class EventAdminService(BaseService):
                     e.event_id, e.name, e.event_type, e.description,
                     e.location, e.location_url, e.starts_at, e.ends_at,
                     e.capacity, e.check_in_code, e.check_in_enabled, e.points_value,
-                    COUNT(ec.checkin_id) AS attendance_count
+                    COALESCE(attendance.attendance_count, 0) AS attendance_count
                 FROM events e
-                LEFT JOIN event_checkins ec ON ec.event_id = e.event_id
+                LEFT JOIN (
+                    SELECT event_id, COUNT(*) AS attendance_count
+                    FROM (
+                        SELECT
+                            ec.event_id,
+                            COALESCE(
+                                NULLIF(ec.student_id::text, ''),
+                                'user:' || COALESCE(ec.user_id::text, ec.checkin_id::text)
+                            ) AS attendee_key
+                        FROM event_checkins ec
+
+                        UNION
+
+                        SELECT
+                            pt.event_id,
+                            NULLIF(pt.student_id::text, '') AS attendee_key
+                        FROM points pt
+                        WHERE pt.event_id IS NOT NULL
+                    ) all_attendees
+                    WHERE attendee_key IS NOT NULL
+                    GROUP BY event_id
+                ) attendance ON attendance.event_id = e.event_id
                 {where}
-                GROUP BY e.event_id
                 ORDER BY e.starts_at DESC
                 LIMIT %s
                 """,

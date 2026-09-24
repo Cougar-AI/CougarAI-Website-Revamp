@@ -23,13 +23,14 @@ interface Event {
 }
 
 interface Attendee {
-  checkin_id: number;
+  checkin_id: string;
   checked_in_at: string | null;
   student_id: string | null;
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
   points: number | null;
+  source: 'checkin' | 'historical_points';
 }
 
 interface AttendanceResponse {
@@ -42,6 +43,7 @@ interface AttendanceResponse {
 type SortKey = 'date' | 'attendance' | 'fill';
 type SortDir = 'asc' | 'desc';
 type FilterMode = 'all' | 'past' | 'upcoming';
+const EVENT_CUTOFF = '2026-09-14';
 
 const cardStyle = {
   background: 'rgba(255,255,255,.04)',
@@ -175,6 +177,9 @@ function AttendanceModal({ event, onClose }: { event: Event; onClose: () => void
                         {formatTime(a.checked_in_at)}
                       </span>
                     )}
+                    {a.source === 'historical_points' && (
+                      <span className="text-[10px] text-white/30 shrink-0">Historical</span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -198,7 +203,7 @@ export default function AdminEventStatsTab() {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [attendanceEvent, setAttendanceEvent] = useState<Event | null>(null);
-  const [startDate, setStartDate] = useState('');
+  const [startDate, setStartDate] = useState(EVENT_CUTOFF);
   const [endDate, setEndDate] = useState('');
 
   const { data: eventsData, isLoading } = useQuery<{ events: Event[] }>({
@@ -310,7 +315,8 @@ export default function AdminEventStatsTab() {
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              min={EVENT_CUTOFF}
+              onChange={(e) => setStartDate(e.target.value || EVENT_CUTOFF)}
               className="rounded-lg px-2.5 py-1.5 text-xs text-white"
               style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)' }}
             />
@@ -322,11 +328,11 @@ export default function AdminEventStatsTab() {
               className="rounded-lg px-2.5 py-1.5 text-xs text-white"
               style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)' }}
             />
-            {(startDate || endDate) && (
+            {(startDate !== EVENT_CUTOFF || endDate) && (
               <button
-                onClick={() => { setStartDate(''); setEndDate(''); }}
+                onClick={() => { setStartDate(EVENT_CUTOFF); setEndDate(''); }}
                 className="p-1 rounded text-white/40 hover:text-white/70 transition-colors"
-                title="Clear date filter"
+                title="Reset date filter"
               >
                 <X size={12} />
               </button>

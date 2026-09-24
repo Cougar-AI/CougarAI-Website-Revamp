@@ -265,17 +265,24 @@ def reset_password():
 def refresh():
     token = request.cookies.get("refresh_token") or ""
     if not token:
+        current_app.logger.info("auth/refresh rejected reason=missing_cookie")
         return jsonify({"error": "unauthorized"}), 401
 
     if not _request_origin_allowed():
+        current_app.logger.warning(
+            "auth/refresh rejected reason=origin_not_allowed origin=%s",
+            request.headers.get("Origin") or request.headers.get("Referer") or "none",
+        )
         return jsonify({"error": "forbidden"}), 403
 
     try:
         claims = _jwt_decode(token, current_app.config["JWT_REFRESH_SECRET"])
     except Exception:
+        current_app.logger.info("auth/refresh rejected reason=invalid_token")
         return jsonify({"error": "unauthorized"}), 401
 
     if claims.get("typ") != "refresh":
+        current_app.logger.warning("auth/refresh rejected reason=wrong_token_type")
         return jsonify({"error": "unauthorized"}), 401
 
     jti = claims.get("jti")
@@ -283,8 +290,10 @@ def refresh():
     try:
         user_id = int(sub or 0)
     except Exception:
+        current_app.logger.warning("auth/refresh rejected reason=invalid_subject")
         return jsonify({"error": "unauthorized"}), 401
     if not jti or not user_id:
+        current_app.logger.warning("auth/refresh rejected reason=missing_claims")
         return jsonify({"error": "unauthorized"}), 401
 
     token_hash = _sha256(token)
@@ -297,11 +306,15 @@ def refresh():
         ).mappings().first()
 
         if not row:
-            conn.execute(text("DELETE FROM refresh_tokens WHERE user_id = :uid"), {"uid": user_id})
+            # A second tab can send an older cookie just after another request
+            # rotates it. Do not revoke the freshly issued token for the whole
+            # account in that race; this stale request is simply unauthorized.
+            current_app.logger.info("auth/refresh rejected reason=token_not_found user_id=%s", user_id)
             return jsonify({"error": "unauthorized"}), 401
 
         if row["user_id"] != user_id or row["token_hash"] != token_hash or row["expires_at"] <= now:
             conn.execute(text("DELETE FROM refresh_tokens WHERE jti = :jti"), {"jti": jti})
+            current_app.logger.info("auth/refresh rejected reason=token_mismatch user_id=%s", user_id)
             return jsonify({"error": "unauthorized"}), 401
 
         conn.execute(text("DELETE FROM refresh_tokens WHERE jti = :jti"), {"jti": jti})

@@ -1688,10 +1688,11 @@ function LiveEventModal({ event, onClose }: { event: Event; onClose: () => void 
 }
 
 export default function AdminEventsTab() {
+  const eventCutoff = '2026-09-14';
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
+  const [dateFrom, setDateFrom] = useState(eventCutoff);
   const [dateTo, setDateTo] = useState('');
   const [sortDesc, setSortDesc] = useState(true);
   const [confirmState, setConfirmState] = useState<{ message: string; confirmLabel: string; onConfirm: () => void } | null>(null);
@@ -1701,6 +1702,7 @@ export default function AdminEventsTab() {
   const [qrEvent, setQrEvent] = useState<Event | null>(null);
   const [liveEvent, setLiveEvent] = useState<Event | null>(null);
   const [revealedCodes, setRevealedCodes] = useState<Set<number>>(new Set());
+  const [importNotice, setImportNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
 
   const [modalEvent, setModalEvent] = useState<Event | null>(null);
   const [modalKey, setModalKey] = useState(0);
@@ -1774,6 +1776,22 @@ export default function AdminEventsTab() {
   const removeFromCalendar = useMutation({
     mutationFn: (id: number) => apiDelete(`/events/${id}/sync-to-google`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-events'] }),
+  });
+
+  const importFromGoogle = useMutation({
+    mutationFn: () => apiPost<{ created: number; updated: number; skipped: number }>('/events/import-from-google', {}),
+    onSuccess: ({ created, updated, skipped }) => {
+      qc.invalidateQueries({ queryKey: ['admin-events'] });
+      qc.invalidateQueries({ queryKey: ['admin-events-stats'] });
+      setImportNotice({
+        tone: 'success',
+        text: `Google Calendar import complete: ${created} added, ${updated} updated${skipped ? `, ${skipped} skipped` : ''}.`,
+      });
+    },
+    onError: (error: Error) => setImportNotice({
+      tone: 'error',
+      text: `Google Calendar import failed: ${error.message || 'Unknown error'}`,
+    }),
   });
 
   function copyCode(event: Event) {
@@ -1859,7 +1877,8 @@ export default function AdminEventsTab() {
           <input
             type="date"
             value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
+            min={eventCutoff}
+            onChange={(e) => setDateFrom(e.target.value || eventCutoff)}
             title="From date"
             className="rounded-lg px-3 py-2 text-sm text-white"
             style={{ background: 'rgba(255,255,255,.06)', border: '1px solid rgba(185,28,28,.2)', colorScheme: 'dark' }}
@@ -1875,6 +1894,19 @@ export default function AdminEventsTab() {
           />
 
           <button
+            onClick={() => {
+              setImportNotice(null);
+              importFromGoogle.mutate();
+            }}
+            disabled={importFromGoogle.isPending}
+            title="Import Google Calendar events into CougarAI"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
+            style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.12)' }}
+          >
+            <Calendar size={14} /> {importFromGoogle.isPending ? 'Importing…' : 'Import Google Calendar'}
+          </button>
+
+          <button
             onClick={() => openModal(null)}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white transition-all ml-auto"
             style={{ background: 'rgba(185,28,28,.6)', boxShadow: '0 0 20px rgba(185,28,28,.2)' }}
@@ -1882,6 +1914,20 @@ export default function AdminEventsTab() {
             <Plus size={14} /> Create Event
           </button>
         </div>
+
+        {importNotice && (
+          <div
+            className="rounded-lg px-3 py-2 text-sm"
+            role="status"
+            style={{
+              color: importNotice.tone === 'success' ? '#86efac' : '#fca5a5',
+              background: importNotice.tone === 'success' ? 'rgba(22,163,74,.12)' : 'rgba(220,38,38,.12)',
+              border: `1px solid ${importNotice.tone === 'success' ? 'rgba(22,163,74,.3)' : 'rgba(220,38,38,.3)'}`,
+            }}
+          >
+            {importNotice.text}
+          </div>
+        )}
 
         {/* Table */}
         <div className="rounded-xl overflow-hidden" style={cardStyle}>

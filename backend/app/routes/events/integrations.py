@@ -1,8 +1,9 @@
 import os
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 from typing import Optional
 from flask import request, jsonify, current_app
+from zoneinfo import ZoneInfo
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from app.routes.events import events_bp
@@ -11,6 +12,11 @@ from app.utils.auth_decorators import require_officer
 from app.services.notification_scheduler import scheduler
 
 _CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
+_CHICAGO_TZ = ZoneInfo("America/Chicago")
+# September 14, 2026 at 12:00 AM Chicago time.  This can be adjusted without
+# another code deployment by setting GOOGLE_CALENDAR_IMPORT_START to an RFC3339
+# timestamp in the production environment.
+_DEFAULT_IMPORT_START = "2026-09-14T05:00:00Z"
 
 
 def _resolve_creds_path(env_var: str) -> Optional[str]:
@@ -35,6 +41,115 @@ def _to_rfc3339(dt_str: str) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _google_datetime_to_utc_naive(value: dict) -> Optional[datetime]:
+    """Convert a Google Calendar start/end block to the app's UTC-naive DB format."""
+    date_time = value.get("dateTime")
+    if date_time:
+        parsed = datetime.fromisoformat(date_time.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=_CHICAGO_TZ)
+        return parsed.astimezone(timezone.utc).replace(tzinfo=None)
+
+    # All-day Google events provide a date instead of dateTime. Store the
+    # beginning of that Chicago calendar day so they remain discoverable in
+    # stats; they do not receive check-in configuration automatically.
+    date_value = value.get("date")
+    if date_value:
+        return datetime.combine(datetime.fromisoformat(date_value).date(), time.min, tzinfo=_CHICAGO_TZ) \
+            .astimezone(timezone.utc).replace(tzinfo=None)
+    return None
+
+
+@events_bp.route("/import-from-google", methods=["POST", "OPTIONS"])
+@require_officer
+def import_from_google():
+    """Import Google Calendar events into the local events table.
+
+    The Google event ID is the durable sync key. Existing linked rows are
+    updated with calendar-owned fields, while CougarAI-owned attendance and
+    check-in settings are intentionally left unchanged.
+    """
+    try:
+        service = _get_calendar_service()
+        calendar_id = os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com")
+        import_start = os.getenv("GOOGLE_CALENDAR_IMPORT_START", _DEFAULT_IMPORT_START)
+        page_token = None
+        google_events = []
+
+        while True:
+            result = service.events().list(
+                calendarId=calendar_id,
+                timeMin=import_start,
+                maxResults=500,
+                singleEvents=True,
+                orderBy="startTime",
+                pageToken=page_token,
+            ).execute()
+            google_events.extend(result.get("items", []))
+            page_token = result.get("nextPageToken")
+            if not page_token:
+                break
+
+        created = updated = skipped = 0
+        conn = get_db()
+        with conn.cursor() as cur:
+            for google_event in google_events:
+                if google_event.get("status") == "cancelled":
+                    skipped += 1
+                    continue
+
+                google_event_id = google_event.get("id")
+                starts_at = _google_datetime_to_utc_naive(google_event.get("start") or {})
+                ends_at = _google_datetime_to_utc_naive(google_event.get("end") or {})
+                name = (google_event.get("summary") or "Untitled Google Calendar event").strip()
+                if not google_event_id or not starts_at:
+                    skipped += 1
+                    continue
+
+                cur.execute("SELECT event_id FROM events WHERE google_event_id = %s", (google_event_id,))
+                existing = cur.fetchone()
+                if existing:
+                    cur.execute(
+                        """
+                        UPDATE events
+                        SET name = %s, description = %s, location = %s,
+                            starts_at = %s, ends_at = %s
+                        WHERE event_id = %s
+                        """,
+                        (
+                            name,
+                            google_event.get("description") or None,
+                            google_event.get("location") or None,
+                            starts_at,
+                            ends_at,
+                            existing["event_id"],
+                        ),
+                    )
+                    updated += 1
+                else:
+                    cur.execute(
+                        """
+                        INSERT INTO events (name, event_type, description, location, starts_at, ends_at, google_event_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            name,
+                            "Other",
+                            google_event.get("description") or None,
+                            google_event.get("location") or None,
+                            starts_at,
+                            ends_at,
+                            google_event_id,
+                        ),
+                    )
+                    created += 1
+            conn.commit()
+
+        return jsonify({"created": created, "updated": updated, "skipped": skipped}), 200
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 def _sync_event_to_google(conn, event_id: int) -> str:
