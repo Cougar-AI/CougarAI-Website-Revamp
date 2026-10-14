@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPut } from '@/lib/api';
 import { Activity, Boxes, CheckCircle2, Clock3, FileText, LoaderCircle, Play, RefreshCw, RotateCcw, Search, Trash2, Wrench } from 'lucide-react';
@@ -117,6 +117,8 @@ function extractSingleText(record: AnyRecord | null, keys: string[]): string | n
 }
 
 function formatMaybeDate(value: unknown): string {
+  // workshop-provision sends time.time() floats (epoch seconds)
+  if (typeof value === 'number' && Number.isFinite(value)) return formatDateTimeFull(new Date(value * 1000));
   const text = toStringValue(value).trim();
   if (!text) return '';
   const date = new Date(text);
@@ -188,7 +190,7 @@ function groupJobsById(jobs: AnyRecord[]): Array<{ jobId: string; entries: AnyRe
 
 function collectLogLines(value: unknown): string[] {
   const record = isRecord(value) ? value : null;
-  const candidates = extractStringList(record, ['logs', 'log_lines', 'log_output', 'stdout', 'stderr', 'history']);
+  const candidates = extractStringList(record, ['log', 'logs', 'log_lines', 'log_output', 'stdout', 'stderr', 'history']);
 
   if (candidates.length > 0) return candidates;
 
@@ -204,6 +206,11 @@ function collectLogLines(value: unknown): string[] {
   }
 
   return [];
+}
+
+function isJobActive(job: AnyRecord | null): boolean {
+  const status = (pickString(job, ['status']) ?? '').toLowerCase();
+  return status === 'queued' || status === 'running';
 }
 
 function trimLogs(lines: string[], maxLines = 40): string[] {
@@ -232,7 +239,9 @@ function normalizeJobList(value: unknown): AnyRecord[] {
 
 function extractActionResult(source: unknown, title: string, fallbackKind: ActionResult['kind'] = 'success'): ActionResult {
   const record = isRecord(source) ? source : null;
-  const message = extractSingleText(record, ['message', 'detail', 'description', 'error', 'status']) ?? `${title} completed.`;
+  // Long-running actions return 202 { job_id } — the work has only been queued at this point.
+  const jobId = pickString(record, ['job_id']);
+  const message = extractSingleText(record, ['message', 'detail', 'description', 'error', 'status']) ?? (jobId ? `${title} queued as job ${jobId}. Logs will stream below.` : `${title} completed.`);
   const packagesInstalled = extractStringList(record, ['packages_installed', 'installed_packages', 'packages_added', 'successful_packages', 'installed']);
   const packagesFailed = extractStringList(record, ['packages_failed', 'failed_packages', 'packages_missing', 'could_not_install', 'unavailable_packages']);
   const logs = trimLogs(collectLogLines(source));
@@ -258,12 +267,12 @@ function extractActionResult(source: unknown, title: string, fallbackKind: Actio
   };
 }
 
-function StatusCard({ data }: { data: unknown }) {
+function StatusCard({ data, activeJobCount, updatedAt }: { data: unknown; activeJobCount: number; updatedAt: number }) {
   const record = isRecord(data) ? data : null;
-  const status = pickString(record, ['status', 'state', 'phase']) ?? 'unknown';
+  const activeJobs = pickNumber(record, ['active_jobs', 'jobs_running', 'running_jobs']) ?? activeJobCount;
+  const status = pickString(record, ['status', 'state', 'phase']) ?? (activeJobs > 0 ? 'job running' : 'idle');
   const message = pickString(record, ['message', 'detail', 'description', 'error']) ?? 'No status message provided.';
-  const updated = formatMaybeDate(record?.updated_at ?? record?.last_updated ?? record?.timestamp);
-  const activeJobs = pickNumber(record, ['active_jobs', 'jobs_running', 'running_jobs']);
+  const updated = formatMaybeDate(record?.updated_at ?? record?.last_updated ?? record?.timestamp) || (updatedAt ? formatDateTimeFull(new Date(updatedAt)) : '');
   const queueLength = pickNumber(record, ['queue_length', 'queued_jobs', 'pending_jobs']);
   const imageName = pickString(record, ['image']);
   const imageBuiltAt = formatMaybeDate(record?.image_built_at);
@@ -550,19 +559,42 @@ export default function AdminWorkshopsTab() {
   const [lastResult, setLastResult] = useState<ActionResult | null>(null);
   const [liveLogLines, setLiveLogLines] = useState<string[]>([]);
 
-  const statusQuery = useQuery<unknown>({ queryKey: ['admin-workshops-status'], queryFn: () => apiGet('/admin/workshops/status'), staleTime: 20_000 });
-  const jobsQuery = useQuery<unknown>({ queryKey: ['admin-workshops-jobs'], queryFn: () => apiGet('/admin/workshops/jobs'), staleTime: 20_000 });
+  // Poll fast while any job is queued/running so Live Data + logs update without a manual refresh.
+  const jobsQuery = useQuery<unknown>({
+    queryKey: ['admin-workshops-jobs'],
+    queryFn: () => apiGet('/admin/workshops/jobs'),
+    staleTime: 2_000,
+    refetchInterval: (query) => (normalizeJobList(query.state.data).some(isJobActive) ? 3_000 : 15_000),
+  });
+  const jobs = normalizeJobList(jobsQuery.data);
+  const activeJobCount = jobs.filter(isJobActive).length;
+  const statusQuery = useQuery<unknown>({
+    queryKey: ['admin-workshops-status'],
+    queryFn: () => apiGet('/admin/workshops/status'),
+    staleTime: 2_000,
+    refetchInterval: activeJobCount > 0 ? 5_000 : 30_000,
+  });
   const requirementsQuery = useQuery<unknown>({ queryKey: ['admin-workshops-requirements'], queryFn: () => apiGet('/admin/workshops/requirements'), staleTime: 20_000 });
+  // Only /jobs/<id> returns the log; the list endpoint strips it. Poll it until the job finishes.
   const selectedJobQuery = useQuery<unknown>({
     queryKey: ['admin-workshops-job', selectedJobId],
     queryFn: () => apiGet(`/admin/workshops/jobs/${encodeURIComponent(selectedJobId)}`),
     enabled: selectedJobId.trim().length > 0,
-    staleTime: 10_000,
+    staleTime: 1_000,
+    refetchInterval: (query) => {
+      if (query.state.error) return false;
+      const job = isRecord(query.state.data) ? query.state.data : null;
+      return !job || isJobActive(job) ? 2_000 : false;
+    },
   });
 
   const requirementList = requirementsText.split('\n').map((line) => line.trim()).filter(Boolean);
-  const jobs = normalizeJobList(jobsQuery.data);
+  // The workshop API rebuilds the image whenever `packages` is sent, so only send it when the list was edited.
+  const savedRequirementList = normalizePackageList(requirementsQuery.data);
+  const requirementsChanged = requirementList.join('\n') !== savedRequirementList.join('\n');
+  const changedPackages = requirementsChanged && requirementList.length ? requirementList : undefined;
   const selectedJob = isRecord(selectedJobQuery.data) ? selectedJobQuery.data : null;
+  const selectedJobActive = isJobActive(selectedJob);
   const selectedJobError = selectedJobQuery.error instanceof Error ? selectedJobQuery.error.message : null;
   const statusError = statusQuery.error instanceof Error ? statusQuery.error.message : null;
   const jobsError = jobsQuery.error instanceof Error ? jobsQuery.error.message : null;
@@ -576,11 +608,26 @@ export default function AdminWorkshopsTab() {
     setRequirementsText(normalizePackageList(requirementsQuery.data).join('\n'));
   }, [requirementsQuery.data]);
 
+  // Don't show the previous job's tail under a newly selected job.
+  useEffect(() => {
+    setLiveLogLines([]);
+  }, [selectedJobId]);
+
   useEffect(() => {
     const nextSource = selectedJob ?? lastResult?.raw ?? statusQuery.data ?? previewResult;
     const nextLines = trimLogs(collectLogLines(nextSource));
     if (nextLines.length > 0) setLiveLogLines(nextLines);
   }, [selectedJob, lastResult?.raw, statusQuery.data, previewResult]);
+
+  // When the tracked job finishes, pull fresh container status + job list once.
+  const wasSelectedJobActive = useRef(false);
+  useEffect(() => {
+    if (wasSelectedJobActive.current && !selectedJobActive) {
+      qc.invalidateQueries({ queryKey: ['admin-workshops-status'] });
+      qc.invalidateQueries({ queryKey: ['admin-workshops-jobs'] });
+    }
+    wasSelectedJobActive.current = selectedJobActive;
+  }, [selectedJobActive, qc]);
 
   const workshopMutation = useMutation({
     mutationFn: ({ method, path, body }: { method: 'POST' | 'PUT'; path: string; body?: unknown }) => (method === 'PUT' ? apiPut(path, body ?? {}) : apiPost(path, body ?? {})),
@@ -591,6 +638,12 @@ export default function AdminWorkshopsTab() {
       if (selectedJobId) qc.invalidateQueries({ queryKey: ['admin-workshops-job', selectedJobId] });
       const actionTitle = describeWorkshopAction(vars.path);
       setLastResult(extractActionResult(data, actionTitle));
+      // Start tracking the job this action just queued so its logs stream into Live Data.
+      const queuedJobId = pickString(isRecord(data) ? data : null, ['job_id']);
+      if (queuedJobId) {
+        setSelectedJobId(queuedJobId);
+        setJobLookupInput(queuedJobId);
+      }
       setNotice(extractSingleText(isRecord(data) ? data : null, ['message', 'detail', 'description', 'status']) ?? `${actionTitle} completed.`);
     },
     onError: (error, vars) => {
@@ -610,12 +663,6 @@ export default function AdminWorkshopsTab() {
     },
   });
 
-  useEffect(() => {
-    if (selectedJobId && selectedJobQuery.data) {
-      qc.invalidateQueries({ queryKey: ['admin-workshops-jobs'] });
-    }
-  }, [selectedJobId, selectedJobQuery.data, qc]);
-
   function askConfirm(title: string, message: string, confirmLabel: string, onConfirm: () => void, items?: Array<{ label: string; value: string }>, note?: string) {
     setPendingConfirm({ title, message, confirmLabel, onConfirm, items, note });
   }
@@ -632,7 +679,7 @@ export default function AdminWorkshopsTab() {
     const repoUrl = pipelineRepoUrl.trim();
     return {
       ...buildSizePayload(),
-      packages: requirementList.length ? requirementList : undefined,
+      packages: changedPackages,
       skip_build: skipBuild,
       ...(repoUrl ? { repo_url: repoUrl } : {}),
     };
@@ -655,7 +702,7 @@ export default function AdminWorkshopsTab() {
         { label: 'Estimated wait', value: pipelineEstimate },
         { label: 'Skip build', value: skipBuild ? 'Yes' : 'No' },
         { label: 'GitHub repo', value: pipelineRepoUrl.trim() || 'Default repo' },
-        { label: 'Packages', value: requirementList.length ? `${requirementList.length} package${requirementList.length === 1 ? '' : 's'} selected` : 'No package list changes queued' },
+        { label: 'Packages', value: changedPackages ? `${changedPackages.length} package${changedPackages.length === 1 ? '' : 's'} (edited — will be saved)` : 'Saved requirements list' },
       ],
       'This repo URL is used only for the full pipeline run. Provisioning, teardown, reset, and prune do not send it.',
     );
@@ -667,7 +714,7 @@ export default function AdminWorkshopsTab() {
       return;
     }
 
-    runAction('/admin/workshops/provision', { ...buildSizePayload(), packages: requirementList.length ? requirementList : undefined, force_rebuild: forceRebuild }, 'Provision requested.');
+    runAction('/admin/workshops/provision', { ...buildSizePayload(), packages: changedPackages, force_rebuild: forceRebuild }, 'Provision requested.');
   }
 
   function saveRequirements() {
@@ -762,10 +809,13 @@ export default function AdminWorkshopsTab() {
           <details open className="rounded-2xl p-5" style={glass}>
             <summary className="cursor-pointer list-none flex items-center justify-between gap-3 text-white font-semibold font-['Oxanium']"><span className="inline-flex items-center gap-2"><Activity size={16} className="text-red-300" /> Live Data</span><span className="text-xs uppercase tracking-wide text-white/35">status, results, logs</span></summary>
             <div className="mt-4 space-y-4">
-              <StatusCard data={statusQuery.data} />
+              <StatusCard data={statusQuery.data} activeJobCount={activeJobCount} updatedAt={statusQuery.dataUpdatedAt} />
               <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}>
                 <div className="flex items-center justify-between gap-3 mb-3">
-                  <div><div className="text-white font-medium">Latest logs</div><div className="text-xs text-white/35">Only the latest 40 lines are kept.</div></div>
+                  <div>
+                    <div className="text-white font-medium inline-flex items-center gap-2">Latest logs{selectedJobActive && <LoaderCircle size={13} className="animate-spin text-red-300" />}</div>
+                    <div className="text-xs text-white/35">{selectedJobId ? `Job ${selectedJobId}${selectedJobActive ? ` · ${pickString(selectedJob, ['stage']) ?? 'queued'} · refreshing every 2s` : ''}` : 'Only the latest 40 lines are kept.'}</div>
+                  </div>
                   <span className="text-[11px] uppercase tracking-wide px-2 py-1 rounded-full border" style={{ background: 'rgba(185,28,28,.12)', color: 'rgba(248,113,113,.95)', borderColor: 'rgba(185,28,28,.18)' }}>{trimLogs(liveLogLines).length} lines</span>
                 </div>
                 {trimLogs(liveLogLines).length > 0 ? <pre className="overflow-auto max-h-72 whitespace-pre-wrap break-words text-[11px] leading-relaxed text-white/72">{trimLogs(liveLogLines).join('\n')}</pre> : <p className="text-sm text-white/40">No live logs were returned yet.</p>}
