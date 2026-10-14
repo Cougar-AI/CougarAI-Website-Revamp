@@ -622,12 +622,21 @@ export default function AdminWorkshopsTab() {
   // When the tracked job finishes, pull fresh container status + job list once.
   const wasSelectedJobActive = useRef(false);
   useEffect(() => {
-    if (wasSelectedJobActive.current && !selectedJobActive) {
+    if (wasSelectedJobActive.current && !selectedJobActive && selectedJob) {
       qc.invalidateQueries({ queryKey: ['admin-workshops-status'] });
       qc.invalidateQueries({ queryKey: ['admin-workshops-jobs'] });
+      // Surface the outcome — and, for provision/pipeline, the student login details — in the result card.
+      const jobType = normalizeJobType(selectedJob);
+      const succeeded = normalizeJobStatus(pickString(selectedJob, ['status']) ?? '').tone === 'success';
+      const access = isRecord(selectedJob.access) ? selectedJob.access : {};
+      setLastResult(extractActionResult(
+        { ...access, log: selectedJob.log, message: `${jobType} job ${selectedJobId} ${succeeded ? 'succeeded' : `failed (exit code ${pickNumber(selectedJob, ['exit_code']) ?? 'n/a'})`}.` },
+        jobType,
+        succeeded ? 'success' : 'error',
+      ));
     }
     wasSelectedJobActive.current = selectedJobActive;
-  }, [selectedJobActive, qc]);
+  }, [selectedJobActive, selectedJob, selectedJobId, qc]);
 
   const workshopMutation = useMutation({
     mutationFn: ({ method, path, body }: { method: 'POST' | 'PUT'; path: string; body?: unknown }) => (method === 'PUT' ? apiPut(path, body ?? {}) : apiPost(path, body ?? {})),
@@ -752,6 +761,10 @@ export default function AdminWorkshopsTab() {
 
   const inputCls = 'w-full rounded-xl px-3 py-2 text-sm text-white outline-none transition focus:ring-2 focus:ring-red-500/50';
   const actionBusy = workshopMutation.isPending || previewMutation.isPending;
+  // The workshop API runs one container job at a time (409 otherwise); mirror that in the UI.
+  const jobRunning = activeJobCount > 0 || selectedJobActive;
+  const runningJob = selectedJobActive ? selectedJob : jobs.find(isJobActive) ?? null;
+  const runningJobLabel = runningJob ? `${normalizeJobType(runningJob)} job ${pickString(runningJob, ['job_id']) ?? ''} is ${pickString(runningJob, ['status']) ?? 'running'}` : '';
 
   return (
     <div className="space-y-6 p-6">
@@ -852,7 +865,8 @@ export default function AdminWorkshopsTab() {
                 <div className="text-sm text-white/80">This will provision the workshop for {validStudentCount ? normalizedStudentCount : 'the selected'} student count, then run the rest of the cycle.</div>
                 <div className="text-xs text-white/35">When the job finishes, the result card will show any login credentials, access URLs, package installs, or failures.</div>
               </div>
-              <button onClick={reviewPipeline} disabled={actionBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(185,28,28,.78)', boxShadow: '0 0 20px rgba(185,28,28,.25)' }}><Clock3 size={14} /> Review & Run</button>
+              <button onClick={reviewPipeline} disabled={actionBusy || jobRunning} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(185,28,28,.78)', boxShadow: '0 0 20px rgba(185,28,28,.25)' }}><Clock3 size={14} /> Review & Run</button>
+              {jobRunning && <p className="text-xs text-amber-200/80">{runningJobLabel} — wait for it to finish before starting another workshop job.</p>}
             </div>
           </details>
 
@@ -863,7 +877,8 @@ export default function AdminWorkshopsTab() {
                 <label className="flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}><input type="checkbox" checked={forceRebuild} onChange={(e) => setForceRebuild(e.target.checked)} /> Force image rebuild</label>
                 <div className="flex items-center justify-between rounded-xl px-3 py-2" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}><span>Target students</span><span className="text-white/90 font-medium">{validStudentCount ? normalizedStudentCount : 'n/a'}</span></div>
               </div>
-              <button onClick={submitProvision} disabled={actionBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><Play size={14} /> Provision</button>
+              <button onClick={submitProvision} disabled={actionBusy || jobRunning} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><Play size={14} /> Provision</button>
+              {jobRunning && <p className="text-xs text-amber-200/80">{runningJobLabel} — wait for it to finish before starting another workshop job.</p>}
             </div>
           </details>
         </div>
@@ -874,9 +889,10 @@ export default function AdminWorkshopsTab() {
             <div className="mt-4 space-y-4">
               <label className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-white/70" style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)' }}><input type="checkbox" checked={useAllForDestructiveActions} onChange={(e) => setUseAllForDestructiveActions(e.target.checked)} /> Apply to all running containers</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button onClick={() => askConfirm('Reset workshop containers', useAllForDestructiveActions ? 'Reset all running workshop containers? This is destructive and will be sent immediately.' : `Reset ${normalizedStudentCount} student containers? This is destructive and will be sent immediately.`, 'Reset', () => runAction('/admin/workshops/reset', useAllForDestructiveActions ? { all: true } : buildSizePayload(), 'Reset requested.'), [{ label: 'Scope', value: useAllForDestructiveActions ? 'All running containers' : `${normalizedStudentCount} students` }])} disabled={actionBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><RotateCcw size={14} /> Reset</button>
-                <button onClick={() => askConfirm('Tear down workshop containers', useAllForDestructiveActions ? 'Tear down all running workshop containers? This is destructive and will be sent immediately.' : `Tear down ${normalizedStudentCount} student containers? This is destructive and will be sent immediately.`, 'Tear Down', () => runAction('/admin/workshops/teardown', useAllForDestructiveActions ? { all: true } : buildSizePayload(), 'Teardown requested.'), [{ label: 'Scope', value: useAllForDestructiveActions ? 'All running containers' : `${normalizedStudentCount} students` }])} disabled={actionBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><Trash2 size={14} /> Teardown</button>
+                <button onClick={() => askConfirm('Reset workshop containers', useAllForDestructiveActions ? 'Reset all running workshop containers? This is destructive and will be sent immediately.' : `Reset ${normalizedStudentCount} student containers? This is destructive and will be sent immediately.`, 'Reset', () => runAction('/admin/workshops/reset', useAllForDestructiveActions ? { all: true } : buildSizePayload(), 'Reset requested.'), [{ label: 'Scope', value: useAllForDestructiveActions ? 'All running containers' : `${normalizedStudentCount} students` }])} disabled={actionBusy || jobRunning} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><RotateCcw size={14} /> Reset</button>
+                <button onClick={() => askConfirm('Tear down workshop containers', useAllForDestructiveActions ? 'Tear down all running workshop containers? This is destructive and will be sent immediately.' : `Tear down ${normalizedStudentCount} student containers? This is destructive and will be sent immediately.`, 'Tear Down', () => runAction('/admin/workshops/teardown', useAllForDestructiveActions ? { all: true } : buildSizePayload(), 'Teardown requested.'), [{ label: 'Scope', value: useAllForDestructiveActions ? 'All running containers' : `${normalizedStudentCount} students` }])} disabled={actionBusy || jobRunning} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><Trash2 size={14} /> Teardown</button>
               </div>
+              {jobRunning && <p className="text-xs text-amber-200/80">{runningJobLabel} — wait for it to finish before starting another workshop job.</p>}
               <button onClick={() => askConfirm('Prune workshop images', 'Prune unused workshop images on the remote host? This cannot be undone.', 'Prune Images', () => workshopMutation.mutate({ method: 'POST', path: '/admin/workshops/image/prune' }, { onSuccess: () => setNotice('Image prune requested.') }), [{ label: 'Effect', value: 'Remove unused workshop images' }])} disabled={actionBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all disabled:opacity-50" style={{ background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.10)' }}><Trash2 size={14} /> Prune Images</button>
             </div>
           </details>
