@@ -18,7 +18,14 @@ class _ISODateProvider(DefaultJSONProvider):
 
 db = SQLAlchemy()
 jwt = JWTManager()
-limiter = Limiter(key_func=get_remote_address, default_limits=["300/day", "60/hour"])
+def _client_ip():
+    # Prod sits behind Cloudflare, so remote_addr is the proxy for every request and all
+    # visitors would share one rate-limit bucket. Cloudflare sets CF-Connecting-IP to the
+    # real client (and overwrites any client-sent value); fall back to remote_addr locally.
+    return request.headers.get("CF-Connecting-IP") or get_remote_address()
+
+
+limiter = Limiter(key_func=_client_ip, default_limits=["300/day", "60/hour"])
 
 def create_app(config_class='config.DevelopmentConfig'):
     app = Flask(__name__)

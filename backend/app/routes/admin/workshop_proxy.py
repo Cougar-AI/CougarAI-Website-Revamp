@@ -4,6 +4,7 @@ import requests
 from app.routes.admin import admin_bp
 from flask import jsonify, request
 from app.utils.auth_decorators import require_officer
+from app import limiter
 from urllib.parse import urlparse
 
 
@@ -11,6 +12,11 @@ WORKSHOP_API_URL = os.environ.get("WORKSHOP_API_URL")
 WORKSHOP_API_KEY = os.environ.get("WORKSHOP_API_KEY")
 
 DEFAULT_TIMEOUT = 15
+
+# The workshops tab polls these while a job runs (job detail every 2s, list every 3s,
+# status every 5s), which the site-wide 60/hour default would cut off within minutes.
+# Officer-only and per client IP, so a per-minute ceiling is enough.
+POLL_LIMIT = "120/minute"
 
 
 _GITHUB_REPO_SSH_RE = re.compile(r'^git@github\.com:(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?$')
@@ -167,12 +173,14 @@ def reset_workshop():
 # ---------------------------------------------------------------------------
 
 @admin_bp.route('/workshops/jobs', methods=['GET', 'OPTIONS'])
+@limiter.limit(POLL_LIMIT)
 @require_officer
 def list_jobs():
     return _proxy('GET', '/admin/workshops/jobs')
 
 
 @admin_bp.route('/workshops/jobs/<job_id>', methods=['GET', 'OPTIONS'])
+@limiter.limit(POLL_LIMIT)
 @require_officer
 def job_status(job_id):
     return _proxy('GET', f'/admin/workshops/jobs/{job_id}')
@@ -189,6 +197,7 @@ def rerun_job(job_id):
 # ---------------------------------------------------------------------------
 
 @admin_bp.route('/workshops/requirements', methods=['GET', 'OPTIONS'])
+@limiter.limit(POLL_LIMIT)
 @require_officer
 def get_requirements():
     return _proxy('GET', '/admin/workshops/requirements')
@@ -243,6 +252,7 @@ def prune_images():
 # ---------------------------------------------------------------------------
 
 @admin_bp.route('/workshops/status', methods=['GET', 'OPTIONS'])
+@limiter.limit(POLL_LIMIT)
 @require_officer
 def workshop_status():
     return _proxy('GET', '/admin/workshops/status')
