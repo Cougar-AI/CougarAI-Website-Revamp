@@ -19,3 +19,8 @@ passlib[bcrypt]
 stripe
 flask-limiter
 flask-apscheduler
+pymupdf
+python-docx
+pydantic
+requests
+clamd 

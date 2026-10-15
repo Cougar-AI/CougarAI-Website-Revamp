@@ -60,3 +60,9 @@ __pycache__/
 frontend/env (6)
 .vercel
 package-lock.json
+
+# resume review (backend/ats): local venv, real sample inputs, generated fixtures
+/backend/ats/cai-website/
+/backend/ats/resume.pdf
+/backend/ats/jd.txt
+/backend/ats/fixtures/
