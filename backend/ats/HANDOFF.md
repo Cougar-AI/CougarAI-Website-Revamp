@@ -238,7 +238,35 @@ bytes).
 - Don't show students the raw `security.flags`; if a report is flagged, say an officer will review it
   before it's shared with sponsors.
 
-### 4. Deployment
+### 4. Keeping users' data separate
+
+**The pipeline itself is safe for many users.** `process_resume` keeps nothing between calls: no globals,
+no caches. Each call gets a new temp folder (deleted afterwards, and the user's filename is never used), a
+new parser subprocess with a clean environment, and a new random tag ID in the prompt. Ollama's
+`/api/chat` is stateless: each request carries its full message list, and `keep_alive` only keeps the
+model weights loaded, not past conversations.
+
+Leaks would come from the website code around it. When integrating:
+
+1. **Check ownership on every read.** Query `WHERE review_id = %s AND user_id = %s` with `caller_id()`,
+   and return 404 (not 403) if there's no row, so users can't probe other people's IDs.
+2. **Take the user ID from the JWT, never from the request** (body, query string or form field).
+3. **Pass bytes, not paths.** Don't save uploads to the shared `uploads/` folder or under the user's
+   filename; the pipeline makes its own private temp file.
+4. **Don't keep reports in Python memory.** No module-level dicts or caches in Flask or the worker:
+   gunicorn workers serve many users. The database row is the only place a report lives.
+5. **Don't add conversation memory to `call_ollama`.** Build `messages` fresh for each job (as
+   `build_messages` does now), and never use `/api/generate` with its `context` field, which carries tokens
+   from the previous request.
+6. **Clear the upload** (`upload = NULL`) as soon as the job finishes, whatever the outcome.
+7. **Logs:** `review_id`, `resume_sha256`, status and timings only. Never resume text, JD text or model
+   output.
+8. **Frontend:** keep the report in component state, not `localStorage`. Clear it on logout so the next
+   person on a shared computer doesn't see it. Poll using the `review_id` the server returned.
+9. **Sponsor views** read only reports that are `done`, belong to students who opted in, and are either
+   unflagged or cleared by an officer (`reviewed_by IS NOT NULL`).
+
+### 5. Deployment
 
 - **Ollama** on the GPU VM. Set `OLLAMA_HOST` to the VM's private address only, firewall port 11434 to
   the backend host, and give the VM no outbound internet once the model is pulled. Point the worker at it
