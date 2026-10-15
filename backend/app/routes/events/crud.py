@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask import request, jsonify
+from flask_jwt_extended import get_jwt, verify_jwt_in_request
 from app.routes.events import events_bp
 from app.raw_db import get_db
 from app.utils.date_validation import is_valid_date
@@ -15,6 +16,16 @@ def get_public_event_types():
         return "", 200
     svc = EventAdminService(get_db())
     return jsonify({"event_types": svc.list_event_types(active_only=True)}), 200
+
+
+def _caller_is_officer() -> bool:
+    """True only for a valid officer/admin token. A missing, expired or invalid token
+    counts as anonymous so the public calendar keeps working."""
+    try:
+        verify_jwt_in_request(optional=True)
+        return get_jwt().get("role") in ("officer", "admin")
+    except Exception:
+        return False
 
 
 @events_bp.route("/", methods=["GET"])
@@ -59,6 +70,13 @@ def getEvents():
 
         cur.execute(query, tuple(params))
         results = cur.fetchall()
+
+        # The check-in code is the secret that awards attendance points; only officers
+        # (Admin → Events, which calls this same endpoint) may see it.
+        if not _caller_is_officer():
+            for row in results:
+                row.pop("check_in_code", None)
+
         return (jsonify(results), 200) if results else (jsonify({"error": "No events found"}), 404)
 
 
