@@ -117,6 +117,9 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_officer_photos.sql"),
         os.path.join(root, "migrations", "add_officers_display_name.sql"),
         os.path.join(root, "migrations", "add_knowledge_base_tables.sql"),
+        os.path.join(root, "migrations", "add_sponsors_table.sql"),
+        os.path.join(root, "migrations", "add_sponsors_unique_name.sql"),
+        os.path.join(root, "migrations", "add_projects_table.sql"),
     ]
     with application.app_context():
         with db.engine.begin() as conn:

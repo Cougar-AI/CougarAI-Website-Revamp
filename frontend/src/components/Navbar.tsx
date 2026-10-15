@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import logo from '../assets/logo.png'
-import { NavLink, useNavigate } from 'react-router-dom';
-import { Bell, Menu, X } from 'lucide-react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Bell, LayoutDashboard, Menu, X } from 'lucide-react';
 const link = 'hover:text-gray-300'
 const active = 'underline underline-offset-8'
 import { cn } from '../lib/utils.ts'
@@ -9,6 +9,7 @@ import { clearAuthSession, consumeAuthNotice, getStoredUser, setAuthNotice, subs
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiGet, apiPost, apiPatch } from '@/lib/api';
 import type { MeResponse } from '@/pages/Dashboard';
+import { SITE_NAV_LINKS } from '@/lib/links';
 
 const API_BASE = (import.meta.env?.VITE_BACKEND_API_URL ?? '').replace(/\/$/, '');
 const BACKEND = (import.meta.env?.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
@@ -141,29 +142,26 @@ const Navbar: React.FC = () => {
                 </div>
             ) : null}
             <nav className="w-full bg-red-700 text-white p-4 flex flex-wrap items-center justify-between gap-3 relative z-[100]">
-                <button
-                    type="button"
-                    onClick={() => navigate('/')}
-                    className="flex min-w-0 items-center space-x-3 cursor-pointer focus:outline-none"
-                >
+                <Link to="/" className="flex min-w-0 items-center space-x-3 focus:outline-none">
                     <img src={logo} alt="CougarAI Logo" className="h-8 w-8 rounded" />
                     <span className="truncate text-lg font-bold sm:text-xl">CougarAI</span>
-                </button>
+                </Link>
 
-                <ul className="hidden items-center space-x-5 md:flex ml-auto">
-                    {!isAuthenticated && (
-                        <NavLink to="/about" className={({isActive}) => cn(link, isActive && active)}>About Us</NavLink>
-                    )}
-                    <NavLink to="/memberships" className={({isActive}) => cn(link, isActive && active)}>Memberships</NavLink>
-                    <NavLink to="/contact" className={({isActive}) => cn(link, isActive && active)}>Contact</NavLink>
-                    <NavLink to="/calendar" className={({isActive}) => cn(link, isActive && active)}>Events</NavLink>
-                    <NavLink to="/knowledge-base" className={({isActive}) => cn(link, isActive && active)}>Knowledge Bar</NavLink>
-                    {!isAuthenticated && (
-                        <NavLink to="/sponsors" className={({isActive}) => cn(link, isActive && active)}>Sponsors</NavLink>
-                    )}
+                <ul className="hidden items-center space-x-3.5 text-[15px] lg:flex ml-auto xl:space-x-5 xl:text-base">
+                    {SITE_NAV_LINKS.map(({ to, label }) => (
+                        <NavLink key={to} to={to} className={({isActive}) => cn(link, 'whitespace-nowrap', isActive && active)}>{label}</NavLink>
+                    ))}
 
                     {isAuthenticated ? (
                         <div className="flex items-center gap-3">
+                            <NavLink
+                                to="/dashboard"
+                                aria-label="Dashboard"
+                                title="Dashboard"
+                                className={({isActive}) => cn('inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/25 px-2.5 py-1.5 text-sm xl:px-3 xl:py-1 transition-colors hover:bg-white/15', isActive ? 'bg-white/20' : 'bg-white/10')}
+                            >
+                                <LayoutDashboard className="h-3.5 w-3.5" /> <span className="hidden xl:inline">Dashboard</span>
+                            </NavLink>
                             {/* Bell notification icon */}
                             <div className="relative" ref={notifRef}>
                                 <button
@@ -310,14 +308,14 @@ const Navbar: React.FC = () => {
                             </div>
                         </div>
                     ) : (
-                        <NavLink to="/auth" className={({isActive}) => cn(link, isActive && active)}>Login / Register</NavLink>
+                        <NavLink to="/auth" className={({isActive}) => cn(link, 'whitespace-nowrap', isActive && active)}>Login / Register</NavLink>
                     )}
                 </ul>
 
                 <button
                     type="button"
                     onClick={() => setMobileMenuOpen((open) => !open)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 md:hidden"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/10 lg:hidden"
                     aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                     aria-expanded={mobileMenuOpen}
                 >
@@ -325,18 +323,11 @@ const Navbar: React.FC = () => {
                 </button>
 
                 {mobileMenuOpen && (
-                    <div className="basis-full md:hidden">
+                    <div className="basis-full lg:hidden">
                         <div className="mt-2 grid gap-2 rounded-2xl border border-white/10 bg-[rgba(10,2,2,0.97)] p-3 backdrop-blur-md">
-                            {!isAuthenticated && (
-                                <NavLink onClick={() => setMobileMenuOpen(false)} to="/about" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>About Us</NavLink>
-                            )}
-                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/memberships" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Memberships</NavLink>
-                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/contact" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Contact</NavLink>
-                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/calendar" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Events</NavLink>
-                            <NavLink onClick={() => setMobileMenuOpen(false)} to="/knowledge-base" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Knowledge Bar</NavLink>
-                            {!isAuthenticated && (
-                                <NavLink onClick={() => setMobileMenuOpen(false)} to="/sponsors" className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>Sponsors</NavLink>
-                            )}
+                            {SITE_NAV_LINKS.map(({ to, label }) => (
+                                <NavLink key={to} onClick={() => setMobileMenuOpen(false)} to={to} className={({isActive}) => cn("rounded-xl px-3 py-2.5 text-sm font-medium", isActive ? "bg-white/10 text-white" : "text-white/80")}>{label}</NavLink>
+                            ))}
                             {isAuthenticated ? (
                                 <>
                                     <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/dashboard'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Dashboard</button>

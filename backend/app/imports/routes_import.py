@@ -18,6 +18,7 @@ from app.routes.receipts import receipts_bp
 from app.routes.notifications import notifications_bp
 from app.routes.knowledge_base import knowledge_base_bp
 from app.routes.health import health_bp
+from app.routes.projects import projects_bp
 
 
 blueprints_with_prefixes = {
@@ -41,4 +42,5 @@ blueprints_with_prefixes = {
     notifications_bp: '/notifications',
     knowledge_base_bp: '/knowledge-base',
     health_bp: '/health',
+    projects_bp: '/projects',
 }

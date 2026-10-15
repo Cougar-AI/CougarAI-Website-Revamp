@@ -12,6 +12,7 @@ import Contact from './pages/contact.tsx';
 import Calendar from './pages/Calendar.tsx';
 import Sponsors from './pages/Sponsors.tsx';
 import KnowledgeBase from './pages/KnowledgeBase.tsx';
+import Projects from './pages/Projects.tsx';
 import Auth from './pages/Auth.tsx';
 import NotFound from './pages/NotFound.tsx';
 import AuthSuccess from './pages/AuthSuccess.tsx';
@@ -49,6 +50,7 @@ export default function App() {
             <Route path={'/calendar'} element={<Calendar />} />
             <Route path={'/sponsors'} element={<Sponsors />} />
             <Route path={'/knowledge-base'} element={<KnowledgeBase />} />
+            <Route path={'/projects'} element={<Projects />} />
             <Route path={'/auth'} element={<Auth />} />
             <Route path={'/login'} element={<Navigate to="/auth?mode=login" replace />} />
             <Route path={'/register'} element={<Navigate to="/auth?mode=register" replace />} />

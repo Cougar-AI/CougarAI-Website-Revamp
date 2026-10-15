@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import { ArrowUp, Github, Instagram, Linkedin, Mail } from 'lucide-react';
 import logo from '@/assets/logo.png';
+import { CONTACT_EMAIL, DISCORD_INVITE_URL, GITHUB_URL, INSTAGRAM_URL, LINKEDIN_URL, SITE_NAV_LINKS } from '@/lib/links';
 
 const navLinkBase = 'text-white/90 hover:text-white transition-colors';
 
@@ -39,36 +40,13 @@ export default function Footer() {
                       Home
                     </NavLink>
                   </li>
-                  <li>
-                    <NavLink to="/About" className={navLinkBase}>
-                      About
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/Memberships" className={navLinkBase}>
-                      Memberships
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/Calendar" className={navLinkBase}>
-                      Calendar
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/knowledge-base" className={navLinkBase}>
-                      Knowledge Base
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/Contact" className={navLinkBase}>
-                      Contact
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/sponsors" className={navLinkBase}>
-                      Sponsors
-                    </NavLink>
-                  </li>
+                  {SITE_NAV_LINKS.map(({ to, label }) => (
+                    <li key={to}>
+                      <NavLink to={to} className={navLinkBase}>
+                        {label}
+                      </NavLink>
+                    </li>
+                  ))}
                 </ul>
               </div>
 
@@ -77,27 +55,27 @@ export default function Footer() {
                 <p className="mb-3 text-sm font-semibold text-white">Connect</p>
                 <ul className="space-y-2 text-sm">
                   <li>
-                    <a className={navLinkBase} href="mailto:cougaraicontact@gmail.com">
+                    <a className={navLinkBase} href={`mailto:${CONTACT_EMAIL}`}>
                       Email us
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="https://discord.gg/ucd5ZnDDnf" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">
                       Discord
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="https://github.com/Cougar-AI" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href={GITHUB_URL} target="_blank" rel="noreferrer">
                       GitHub
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="https://www.instagram.com/cougar_ai/" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href={INSTAGRAM_URL} target="_blank" rel="noreferrer">
                       Instagram
                     </a>
                   </li>
                   <li>
-                    <a className={navLinkBase} href="https://www.linkedin.com/company/cougar-ai/" target="_blank" rel="noreferrer">
+                    <a className={navLinkBase} href={LINKEDIN_URL} target="_blank" rel="noreferrer">
                       LinkedIn
                     </a>
                   </li>
@@ -108,19 +86,19 @@ export default function Footer() {
             {/* Actions */}
             <div className="flex min-w-0 flex-col items-start gap-4 max-sm:items-start">
               <a
-                href="mailto:cougaraicontact@gmail.com"
+                href={`mailto:${CONTACT_EMAIL}`}
                 className="inline-flex max-w-full items-center gap-3 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50 max-sm:w-full max-sm:max-w-[18.5rem] max-sm:justify-start max-sm:self-start max-sm:px-4 max-sm:py-3"
               >
                 <Mail className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 text-left text-[0.95rem] leading-snug max-sm:text-[0.82rem] sm:break-all">
-                  cougaraicontact@gmail.com
+                <span className="min-w-0 text-left text-[0.95rem] leading-snug max-sm:text-[0.82rem]">
+                  cougaraicontact<wbr />@gmail.com
                 </span>
               </a>
 
               <div className="flex items-center gap-2 text-white/90 max-sm:justify-start">
                 <a
                   aria-label="Instagram"
-                  href="https://www.instagram.com/cougar_ai/"
+                  href={INSTAGRAM_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
@@ -129,7 +107,7 @@ export default function Footer() {
                 </a>
                 <a
                   aria-label="GitHub"
-                  href="https://github.com/Cougar-AI"
+                  href={GITHUB_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"
@@ -138,7 +116,7 @@ export default function Footer() {
                 </a>
                 <a
                   aria-label="LinkedIn"
-                  href="https://www.linkedin.com/company/cougar-ai/"
+                  href={LINKEDIN_URL}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-full p-2 hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/50"

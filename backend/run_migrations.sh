@@ -67,6 +67,7 @@ MIGRATIONS=(
   add_officers_display_name.sql
   reorder_officer_departments.sql
   add_knowledge_base_tables.sql
+  add_projects_table.sql
 )
 
 FAILED=0
