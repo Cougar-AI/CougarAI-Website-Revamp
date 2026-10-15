@@ -15,7 +15,7 @@ def docker_compose_file(pytestconfig):
 @pytest.fixture(scope="session")
 def _postgres_url(docker_services):
     port = docker_services.port_for("postgres_test", 5432)
-    base_url = f"postgresql://test_user:test_pass@localhost:{port}/postgres"
+    base_url = f"postgresql+psycopg2://test_user:test_pass@localhost:{port}/postgres"
 
     def _ready() -> bool:
         try:
@@ -34,7 +34,7 @@ def _postgres_url(docker_services):
         conn.execute(text(f'CREATE DATABASE "{db_name}"'))
     eng.dispose()
 
-    test_url = f"postgresql://test_user:test_pass@localhost:{port}/{db_name}"
+    test_url = f"postgresql+psycopg2://test_user:test_pass@localhost:{port}/{db_name}"
     os.environ["DATABASE_URL"] = test_url
     yield test_url
 
