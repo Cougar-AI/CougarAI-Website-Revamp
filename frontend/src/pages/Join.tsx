@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { getStoredUser, hasAccessToken, updateStoredUser } from "@/lib/auth";
 import { apiGet, apiPost } from "@/lib/api";
+import { DISCORD_INVITE_URL } from "@/lib/links";
 
 /**
  * JoinUs page (aligned with Memberships page)
@@ -93,7 +94,7 @@ const Check = () => (
 
 const NEXT_STEPS = [
   { step: "1", title: "Check your email", text: "Your payment receipt from Stripe is on its way." },
-  { step: "2", title: "Join our Discord", text: "Head to our Discord and grab your member role to unlock all channels.", link: { label: "Open Discord →", href: "https://discord.gg/ucd5ZnDDnf" } },
+  { step: "2", title: "Join our Discord", text: "Head to our Discord and grab your member role to unlock all channels.", link: { label: "Open Discord →", href: DISCORD_INVITE_URL } },
   { step: "3", title: "Attend an event", text: "Check the calendar for upcoming workshops, build nights, and speaker events.", link: { label: "View calendar →", href: "/calendar" } },
 ];
 
@@ -237,7 +238,7 @@ function SuccessView() {
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <a
-          href="https://discord.gg/ucd5ZnDDnf"
+          href={DISCORD_INVITE_URL}
           className="flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white transition hover:brightness-110"
           style={{ background: "#b91c1c", boxShadow: "0 0 24px rgba(185,28,28,.4)" }}
         >

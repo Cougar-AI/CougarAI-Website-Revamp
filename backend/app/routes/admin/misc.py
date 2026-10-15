@@ -3,17 +3,21 @@ import uuid
 from flask import request, jsonify, send_from_directory, make_response
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
-from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES
+from flask_jwt_extended import get_jwt
+from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES, OFFICER_UPLOAD_CATEGORIES
 from app.raw_db import get_db
 from app.utils.auth_decorators import require_admin, require_officer
 
 
 @admin_bp.route("/upload-image", methods=["POST", "OPTIONS"])
-@require_admin
+@require_officer
 def upload_image():
     category = request.args.get("category", "").strip()
     if category not in ALLOWED_CATEGORIES:
         return jsonify({"error": f"category must be one of: {', '.join(sorted(ALLOWED_CATEGORIES))}"}), 400
+    # Officers manage projects, so they can upload project images; everything else stays admin-only.
+    if category not in OFFICER_UPLOAD_CATEGORIES and get_jwt().get("role") != "admin":
+        return jsonify({"error": "Insufficient permissions"}), 403
 
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
