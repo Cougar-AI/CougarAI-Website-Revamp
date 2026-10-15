@@ -24,6 +24,8 @@ from app.routes.auth._helpers import (
 from app.utils.auth_decorators import require_authenticated
 
 
+GOOGLE_CLOCK_SKEW_SECONDS = 10
+
 # ── Microsoft OAuth helpers ──────────────────────────────────────────────────
 
 def _microsoft_tenant():
@@ -135,16 +137,21 @@ def google_login():
         return jsonify({"error": "google_oauth_not_configured"}), 503
 
     try:
+        # Google mints the token at click time; with zero skew a server clock
+        # even a second behind rejects it as "Token used too early".
         claims = google_id_token.verify_oauth2_token(
             credential,
             google_requests.Request(),
             client_id,
+            clock_skew_in_seconds=GOOGLE_CLOCK_SKEW_SECONDS,
         )
-    except Exception:
+    except Exception as exc:
+        current_app.logger.warning("auth/google rejected reason=verify_failed detail=%s", exc)
         return jsonify({"error": "invalid_credentials"}), 401
 
     email = _normalize_email(claims.get("email") or "")
     if not email or not claims.get("email_verified"):
+        current_app.logger.warning("auth/google rejected reason=email_unverified")
         return jsonify({"error": "invalid_credentials"}), 401
 
     try:
@@ -156,6 +163,7 @@ def google_login():
             onboarding_completed=user["onboarding_completed_at"] is not None,
         )
     except PermissionError:
+        current_app.logger.warning("auth/google rejected reason=inactive_user")
         return jsonify({"error": "invalid_credentials"}), 401
     except SQLAlchemyError:
         current_app.logger.exception("Google OAuth database failure for %s", email)
