@@ -59,6 +59,13 @@ def create_app(config_class='config.DevelopmentConfig'):
         raise RuntimeError(
             "Missing SQLALCHEMY_DATABASE_URI. Set SQLALCHEMY_DATABASE_URI or DB_NAME/DB_USER/DB_PASS/DB_HOST/DB_PORT."
         )
+    # SQLAlchemy 2.1+ maps a bare postgresql:// URL to the psycopg (v3) driver, but we
+    # install psycopg2 — name the driver explicitly so startup doesn't depend on the version.
+    for prefix in ("postgres://", "postgresql://"):
+        if uri.startswith(prefix):
+            uri = "postgresql+psycopg2://" + uri[len(prefix):]
+            app.config["SQLALCHEMY_DATABASE_URI"] = uri
+            break
 
     app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
     db.init_app(app)
