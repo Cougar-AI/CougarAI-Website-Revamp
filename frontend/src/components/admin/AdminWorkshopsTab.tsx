@@ -511,7 +511,7 @@ export default function AdminWorkshopsTab() {
     queryKey: ['admin-workshops-jobs'],
     queryFn: () => apiGet('/admin/workshops/jobs'),
     staleTime: 2_000,
-    refetchInterval: (query) => (normalizeJobList(query.state.data).some(isJobActive) ? 3_000 : 15_000),
+    refetchInterval: (query) => (normalizeJobList(query.state.data).some(isJobActive) ? 3_000 : 30_000),
   });
   const jobs = normalizeJobList(jobsQuery.data);
   const activeJobInList = jobs.find(isJobActive) ?? null;
@@ -519,7 +519,7 @@ export default function AdminWorkshopsTab() {
     queryKey: ['admin-workshops-status'],
     queryFn: () => apiGet('/admin/workshops/status'),
     staleTime: 2_000,
-    refetchInterval: activeJobInList ? 5_000 : 30_000,
+    refetchInterval: activeJobInList ? 5_000 : 60_000,
   });
   const requirementsQuery = useQuery<unknown>({ queryKey: ['admin-workshops-requirements'], queryFn: () => apiGet('/admin/workshops/requirements'), staleTime: 20_000 });
   // Only /jobs/<id> returns the log; the list endpoint strips it. Poll it until the job finishes.
