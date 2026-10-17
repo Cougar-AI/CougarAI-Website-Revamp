@@ -1,0 +1,42 @@
+Backend Software Engineering Intern (Summer 2027)
+[Company Name] | Houston, TX (Hybrid) | 10–12 weeks | Paid
+
+About the role
+You’ll join our platform team and help build the services behind our customer dashboard. You’ll ship real code to production, work alongside experienced engineers, and get regular code review and mentorship.
+
+What you’ll do
+
+Build and maintain REST API endpoints used by our web and mobile apps
+Write SQL queries and help improve the performance of our PostgreSQL database
+Write unit and integration tests for new and existing features
+Containerize services and help improve our deployment workflow
+Participate in code reviews, sprint planning, and daily standups
+Document your work so teammates can build on it
+
+Required qualifications
+
+Currently pursuing a B.S. or M.S. in Computer Science, Software Engineering, or a related field, graduating between December 2027 and June 2028
+Proficiency in Python
+Working knowledge of SQL and relational databases
+Experience building or consuming REST APIs
+Familiarity with Git and version control workflows
+Familiarity with Docker
+Strong written and verbal communication skills
+
+Preferred qualifications
+
+Experience with AWS (EC2, S3, or Lambda)
+Exposure to Kubernetes
+Experience with CI/CD pipelines (GitHub Actions, Jenkins, or similar)
+Experience with Flask, FastAPI, or Django
+Personal projects, hackathons, or open-source contributions
+Experience working on a team project
+
+What we offer
+
+Competitive hourly pay and a structured mentorship program
+A project with real impact and a final presentation to leadership
+Opportunities for a return offer
+
+Equal opportunity
+[Company Name] is an equal opportunity employer. We welcome applicants of all backgrounds.
