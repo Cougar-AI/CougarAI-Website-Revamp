@@ -24,3 +24,4 @@ python-docx
 pydantic
 requests
 clamd 
+ollama-prompt
