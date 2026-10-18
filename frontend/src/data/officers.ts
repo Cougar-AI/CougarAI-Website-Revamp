@@ -21,6 +21,7 @@ export const departments: Department[] = [
       { id: 'chuck', name: 'Truc "Chuck" Le', position: 'Vice President Internal', photo: '/officerHeadshots/Truc Le.jpeg', linkedin: 'https://www.linkedin.com/in/franklinstyle' },
       { id: 'ashley', name: 'Ashley Nguyen', position: 'Vice President External', photo: '/officerHeadshots/Ashley Nguyen.jpeg', linkedin: 'https://linkedin.com/in/ashleynguyencs/' },
       { id: 'eian', name: ' Eian Papillion', position: 'Secretary', photo: '/officerHeadshots/Eian Papillion.png', linkedin: 'https://www.linkedin.com/in/' },
+      { id: 'nabiha', name: 'Nabiha Alsharfeen', position: 'Treasurer', photo: '/officerHeadshots/Nabiha Alsharfeen.jpg', linkedin: 'https://www.linkedin.com/in/nabiha-alsharfeen-1b16a4180/' },
     ],
   },
   {
