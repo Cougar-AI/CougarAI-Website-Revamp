@@ -110,7 +110,7 @@ function ConfirmModal({ message, files, onConfirm, onCancel }: {
             <p className="text-xs font-medium text-white/60 mb-1">
               {files.length} attachment{files.length !== 1 ? 's' : ''}
             </p>
-            <ul className="max-h-32 space-y-1 overflow-y-auto">
+            <ul className="max-h-32 space-y-1 overflow-y-auto overscroll-contain">
               {files.map((f, i) => (
                 <li key={i} className="flex items-center gap-1.5 text-xs text-white/80">
                   <Paperclip size={12} className="shrink-0 text-white/40" />
@@ -215,7 +215,7 @@ export default function AdminBulkEmailTab() {
     <div className="space-y-6 p-4 sm:p-6">
       {confirming && (
         <ConfirmModal
-          message={`Send "${subject}" to ${filterLabel}? This cannot be undone.`}
+          message={`Send “${subject}” to ${filterLabel}? This cannot be undone.`}
           files={files}
           onConfirm={handleConfirm}
           onCancel={() => setConfirming(false)}
@@ -404,7 +404,7 @@ export default function AdminBulkEmailTab() {
                         </p>
                       )}
                     </td>
-                    <td className="py-2.5 pr-4 text-white/70 whitespace-nowrap">
+                    <td className="py-2.5 pr-4 text-white/70 whitespace-nowrap tabular-nums">
                       {log.recipients_total != null ? `${log.recipients_count} / ${log.recipients_total}` : log.recipients_count}
                     </td>
                     <td className="py-2.5 pr-4 text-white/50 capitalize">{log.recipient_filter}</td>
