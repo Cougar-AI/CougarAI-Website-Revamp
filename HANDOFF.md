@@ -63,3 +63,14 @@ NOT run write flows against it. For safe local testing use the isolated test DB:
 - **Guest check-in cross-tab limit:** if the email-verification link opens in a
   different browser/tab, sessionStorage won't carry the pending code, so auto-check-in
   won't fire (account creation still works). Same-browser flow works.
+
+## Discord ⇄ Google Calendar sync — backend half (2026-10-19)
+
+Branch `feat/discord-calendar-settings`. It pairs with the bot branch `feat/gcal-event-sync` (CougarAI_Bot, whose `HANDOFF.md` has the full design and the live checklist). **Deploy this first**, before the bot.
+
+- `discord_config` gains `gcal_sync_enabled`, `gcal_calendar_id`, `event_announce_enabled/_channel/_role` and `event_recap_enabled/_channel`. A POST that omits them keeps them, and a PATCH can set false or null.
+- `GET /events/?google_event_id=` filter.
+- `POST/DELETE /events/rsvp/by-discord` (admin JWT; used by the bot for Interested → RSVP). It only acts when exactly one profile has that `discord_id`, since that field is self-editable and unverified. Discord removes only RSVPs it created (new `event_rsvps.source`).
+- **Prod steps:** run `backend/migrations/add_discord_config_calendar.sql` and `add_event_rsvps_source.sql` (both are in `run_migrations.sh`), then restart gunicorn.
+- **Behaviour to know:** a Discord edit to a website-originated event now also PATCHes the website row. For those events, edit on the website or in Discord, not directly in Google Calendar: the website's next push to Google overwrites Google-side edits. That push behaviour is pre-existing.
+- Tests: `tests/integration/test_discord_config.py` and `test_rsvp_by_discord.py`.
