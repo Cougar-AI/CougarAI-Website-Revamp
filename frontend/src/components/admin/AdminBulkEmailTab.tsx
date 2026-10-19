@@ -92,8 +92,17 @@ function ConfirmModal({ message, files, onConfirm, onCancel }: {
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
-      <div className="w-full max-w-sm rounded-2xl p-6" style={{ ...glass, background: 'rgba(20,20,20,.92)' }}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,.7)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-sm rounded-2xl p-6"
+        style={{ background: 'rgba(10,0,0,.95)', border: '1px solid rgba(185,28,28,.3)', boxShadow: '0 20px 60px rgba(0,0,0,.6)' }}
+      >
         <Mail size={32} className="text-red-400 mb-3" />
         <p className="text-white text-sm leading-relaxed mb-4">{message}</p>
         {files.length > 0 && (
@@ -298,7 +307,7 @@ export default function AdminBulkEmailTab() {
                     type="button"
                     onClick={() => removeFile(i)}
                     aria-label={`Remove ${f.name}`}
-                    className="shrink-0 rounded-full p-1 text-white/60 hover:bg-red-900/60 hover:text-white transition"
+                    className="shrink-0 rounded-full p-1.5 text-white/60 hover:bg-red-900/60 hover:text-white transition"
                   >
                     <X size={12} />
                   </button>
@@ -313,7 +322,7 @@ export default function AdminBulkEmailTab() {
           <p className="text-sm text-rose-300">{(sendMutation.error as Error).message}</p>
         )}
         {sendMutation.isSuccess && (
-          <p className="text-sm text-emerald-300 flex items-center gap-1">
+          <p role="status" className="text-sm text-emerald-300 flex items-center gap-1">
             {!lastLog || lastLog.status === 'sending' ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
@@ -323,7 +332,7 @@ export default function AdminBulkEmailTab() {
             ) : (
               <span className="inline-flex flex-wrap items-center gap-2 text-white/80">
                 <StatusBadge status={lastLog.status} />
-                {lastLog.recipients_count} of {lastLog.recipients_total ?? sendMutation.data.recipients_total} sent. Details under Recent Sends.
+                {lastLog.recipients_count} of {lastLog.recipients_total ?? sendMutation.data.recipients_total} recipients. Details under Recent Sends.
               </span>
             )}
           </p>
