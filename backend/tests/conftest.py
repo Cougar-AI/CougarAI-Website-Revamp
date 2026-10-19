@@ -109,6 +109,7 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_events_geolocation.sql"),
         os.path.join(root, "migrations", "add_event_types_table.sql"),
         os.path.join(root, "migrations", "add_events_rsvp.sql"),
+        os.path.join(root, "migrations", "add_event_rsvps_source.sql"),
         os.path.join(root, "migrations", "fix_events_event_name_nullable.sql"),
         os.path.join(root, "migrations", "add_points_admin_fields.sql"),
         os.path.join(root, "migrations", "add_points_unique_constraint.sql"),
@@ -122,6 +123,7 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_projects_table.sql"),
         os.path.join(root, "migrations", "add_bulk_email_logs.sql"),
         os.path.join(root, "migrations", "add_bulk_email_attachments.sql"),
+        os.path.join(root, "migrations", "add_discord_config_calendar.sql"),
     ]
     with application.app_context():
         with db.engine.begin() as conn:

@@ -441,6 +441,54 @@ paths:
               example:
                 error: "some server error message"
 
+  /events/rsvp/by-discord:
+    post:
+      tags:
+        - events
+      summary: RSVP a member to an event by Discord ID (bot, admin only)
+      description: |
+        Used by the Discord bot when a member clicks "Interested" on a synced Discord event.
+        The event is found by its Google Calendar event ID; the member by profile.discord_id,
+        and only when exactly one profile has that ID. Creates an RSVP with source 'discord';
+        an existing website RSVP is left unchanged.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [google_event_id, discord_id]
+              properties:
+                google_event_id:
+                  type: string
+                discord_id:
+                  type: string
+      responses:
+        '201':
+          description: '{"success": true, "created": bool}'
+        '400':
+          description: '{"error": "rsvp_disabled"}'
+        '404':
+          description: '{"error": "event_not_found" | "profile_not_found" | "ambiguous_profile"}'
+        '422':
+          description: '{"error": "google_event_id_and_discord_id_required"}'
+    delete:
+      tags:
+        - events
+      summary: Remove a bot-created RSVP by Discord ID (bot, admin only)
+      description: |
+        Same body and lookups as POST. Deletes only RSVPs with source 'discord', so an RSVP made on
+        the website is never removed from Discord. Allowed even when RSVP is disabled.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: '{"success": true, "deleted": bool}'
+        '404':
+          description: Same as POST
+
   /discord/config/{guild_id}:
     get:
       tags:
@@ -475,6 +523,29 @@ paths:
                     type: string
                   member_role:
                     type: string
+                  officer_role:
+                    type: string
+                  auto_role:
+                    type: string
+                  gcal_sync_enabled:
+                    type: boolean
+                    description: Discord bot ⇄ Google Calendar event sync on/off
+                  gcal_calendar_id:
+                    type: string
+                    nullable: true
+                  event_announce_enabled:
+                    type: boolean
+                  event_announce_channel:
+                    type: string
+                    nullable: true
+                  event_announce_role:
+                    type: string
+                    nullable: true
+                  event_recap_enabled:
+                    type: boolean
+                  event_recap_channel:
+                    type: string
+                    nullable: true
               example:
                 guild_id: "123456789012345678"
                 announcement_channel: "111111111111111111"
@@ -500,6 +571,10 @@ paths:
       summary: Create or upsert Discord configuration
       description: |
         Create or upsert a Discord configuration for a guild. Will update if a config already exists.
+        Also accepts the calendar-sync fields (gcal_sync_enabled, gcal_calendar_id,
+        event_announce_enabled/_channel/_role, event_recap_enabled/_channel); any of them
+        omitted from the body keep their stored value. Booleans must be JSON booleans;
+        channel/role IDs are 16-22 digit strings, or null/"" to clear.
       parameters:
         - name: guild_id
           in: path

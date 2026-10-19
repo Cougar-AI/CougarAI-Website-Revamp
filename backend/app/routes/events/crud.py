@@ -53,6 +53,7 @@ def getEvents():
             "ends_at": ends_at,
             "capacity": request.args.get("capacity"),
             "location": request.args.get("location"),
+            "google_event_id": request.args.get("google_event_id"),
         }
 
         try:

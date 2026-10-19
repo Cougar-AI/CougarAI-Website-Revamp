@@ -70,6 +70,8 @@ MIGRATIONS=(
   add_projects_table.sql
   add_bulk_email_logs.sql
   add_bulk_email_attachments.sql
+  add_discord_config_calendar.sql
+  add_event_rsvps_source.sql
 )
 
 FAILED=0
