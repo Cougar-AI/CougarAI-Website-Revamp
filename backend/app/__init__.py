@@ -53,6 +53,11 @@ def create_app(config_class='config.DevelopmentConfig'):
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         return response
 
+    @app.errorhandler(413)
+    def _too_large(_e):
+        limit_mb = (app.config.get("MAX_CONTENT_LENGTH") or 0) // (1024 * 1024)
+        return {"error": f"Upload is too large (limit {limit_mb} MB)"}, 413
+
     uri = app.config.get("SQLALCHEMY_DATABASE_URI")
     if not uri:
         # Fail early with a clear message
