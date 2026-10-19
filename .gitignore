@@ -66,3 +66,6 @@ package-lock.json
 /backend/ats/resume.pdf
 /backend/ats/jd.txt
 
+
+# Receipt photos are private financial records (admin-only route) — never commit them
+/backend/uploads/receipts/
