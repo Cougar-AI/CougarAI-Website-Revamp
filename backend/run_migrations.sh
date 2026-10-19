@@ -68,6 +68,8 @@ MIGRATIONS=(
   reorder_officer_departments.sql
   add_knowledge_base_tables.sql
   add_projects_table.sql
+  add_discord_config_calendar.sql
+  add_event_rsvps_source.sql
 )
 
 FAILED=0

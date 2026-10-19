@@ -2,7 +2,7 @@ from flask import request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from app.routes.events import events_bp
 from app.raw_db import get_db
-from app.utils.auth_decorators import require_officer, require_role, require_authenticated
+from app.utils.auth_decorators import require_admin, require_officer, require_role, require_authenticated
 
 
 @events_bp.route("/my-rsvps", methods=["GET", "OPTIONS"])
@@ -121,3 +121,83 @@ def cancel_rsvp(event_id):
         )
         conn.commit()
     return jsonify({"success": True})
+
+
+# --- Discord bot RSVPs -----------------------------------------------------
+# The bot identifies people by Discord ID and events by Google Calendar ID.
+# profile.discord_id is self-editable and unverified, so anything other than
+# exactly one matching profile is refused rather than guessed at.
+
+def _resolve_discord_rsvp_target(cur):
+    """Resolve the JSON body to (event_row, user_id), or (None, (response, status))."""
+    body = request.get_json(silent=True)
+    body = body if isinstance(body, dict) else {}
+    google_event_id = body.get("google_event_id")
+    discord_id = body.get("discord_id")
+    if (
+        not isinstance(google_event_id, str) or not google_event_id.strip()
+        or not isinstance(discord_id, str) or not discord_id.strip()
+    ):
+        return None, (jsonify({"error": "google_event_id_and_discord_id_required"}), 422)
+
+    cur.execute(
+        "SELECT event_id, rsvp_enabled FROM events WHERE google_event_id = %s",
+        (google_event_id.strip(),),
+    )
+    event = cur.fetchone()
+    if not event:
+        return None, (jsonify({"error": "event_not_found"}), 404)
+
+    cur.execute(
+        "SELECT user_id FROM profile WHERE discord_id::text = %s",
+        (discord_id.strip(),),
+    )
+    profiles = cur.fetchall()
+    if not profiles:
+        return None, (jsonify({"error": "profile_not_found"}), 404)
+    if len(profiles) > 1:
+        return None, (jsonify({"error": "ambiguous_profile"}), 404)
+    return (event, profiles[0]["user_id"]), None
+
+
+@events_bp.route("/rsvp/by-discord", methods=["POST", "OPTIONS"])
+@require_admin
+def create_rsvp_by_discord():
+    conn = get_db()
+    with conn.cursor() as cur:
+        target, err = _resolve_discord_rsvp_target(cur)
+        if err:
+            return err
+        event, user_id = target
+        if not event["rsvp_enabled"]:
+            return jsonify({"error": "rsvp_disabled"}), 400
+        # An existing website RSVP conflicts and is left untouched (stays 'website').
+        cur.execute(
+            """INSERT INTO event_rsvps (event_id, user_id, source)
+               VALUES (%s, %s, 'discord')
+               ON CONFLICT (event_id, user_id) DO NOTHING""",
+            (event["event_id"], user_id),
+        )
+        created = cur.rowcount == 1
+        conn.commit()
+    return jsonify({"success": True, "created": created}), 201
+
+
+@events_bp.route("/rsvp/by-discord", methods=["DELETE", "OPTIONS"])
+@require_admin
+def cancel_rsvp_by_discord():
+    conn = get_db()
+    with conn.cursor() as cur:
+        target, err = _resolve_discord_rsvp_target(cur)
+        if err:
+            return err
+        event, user_id = target
+        # Only rows the bot created; a website RSVP is never removed from Discord.
+        cur.execute(
+            """DELETE FROM event_rsvps
+               WHERE event_id = %s AND user_id = %s AND source = 'discord'""",
+            (event["event_id"], user_id),
+        )
+        deleted = cur.rowcount > 0
+        conn.commit()
+    return jsonify({"success": True, "deleted": deleted}), 200
