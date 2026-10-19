@@ -256,6 +256,41 @@ def test_disconnect_twice_stops(app, client, admin_headers, monkeypatch):
     assert "Connection lost after 0 sends" in row["error_message"]
 
 
+def test_job_stops_when_its_row_was_marked_interrupted(app, client, admin_headers, monkeypatch):
+    """If a poll expired this job's row, another send may already be running — this one must stop."""
+    from app import db
+    _make_user(app, "admin")
+    calls = []
+
+    def send_then_get_expired(to, *args, **kwargs):
+        calls.append(to)
+        with db.engine.begin() as conn:
+            conn.execute(text("UPDATE bulk_email_logs SET status = 'interrupted' WHERE status = 'sending'"))
+        return True
+
+    monkeypatch.setattr(f"{BE}.send_email", send_then_get_expired)
+    monkeypatch.setattr(f"{BE}.PROGRESS_EVERY", 1)
+    monkeypatch.setattr(f"{BE}._executor", InlineExecutor())
+    monkeypatch.setitem(app.config, "MAILER_BACKEND", "console")
+    row = _log(app, _post(client, admin_headers).get_json()["log_id"])
+    assert len(calls) == 1
+    assert row["status"] == "partial"
+    assert row["recipients_count"] == 1
+    assert "marked interrupted" in row["error_message"]
+
+
+def test_slow_sends_still_heartbeat(app, client, admin_headers, monkeypatch):
+    _make_user(app, "admin")
+    beats = []
+    monkeypatch.setattr(f"{BE}.HEARTBEAT_SECONDS", 0)  # every send counts as "slow"
+    monkeypatch.setattr(f"{BE}._heartbeat", lambda log_id, sent: beats.append(sent) or True)
+    monkeypatch.setattr(f"{BE}.send_email", lambda *a, **k: True)
+    monkeypatch.setattr(f"{BE}._executor", InlineExecutor())
+    monkeypatch.setitem(app.config, "MAILER_BACKEND", "console")
+    _post(client, admin_headers)
+    assert beats == list(range(1, len(_admin_emails(app)) + 1))
+
+
 def test_smtp_unconfigured_is_recorded(app, client, admin_headers, monkeypatch):
     called = []
     monkeypatch.setattr(f"{BE}.send_email", lambda *a, **k: called.append(a))

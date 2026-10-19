@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import smtplib
+import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 
@@ -26,7 +27,8 @@ _RECIPIENT_FILTERS = {
 MAX_ATTACHMENTS = 10
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENTS_TOTAL = 18 * 1024 * 1024  # stays under MAX_CONTENT_LENGTH (20 MB) and Gmail's 25 MB message cap
-PROGRESS_EVERY = 10  # sends between progress/heartbeat writes
+PROGRESS_EVERY = 10  # sends between progress writes
+HEARTBEAT_SECONDS = 30  # also write at least this often, however slow the SMTP server is
 STALE_AFTER = "10 minutes"  # a 'sending' row with no heartbeat this long belongs to a dead worker
 
 _ZIP = (b"PK\x03\x04",)
@@ -94,6 +96,16 @@ def _update_log(log_id, **fields):
         )
 
 
+def _heartbeat(log_id, sent) -> bool:
+    """Record progress. False means the row was marked interrupted, so this job no longer holds the send slot."""
+    with db.engine.begin() as conn:
+        return conn.execute(
+            text("""UPDATE bulk_email_logs SET recipients_count = :sent, heartbeat_at = NOW()
+                    WHERE log_id = :log_id AND status = 'sending'"""),
+            {"sent": sent, "log_id": log_id},
+        ).rowcount == 1
+
+
 def _run_send(app, log_id, emails, subject, text_body, html_body, attachments):
     with app.app_context():
         sent, errors = 0, []
@@ -105,6 +117,7 @@ def _run_send(app, log_id, emails, subject, text_body, html_body, attachments):
             with ExitStack() as stack:
                 smtp = stack.enter_context(smtp_session())
                 reconnected = False
+                last_beat = time.monotonic()
                 for i, address in enumerate(emails, 1):
                     try:
                         try:
@@ -123,8 +136,11 @@ def _run_send(app, log_id, emails, subject, text_body, html_body, attachments):
                         break
                     except Exception as exc:
                         errors.append(f"{address}: {exc}")
-                    if i % PROGRESS_EVERY == 0:
-                        _update_log(log_id, recipients_count=sent)
+                    if i % PROGRESS_EVERY == 0 or time.monotonic() - last_beat >= HEARTBEAT_SECONDS:
+                        if not _heartbeat(log_id, sent):
+                            errors.append(f"Stopped after {sent} sends: the send was marked interrupted")
+                            break
+                        last_beat = time.monotonic()
         except Exception as exc:
             current_app.logger.exception("bulk email %s failed", log_id)
             errors.append(str(exc))
