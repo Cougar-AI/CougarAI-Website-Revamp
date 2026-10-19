@@ -77,6 +77,9 @@ class BaseConfig:
     SMTP_USER = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
     SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() in {"1","true","yes","on"}
+
+    # Largest request body Flask will read (bulk-email attachments cap at 18 MB); larger → 413
+    MAX_CONTENT_LENGTH = 20 * 1024 * 1024
     
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
