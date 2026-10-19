@@ -44,7 +44,7 @@
     "globals": "^17.13.0",
     "rollup-plugin-visualizer": "^7.1.1",
     "tw-animate-css": "^1.3.6",
-    "typescript": "~5.8.3",
+    "typescript": "~7.0.2",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.4",
     "vite-plugin-static-copy": "^4.1.1"
