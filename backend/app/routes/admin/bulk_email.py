@@ -128,25 +128,22 @@ def _run_send(app, log_id, emails, subject, text_body, html_body, attachments):
                 last_beat = time.monotonic()
                 for i, address in enumerate(emails, 1):
                     try:
-                        try:
-                            send_email(address, subject, text_body, html_body, attachments, smtp=smtp)
-                        except smtplib.SMTPServerDisconnected:
-                            # Long lists outlive some servers' session limits: reconnect once, then give up.
-                            if reconnected:
-                                raise
-                            reconnected = True
-                            stack.close()
-                            smtp = stack.enter_context(smtp_session())
-                            send_email(address, subject, text_body, html_body, attachments, smtp=smtp)
+                        send_email(address, subject, text_body, html_body, attachments, smtp=smtp)
                         sent += 1
                     except smtplib.SMTPServerDisconnected as exc:
-                        errors.append(f"Connection lost after {sent} sends: {exc}")
-                        break
+                        # The server may have queued this message before dropping us, so never resend it.
+                        errors.append(f"{address}: connection dropped, delivery unknown ({exc})")
+                        if reconnected:
+                            errors.insert(0, f"Connection lost twice; stopped after {sent} sends")
+                            break
+                        reconnected = True  # long lists outlive some servers' session limits: reconnect once
+                        stack.close()
+                        smtp = stack.enter_context(smtp_session())
                     except Exception as exc:
                         errors.append(f"{address}: {exc}")
                     if i % PROGRESS_EVERY == 0 or time.monotonic() - last_beat >= HEARTBEAT_SECONDS:
                         if not _heartbeat(log_id, sent):
-                            errors.append(f"Stopped after {sent} sends: the send was marked interrupted")
+                            errors.insert(0, f"Stopped after {sent} sends: the send was marked interrupted")
                             break
                         last_beat = time.monotonic()
         except Exception as exc:

@@ -241,34 +241,43 @@ def test_one_recipient_failing_is_partial(app, client, admin_headers, monkeypatc
     assert victim in row["error_message"]
 
 
-def test_disconnect_reconnects_once(app, client, admin_headers, monkeypatch):
-    state = {"failed": False, "sent": 0}
+def test_disconnect_reconnects_once_without_resending(app, client, admin_headers, monkeypatch):
+    _make_user(app, "admin")
+    calls = []
 
     def drops_once(to, *args, **kwargs):
-        if not state["failed"]:
-            state["failed"] = True
+        calls.append(to)
+        if len(calls) == 1:
             raise smtplib.SMTPServerDisconnected("bye")
-        state["sent"] += 1
         return True
 
     monkeypatch.setattr(f"{BE}.send_email", drops_once)
     monkeypatch.setattr(f"{BE}._executor", InlineExecutor())
     monkeypatch.setitem(app.config, "MAILER_BACKEND", "console")
     row = _log(app, _post(client, admin_headers).get_json()["log_id"])
-    assert row["status"] == "sent"
-    assert row["recipients_count"] == len(_admin_emails(app)) == state["sent"]
+    total = len(_admin_emails(app))
+    assert len(calls) == total and len(set(calls)) == total  # the dropped recipient is not retried
+    assert row["status"] == "partial"
+    assert row["recipients_count"] == total - 1
+    assert f"{calls[0]}: connection dropped, delivery unknown" in row["error_message"]
 
 
 def test_disconnect_twice_stops(app, client, admin_headers, monkeypatch):
-    def always_drops(*args, **kwargs):
+    _make_user(app, "admin")
+    _make_user(app, "admin")
+    calls = []
+
+    def always_drops(to, *args, **kwargs):
+        calls.append(to)
         raise smtplib.SMTPServerDisconnected("bye")
 
     monkeypatch.setattr(f"{BE}.send_email", always_drops)
     monkeypatch.setattr(f"{BE}._executor", InlineExecutor())
     monkeypatch.setitem(app.config, "MAILER_BACKEND", "console")
     row = _log(app, _post(client, admin_headers).get_json()["log_id"])
+    assert len(calls) == 2
     assert row["status"] == "failed"
-    assert "Connection lost after 0 sends" in row["error_message"]
+    assert row["error_message"].startswith("Connection lost twice; stopped after 0 sends")
 
 
 def test_job_stops_when_its_row_was_marked_interrupted(app, client, admin_headers, monkeypatch):
