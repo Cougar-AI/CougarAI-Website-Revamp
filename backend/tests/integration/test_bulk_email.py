@@ -36,11 +36,6 @@ def admin_headers(app):
     return _make_user(app, "admin")
 
 
-@pytest.fixture(scope="module")
-def member_headers(app):
-    return _make_user(app, "member")
-
-
 class InlineExecutor:
     def submit(self, fn, *args, **kwargs):
         fn(*args, **kwargs)
@@ -110,10 +105,12 @@ def test_requires_token(client):
     assert client.get("/admin/bulk-email/logs").status_code == 401
 
 
-def test_member_forbidden(client, member_headers, sent):
+@pytest.mark.parametrize("role", ["member", "officer"])
+def test_non_admin_forbidden(app, client, sent, role):
+    headers = _make_user(app, role)
     assert client.post("/admin/bulk-email/send", json={"subject": "s", "body": "b", "recipient_filter": "admins"},
-                       headers=member_headers).status_code == 403
-    assert client.get("/admin/bulk-email/logs", headers=member_headers).status_code == 403
+                       headers=headers).status_code == 403
+    assert client.get("/admin/bulk-email/logs", headers=headers).status_code == 403
     assert sent == []
 
 
