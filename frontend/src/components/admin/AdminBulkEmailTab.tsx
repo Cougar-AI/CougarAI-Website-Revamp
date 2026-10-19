@@ -213,14 +213,6 @@ export default function AdminBulkEmailTab() {
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      {confirming && (
-        <ConfirmModal
-          message={`Send “${subject}” to ${filterLabel}? This cannot be undone.`}
-          files={files}
-          onConfirm={handleConfirm}
-          onCancel={() => setConfirming(false)}
-        />
-      )}
 
       {/* Compose */}
       <div className="p-4 sm:p-6 space-y-5" style={glass}>
@@ -423,6 +415,16 @@ export default function AdminBulkEmailTab() {
           </div>
         )}
       </div>
+
+      {/* Last child: space-y gives every other child a bottom margin, which would shrink the fixed overlay. */}
+      {confirming && (
+        <ConfirmModal
+          message={`Send “${subject}” to ${filterLabel}? This cannot be undone.`}
+          files={files}
+          onConfirm={handleConfirm}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
     </div>
   );
 }
