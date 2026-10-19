@@ -207,6 +207,21 @@ def test_html_body_gets_html_alternative(client, admin_headers, sent):
     assert "<b>the social</b>" in sent[0]["html"]
 
 
+def test_angle_bracket_address_is_not_html(client, admin_headers, sent):
+    body = "Questions? Email Jane <jane@uh.edu> or RSVP: <https://forms.gle/x>"
+    assert _post(client, admin_headers, body=body).status_code == 202
+    assert sent[0]["text"] == body
+    assert sent[0]["html"] is None
+
+
+def test_generic_declared_type_falls_back_to_magic_bytes(client, admin_headers, sent):
+    resp = _post(client, admin_headers, [("deck.pptx", "application/octet-stream", b"PK\x03\x04rest")])
+    assert resp.status_code == 202
+    assert sent[0]["attachments"][0][1] == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    resp = _post(client, admin_headers, [("deck.pptx", "application/octet-stream", b"MZ not a zip")])
+    assert resp.status_code == 422
+
+
 def test_one_recipient_failing_is_partial(app, client, admin_headers, monkeypatch):
     _make_user(app, "admin")  # at least two recipients, so one can fail
     victim = sorted(_admin_emails(app))[0]

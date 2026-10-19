@@ -60,7 +60,9 @@ function attachmentError(current: File[], added: File[]): string | null {
   let total = current.reduce((sum, f) => sum + f.size, 0);
   for (const f of added) {
     const ext = f.name.slice(f.name.lastIndexOf('.')).toLowerCase();
-    if (ATTACHMENT_TYPES[ext] === undefined || f.type !== ATTACHMENT_TYPES[ext])
+    // '' / octet-stream = the browser doesn't know the type; the server's magic-byte check still decides.
+    const typeOk = f.type === ATTACHMENT_TYPES[ext] || f.type === '' || f.type === 'application/octet-stream';
+    if (ATTACHMENT_TYPES[ext] === undefined || !typeOk)
       return `${f.name}: only PDF, PNG, JPG, WEBP, GIF, DOCX and PPTX files are allowed.`;
     if (f.size > MAX_FILE_BYTES) return `${f.name} is over the 10 MB per-file limit.`;
     total += f.size;

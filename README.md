@@ -81,7 +81,23 @@ MICROSOFT_CLIENT_SECRET=
 MICROSOFT_TENANT_ID=common
 # Optional override if your public backend URL differs from request.url_root
 MICROSOFT_REDIRECT_URI=
+
+# Outgoing mail (verification, password reset, receipts, admin bulk email)
+MAILER_BACKEND=smtp          # "console" logs mail instead of sending (local dev)
+SMTP_HOST=smtp.gmail.com     # unset or "localhost" = mail is skipped (bulk sends show "Not sent")
+SMTP_PORT=587
+SMTP_USER=                   # also used as the From address
+SMTP_PASSWORD=               # for Gmail: an App Password, not the account password
+SMTP_USE_TLS=true
 ```
+
+**Mail limits.** Bulk email sends one message per recipient. Gmail caps sending at about
+**500 recipients/day for a personal account and 2,000/day for Google Workspace**; past that, sends
+fail until the window resets and the log row shows *Partial*. Attachments: PDF, PNG, JPG, WEBP, GIF,
+DOCX, PPTX, up to 10 files, 10 MB each, 18 MB total (about 25.8 MB once encoded; some recipients'
+mail servers refuse messages that large). Only one bulk send runs at a time; a send whose server process
+died is marked *Interrupted* after 10 minutes and is never retried automatically (check the sent count
+before re-sending).
 
 ### Frontend — `frontend/.env`
 

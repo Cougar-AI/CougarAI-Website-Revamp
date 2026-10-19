@@ -26,13 +26,17 @@ _RECIPIENT_FILTERS = {
 
 MAX_ATTACHMENTS = 10
 MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
-MAX_ATTACHMENTS_TOTAL = 18 * 1024 * 1024  # stays under MAX_CONTENT_LENGTH (20 MB) and Gmail's 25 MB message cap
+# Under MAX_CONTENT_LENGTH (20 MB). Base64 makes it ~25.8 MB on the wire: inside Gmail's ~35 MB SMTP
+# limit, but strict recipient servers may refuse the largest sets (shows as 'partial'/'failed').
+MAX_ATTACHMENTS_TOTAL = 18 * 1024 * 1024
 PROGRESS_EVERY = 10  # sends between progress writes
 HEARTBEAT_SECONDS = 30  # also write at least this often, however slow the SMTP server is
 STALE_AFTER = "10 minutes"  # a 'sending' row with no heartbeat this long belongs to a dead worker
 
 _ZIP = (b"PK\x03\x04",)
-# extension -> (mimetype the browser must declare, accepted leading bytes)
+# Browsers send these when they don't know a type (e.g. .docx on a machine without Office); the magic bytes still decide.
+_GENERIC_MIMETYPES = {"", "application/octet-stream"}
+# extension -> (mimetype the browser may declare, accepted leading bytes)
 _ATTACHMENT_TYPES = {
     ".pdf":  ("application/pdf", (b"%PDF-",)),
     ".png":  ("image/png", (b"\x89PNG\r\n\x1a\n",)),
@@ -44,7 +48,11 @@ _ATTACHMENT_TYPES = {
     ".pptx": ("application/vnd.openxmlformats-officedocument.presentationml.presentation", _ZIP),
 }
 
-_HTML_TAG = re.compile(r"<[a-zA-Z/][^>]*>")
+# Known tags only, so "<jane@uh.edu>" or "<https://…>" in a plain-text body is not mistaken for HTML and stripped.
+_HTML_TAG = re.compile(
+    r"</?(?:a|b|i|u|p|br|hr|em|strong|span|div|ul|ol|li|h[1-6]|img|table|thead|tbody|tr|td|th|blockquote|font|center)\b[^>]*>",
+    re.IGNORECASE,
+)
 
 # One send at a time per process; the DB index enforces one at a time across all gunicorn workers.
 # Tests swap this for an executor that runs the job inline.
@@ -70,7 +78,7 @@ def _read_attachments(files):
         raw_name = f.filename or ""
         ext = os.path.splitext(raw_name.lower())[1]
         expected = _ATTACHMENT_TYPES.get(ext)
-        if not expected or f.mimetype != expected[0]:
+        if not expected or (f.mimetype != expected[0] and f.mimetype not in _GENERIC_MIMETYPES):
             return None, f"{raw_name}: only PDF, PNG, JPG, WEBP, GIF, DOCX and PPTX files are allowed"
         data = f.read(MAX_ATTACHMENT_BYTES + 1)
         if len(data) > MAX_ATTACHMENT_BYTES:
