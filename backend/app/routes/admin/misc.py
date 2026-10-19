@@ -4,7 +4,7 @@ from flask import request, jsonify, send_from_directory, make_response
 from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import get_jwt
-from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES, OFFICER_UPLOAD_CATEGORIES
+from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES, OFFICER_UPLOAD_CATEGORIES, PRIVATE_UPLOAD_CATEGORIES
 from app.raw_db import get_db
 from app.utils.auth_decorators import require_admin, require_officer
 
@@ -13,8 +13,8 @@ from app.utils.auth_decorators import require_admin, require_officer
 @require_officer
 def upload_image():
     category = request.args.get("category", "").strip()
-    if category not in ALLOWED_CATEGORIES:
-        return jsonify({"error": f"category must be one of: {', '.join(sorted(ALLOWED_CATEGORIES))}"}), 400
+    if category not in ALLOWED_CATEGORIES and category not in PRIVATE_UPLOAD_CATEGORIES:
+        return jsonify({"error": f"category must be one of: {', '.join(sorted(ALLOWED_CATEGORIES | PRIVATE_UPLOAD_CATEGORIES))}"}), 400
     # Officers manage projects, so they can upload project images; everything else stays admin-only.
     if category not in OFFICER_UPLOAD_CATEGORIES and get_jwt().get("role") != "admin":
         return jsonify({"error": "Insufficient permissions"}), 403
@@ -38,6 +38,8 @@ def upload_image():
     os.makedirs(upload_dir, exist_ok=True)
     f.save(os.path.join(upload_dir, filename))
 
+    if category in PRIVATE_UPLOAD_CATEGORIES:
+        return jsonify({"url": f"/admin/{category}/image/{filename}"}), 200
     return jsonify({"url": f"/admin/uploads/{category}/{filename}"}), 200
 
 
@@ -75,11 +77,20 @@ def upload_file():
 
 @admin_bp.route("/uploads/<category>/<filename>", methods=["GET"])
 def serve_upload(category, filename):
-    if category not in ALLOWED_CATEGORIES:
+    # Public and CORS-open: private categories must stay out even if someone adds them to ALLOWED_CATEGORIES.
+    if category not in ALLOWED_CATEGORIES or category in PRIVATE_UPLOAD_CATEGORIES:
         return jsonify({"error": "Not found"}), 404
     upload_dir = os.path.join(UPLOADS_BASE, category)
     response = make_response(send_from_directory(upload_dir, secure_filename(filename)))
     response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+@admin_bp.route("/receipts/image/<filename>", methods=["GET", "OPTIONS"])
+@require_admin
+def serve_receipt_image(filename):
+    response = make_response(send_from_directory(os.path.join(UPLOADS_BASE, "receipts"), secure_filename(filename)))
+    response.headers["Cache-Control"] = "private, no-store"
     return response
 
 
