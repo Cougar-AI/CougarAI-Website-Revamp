@@ -6,8 +6,7 @@ import { formatDate, formatDateTimeFull } from '@/lib/dates';
 const BACKEND = (import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001').replace(/\/$/, '');
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const TYPES = ['progress_report_reminder', 'event_reminder'] as const;
-type ScheduleType = typeof TYPES[number];
+type ScheduleType = 'progress_report_reminder' | 'event_reminder';
 
 interface Schedule {
   schedule_id: number;

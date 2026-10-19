@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 export type GoogleCredentialResponse = { credential?: string };
 
@@ -43,7 +43,9 @@ export function useGoogleSignIn(
   options?: { disabled?: boolean }
 ) {
   const onCredentialRef = useRef(onCredential);
-  onCredentialRef.current = onCredential;
+  useLayoutEffect(() => {
+    onCredentialRef.current = onCredential;
+  }, [onCredential]);
 
   useEffect(() => {
     if (options?.disabled || !GOOGLE_CLIENT_ID || !buttonRef.current) return;

@@ -111,7 +111,7 @@ function MyReport({ userId }: { userId: number }) {
   useEffect(() => {
     const draft = localStorage.getItem(DRAFT_KEY(weekIso, userId));
     if (draft) {
-      try { setForm(JSON.parse(draft)); } catch {}
+      try { setForm(JSON.parse(draft)); } catch { /* corrupt draft: fall through to an empty form */ }
     } else if (existingReport) {
       const loaded: Record<FieldKey, string> = {} as any;
       REPORT_FIELDS.forEach(({ key }) => { loaded[key] = existingReport[key] ?? ''; });

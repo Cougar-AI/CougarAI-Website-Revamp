@@ -228,7 +228,7 @@ export default function KnowledgeBase() {
   }
 
   async function deleteSelectedEntry() {
-    if (!selectedEntry || !window.confirm(`Delete \"${selectedEntry.title}\"? This will hide it from the board.`)) return;
+    if (!selectedEntry || !window.confirm(`Delete "${selectedEntry.title}"? This will hide it from the board.`)) return;
 
     try {
       setEntryDeleting(true);
