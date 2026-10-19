@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QrCode, CheckCircle, Camera, X, CalendarCheck, Loader2 } from "lucide-react";
 import { Html5Qrcode, Html5QrcodeScannerState } from "html5-qrcode";
@@ -142,7 +142,11 @@ export default function CheckInTab({ meData, onRefresh, userId }: Props) {
   const [scanning, setScanning] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scanningRef = useRef(scanning);
-  scanningRef.current = scanning;
+  // Layout effects run before every passive effect, so the scanner effects
+  // below still see the current value (never write a ref during render).
+  useLayoutEffect(() => {
+    scanningRef.current = scanning;
+  }, [scanning]);
   // Bumped whenever a stale scanner (from a cancelled open) finishes tearing
   // down while a newer open request is still pending, so the effect below
   // re-runs even though `scanning` itself didn't change (it was already true).

@@ -513,6 +513,7 @@ export function EventModal({
   onSaved: () => void;
 }) {
   const defaultType = types.find((t) => t.is_active)?.name ?? 'workshop';
+  const [openedAt] = useState(() => Date.now()); // read once: render must stay pure
   const [form, setForm] = useState({
     name: event?.name ?? '',
     event_type: event?.event_type ?? defaultType,
@@ -940,7 +941,7 @@ export function EventModal({
                         type="date"
                         required={isRecurring}
                         value={recurUntil}
-                        min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                        min={new Date(openedAt + 86_400_000).toISOString().slice(0, 10)}
                         onChange={(e) => setRecurUntil(e.target.value)}
                         className="rounded-lg px-3 py-2 text-sm"
                         style={inputStyle}
@@ -2012,7 +2013,8 @@ export default function AdminEventsTab() {
                               title="Click to reveal full code"
                               onClick={() => setRevealedCodes((s) => {
                                 const next = new Set(s);
-                                next.has(ev.event_id) ? next.delete(ev.event_id) : next.add(ev.event_id);
+                                if (next.has(ev.event_id)) next.delete(ev.event_id);
+                                else next.add(ev.event_id);
                                 return next;
                               })}
                               className="text-xs text-white/30 font-mono mt-0.5 hover:text-white/60 transition-colors cursor-pointer block"

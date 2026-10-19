@@ -1,5 +1,5 @@
 import { Navigate, Routes, Route } from 'react-router-dom';
-import { Suspense } from 'react';
+import { Component, Suspense, type ReactNode } from 'react';
 import RootLayout from './layouts/RootLayout.tsx';
 import AppLoading from './components/AppLoading.tsx';
 import ErrorFallback from './components/ErrorFallback.tsx';
@@ -29,11 +29,18 @@ import AdminDashboard from './pages/AdminDashboard.tsx';
 import CheckIn from './pages/CheckIn.tsx';
 import PartnerDashboard from './pages/PartnerDashboard.tsx';
 
-function ErrorBoundary({ children }: { children: React.ReactNode }) {
-  try {
-    return <>{children}</>;
-  } catch (e) {
-    return <ErrorFallback error={e as Error} />;
+// Must be a class: only componentDidCatch/getDerivedStateFromError catch errors
+// thrown while children render. (The old function version wrapped `return
+// <>{children}</>` in try/catch, which never sees those errors.)
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    return this.state.error ? <ErrorFallback error={this.state.error} /> : this.props.children;
   }
 }
 

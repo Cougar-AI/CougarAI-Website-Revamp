@@ -152,7 +152,7 @@ export default function SponsorPage() {
             setShowBrochure(true);
           }
         }
-      } catch (e) {
+      } catch {
         // ignore
       }
     })();

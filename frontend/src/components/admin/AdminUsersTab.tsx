@@ -115,6 +115,7 @@ function Avatar({ user }: { user: AdminUser }) {
 }
 
 function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => void }) {
+  const [openedAt] = useState(() => Date.now()); // read once: render must stay pure
   const qc = useQueryClient();
   const [editRole, setEditRole] = useState(user.role);
   const [editEmail, setEditEmail] = useState(user.email);
@@ -131,7 +132,7 @@ function UserDetailModal({ user, onClose }: { user: UserDetail; onClose: () => v
   const isAdmin = currentUser?.role === 'admin';
   const hasActiveMembership = user.payments.some((p) => {
     if (!p.expires_at) return false;
-    return new Date(`${p.expires_at}T23:59:59`).getTime() >= Date.now();
+    return new Date(`${p.expires_at}T23:59:59`).getTime() >= openedAt;
   });
 
   async function saveRole() {

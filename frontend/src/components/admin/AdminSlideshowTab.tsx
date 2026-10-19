@@ -197,7 +197,7 @@ export default function AdminSlideshowTab() {
           URL.revokeObjectURL(localPreviewObjectUrlRef.current);
           localPreviewObjectUrlRef.current = null;
         }
-      } catch {}
+      } catch { /* already revoked */ }
       setLocalPreviewUrl(`${BACKEND}${uploadJson.url}`);
       qc.invalidateQueries({ queryKey: qKey });
     } catch (err: unknown) {
@@ -330,7 +330,7 @@ export default function AdminSlideshowTab() {
               <button
                 onClick={() => {
                   if (localPreviewObjectUrlRef.current) {
-                    try { URL.revokeObjectURL(localPreviewObjectUrlRef.current); } catch {}
+                    try { URL.revokeObjectURL(localPreviewObjectUrlRef.current); } catch { /* already revoked */ }
                     localPreviewObjectUrlRef.current = null;
                   }
                   setLocalPreviewUrl(null);

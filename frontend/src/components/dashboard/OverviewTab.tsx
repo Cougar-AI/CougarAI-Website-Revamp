@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, BookOpen, FolderKanban, Gift, Lock, Sparkles, Star, Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -118,8 +118,8 @@ export default function OverviewTab({ meData }: Props) {
     staleTime: 120_000,
   });
 
+  const [now] = useState(() => Date.now()); // read once: render must stay pure
   const upcomingWorkshops = useMemo(() => {
-    const now = Date.now();
     return (workshopData ?? [])
       .filter((event) => {
         if (!event.starts_at) return false;
@@ -128,7 +128,7 @@ export default function OverviewTab({ meData }: Props) {
       })
       .sort((a, b) => new Date(a.starts_at || 0).getTime() - new Date(b.starts_at || 0).getTime())
       .slice(0, 3);
-  }, [workshopData]);
+  }, [workshopData, now]);
 
   const featuredProjects = useMemo(() => {
     return [...(projectData?.entries ?? [])]
