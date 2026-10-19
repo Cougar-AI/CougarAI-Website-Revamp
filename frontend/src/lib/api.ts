@@ -65,12 +65,12 @@ async function performRequest(
   return fetch(`${BACKEND}${path}`, { method, headers, body: bodyInit });
 }
 
-async function request<T>(
+async function send(
   method: string,
   path: string,
   body?: unknown,
   formData?: FormData,
-): Promise<T> {
+): Promise<Response> {
   let res = await performRequest(method, path, body, formData);
 
   if (res.status === 401) {
@@ -97,6 +97,16 @@ async function request<T>(
     throw new ApiError(res.status, message);
   }
 
+  return res;
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  formData?: FormData,
+): Promise<T> {
+  const res = await send(method, path, body, formData);
   const text = await res.text();
   if (!text) return undefined as T;
   return JSON.parse(text) as T;
@@ -104,6 +114,11 @@ async function request<T>(
 
 export function apiGet<T>(path: string): Promise<T> {
   return request<T>("GET", path);
+}
+
+/** Authenticated GET of a binary resource (e.g. a private image) — use with URL.createObjectURL. */
+export async function apiGetBlob(path: string): Promise<Blob> {
+  return (await send("GET", path)).blob();
 }
 
 export function apiPost<T>(path: string, body: unknown): Promise<T> {

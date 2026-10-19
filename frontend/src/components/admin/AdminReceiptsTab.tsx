@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, Edit2, Trash2, X, Receipt, DollarSign, TrendingUp,
   ChevronDown, ImageIcon, Eye, Landmark,
 } from 'lucide-react';
+import { apiGetBlob, apiUpload } from '@/lib/api';
 
 const BACKEND = import.meta.env.VITE_BACKEND_API_URL ?? 'http://localhost:5001';
 
@@ -69,6 +70,30 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
     throw new Error(err.error || 'Request failed');
   }
   return res.json();
+}
+
+// Receipt photos are admin-only: fetch them with the auth header and show a blob URL.
+function useReceiptImage(path: string | null | undefined) {
+  const [state, setState] = useState<{ path: string; url: string | null; failed: boolean } | null>(null);
+  useEffect(() => {
+    if (!path) return;
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    apiGetBlob(`/admin/receipts/image/${encodeURIComponent(path.split('/').pop() ?? '')}`)
+      .then(blob => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setState({ path, url: objectUrl, failed: false });
+      })
+      .catch(() => { if (!cancelled) setState({ path, url: null, failed: true }); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [path]);
+  // Ignore a result that belongs to a previous path.
+  const current = path && state?.path === path ? state : null;
+  return { url: current?.url ?? null, failed: current?.failed ?? false, loading: Boolean(path) && !current };
 }
 
 const glass = {
@@ -207,10 +232,15 @@ function FundModal({ fund, onClose, onSaved }: { fund: Fund | null; onClose: () 
 }
 
 // ── Image viewer overlay ───────────────────────────────────────────────────────
-function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
+function ImageModal({ path, onClose }: { path: string; onClose: () => void }) {
+  const image = useReceiptImage(path);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,.85)' }} onClick={onClose}>
-      <img src={src} alt="Receipt" className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+      {image.url ? (
+        <img src={image.url} alt="Receipt" className="max-h-[85vh] max-w-[85vw] rounded-xl object-contain" onClick={e => e.stopPropagation()} />
+      ) : (
+        <p className="text-sm text-white/60">{image.failed ? "Couldn't load this receipt image." : 'Loading…'}</p>
+      )}
       <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20">
         <X size={20} className="text-white" />
       </button>
@@ -235,9 +265,7 @@ function ReceiptModal({ receipt, funds, onClose, onSaved }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(
-    receipt?.receipt_image_path ? `${BACKEND}/admin/uploads/receipts/${receipt.receipt_image_path.split('/').pop()}` : null
-  );
+  const preview = useReceiptImage(form.receipt_image_path);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function uploadImage(file: File) {
@@ -245,17 +273,8 @@ function ReceiptModal({ receipt, funds, onClose, onSaved }: {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await fetch(`${BACKEND}/admin/upload-image?category=receipts`, {
-        method: 'POST',
-        headers: { ...authHeaders() },
-        credentials: 'include',
-        body: fd,
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      const path = data.filename || data.url || data.path || '';
-      setForm(f => ({ ...f, receipt_image_path: path }));
-      setPreviewUrl(`${BACKEND}/admin/uploads/receipts/${path.split('/').pop()}`);
+      const data = await apiUpload<{ url: string }>('/admin/upload-image?category=receipts', fd);
+      setForm(f => ({ ...f, receipt_image_path: data.url }));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Upload error');
     } finally {
@@ -341,10 +360,14 @@ function ReceiptModal({ receipt, funds, onClose, onSaved }: {
           </div>
           <div className="col-span-2 flex flex-col gap-2">
             <label className="text-white/60 text-xs">Receipt Photo</label>
-            {previewUrl ? (
-              <div className="relative w-full h-32 rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,.06)' }}>
-                <img src={previewUrl} alt="Preview" className="w-full h-full object-contain" />
-                <button onClick={() => { setPreviewUrl(null); setForm(f => ({ ...f, receipt_image_path: '' })); }}
+            {form.receipt_image_path ? (
+              <div className="relative w-full h-32 rounded-lg overflow-hidden flex items-center justify-center" style={{ background: 'rgba(255,255,255,.06)' }}>
+                {preview.url ? (
+                  <img src={preview.url} alt="Preview" className="w-full h-full object-contain" />
+                ) : (
+                  <span className="text-xs text-white/40">{preview.failed ? "Couldn't load image" : 'Loading…'}</span>
+                )}
+                <button onClick={() => setForm(f => ({ ...f, receipt_image_path: '' }))} aria-label="Remove photo"
                   className="absolute top-1 right-1 p-1 rounded-full bg-black/60 hover:bg-red-900/60">
                   <X size={12} className="text-white" />
                 </button>
@@ -586,7 +609,7 @@ export default function AdminReceiptsTab() {
                   <td className="py-2 text-white/50 text-xs">{r.fund_name ?? '—'}</td>
                   <td className="py-2">
                     {r.receipt_image_path ? (
-                      <button onClick={() => setViewImage(`${BACKEND}/admin/uploads/receipts/${r.receipt_image_path!.split('/').pop()}`)}
+                      <button onClick={() => setViewImage(r.receipt_image_path)} aria-label="View receipt photo"
                         className="p-1 rounded hover:bg-white/10 transition-colors">
                         <Eye size={14} className="text-blue-400" />
                       </button>
@@ -654,7 +677,7 @@ export default function AdminReceiptsTab() {
         <ReceiptModal receipt={editReceipt} funds={funds} onClose={() => setShowReceiptModal(false)}
           onSaved={() => { setShowReceiptModal(false); invalidate(); }} />
       )}
-      {viewImage && <ImageModal src={viewImage} onClose={() => setViewImage(null)} />}
+      {viewImage && <ImageModal path={viewImage} onClose={() => setViewImage(null)} />}
     </div>
   );
 }
