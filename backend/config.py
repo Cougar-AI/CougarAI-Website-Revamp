@@ -70,6 +70,9 @@ class BaseConfig:
     STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
     DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+    # Shared secret the CougarAI Discord bot sends as `Authorization: Bot <key>`.
+    # Unset (or under 32 chars) = bot key auth off. See app/utils/auth_decorators.py.
+    BOT_API_KEY = os.getenv("BOT_API_KEY", "")
 
     MAILER_BACKEND = os.getenv("MAILER_BACKEND", "smtp")
     SMTP_HOST = os.getenv("SMTP_HOST", "localhost")

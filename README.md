@@ -89,7 +89,22 @@ SMTP_PORT=587
 SMTP_USER=                   # also used as the From address
 SMTP_PASSWORD=               # for Gmail: an App Password, not the account password
 SMTP_USE_TLS=true
+
+# Discord bot service key: the bot sends `Authorization: Bot <key>` instead of logging
+# in as a person. Same value in the bot's .env. Unset (or under 32 chars) = off.
+# Generate: python -c "import secrets;print(secrets.token_urlsafe(32))"
+BOT_API_KEY=
 ```
+
+**Discord bot key.** A valid `BOT_API_KEY` acts as the `admin` role, but only on the routes in
+`BOT_ALLOWED_ROUTES` (`backend/app/utils/auth_decorators.py`), which are the calls the bot makes. On any
+other route a valid key gets **403**. A wrong key, or no server key set, gets **401**. Routes that only
+need a logged-in user (`require_authenticated`) never accept it. The bot has no user account, so actions
+it takes (pinned announcement, awarded points, officer check-in) are stored with no actor
+(`created_by` / `officer_user_id` = NULL). To let the bot call a new route, add it to
+`BOT_ALLOWED_ROUTES` **and** to `EXPECTED_BOT_ROUTES` in `tests/integration/test_bot_api_key.py`. The
+test fails until both match. To rotate the key, set the new value on both hosts and restart both. The
+key is URL-safe base64 (no `$`, quotes or `#`), so systemd and shells leave it alone.
 
 **Mail limits.** Bulk email sends one message per recipient. Gmail caps sending at about
 **500 recipients/day for a personal account and 2,000/day for Google Workspace**; past that, sends

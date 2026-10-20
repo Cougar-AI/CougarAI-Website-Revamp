@@ -68,7 +68,7 @@ def app(_postgres_url):
         notification_settings JSONB,
         current_streak INTEGER NOT NULL DEFAULT 0,
         max_streak INTEGER NOT NULL DEFAULT 0,
-        last_event_month DATE,
+        last_event_month VARCHAR(7),
         grade_level VARCHAR(50),
         major VARCHAR(120),
         shirt_size VARCHAR(20),
@@ -124,6 +124,8 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_bulk_email_logs.sql"),
         os.path.join(root, "migrations", "add_bulk_email_attachments.sql"),
         os.path.join(root, "migrations", "add_discord_config_calendar.sql"),
+        os.path.join(root, "migrations", "add_pinned_announcements_table.sql"),
+        os.path.join(root, "migrations", "add_progress_reports_table.sql"),
     ]
     with application.app_context():
         with db.engine.begin() as conn:

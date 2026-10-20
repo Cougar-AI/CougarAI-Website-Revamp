@@ -113,7 +113,7 @@ class PointsService(BaseService):
         ]
         return records, total
 
-    def award_points(self, user_id: int, points: int, reason: str, event_id, officer_user_id: int) -> tuple:
+    def award_points(self, user_id: int, points: int, reason: str, event_id, officer_user_id: int | None) -> tuple:
         with self.cursor() as cur:
             cur.execute("SELECT student_id FROM profile WHERE user_id = %s", (user_id,))
             profile = cur.fetchone()

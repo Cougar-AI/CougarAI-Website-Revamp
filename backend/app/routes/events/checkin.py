@@ -5,7 +5,7 @@ from flask_jwt_extended import get_jwt_identity
 from app import limiter
 from app.routes.events import events_bp
 from app.raw_db import get_db
-from app.utils.auth_decorators import require_officer, require_authenticated
+from app.utils.auth_decorators import require_officer, require_authenticated, caller_id
 
 
 def _haversine_m(lat1, lon1, lat2, lon2):
@@ -134,7 +134,7 @@ def member_checkin():
 @require_officer
 @limiter.limit("60/minute")
 def officer_checkin():
-    user_id = int(get_jwt_identity())
+    user_id = caller_id()  # None when the Discord bot checks someone in
     conn = get_db()
 
     data = request.get_json(silent=True) or {}

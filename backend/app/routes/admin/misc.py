@@ -1,12 +1,11 @@
 import os
 import uuid
 from flask import request, jsonify, send_from_directory, make_response
-from flask_jwt_extended import get_jwt_identity
 from werkzeug.utils import secure_filename
 from flask_jwt_extended import get_jwt
 from app.routes.admin import admin_bp, UPLOADS_BASE, ALLOWED_MIME, MAX_UPLOAD_BYTES, ALLOWED_CATEGORIES, OFFICER_UPLOAD_CATEGORIES, PRIVATE_UPLOAD_CATEGORIES
 from app.raw_db import get_db
-from app.utils.auth_decorators import require_admin, require_officer
+from app.utils.auth_decorators import require_admin, require_officer, caller_id
 
 
 @admin_bp.route("/upload-image", methods=["POST", "OPTIONS"])
@@ -130,7 +129,7 @@ def set_pinned_announcement():
     if not message:
         return jsonify({"error": "message is required"}), 400
     expires_at = data.get("expires_at")
-    caller_id = get_jwt_identity()
+    created_by = caller_id()  # None when the Discord bot pins it
 
     conn = get_db()
     with conn.cursor() as cur:
@@ -141,7 +140,7 @@ def set_pinned_announcement():
             VALUES (%s, %s, %s)
             RETURNING id
             """,
-            (message, caller_id, expires_at or None),
+            (message, created_by, expires_at or None),
         )
         new_id = cur.fetchone()["id"]
         conn.commit()
