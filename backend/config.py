@@ -1,6 +1,7 @@
 # config.py
 from datetime import timedelta
 import os
+import sys
 from dotenv import load_dotenv
 
 # Load .env if present, but don't overwrite process env
@@ -34,6 +35,29 @@ def _build_uri():
 
 def _split_origins(value: str):
     return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+# Placeholder secrets that are public (this repo is public). Production refuses
+# to sign logins with any of them: anyone could mint an admin token.
+PUBLIC_PLACEHOLDER_SECRETS = frozenset({
+    "changemedev", "dev-access-secret", "dev-refresh-secret", "dev-email-secret", "dev-reset-secret",
+})
+MIN_SECRET_LENGTH = 32
+
+
+def _secret_problems(name: str, value: str, *, fatal_if_public: bool) -> list:
+    """Startup checks for one secret: raises on a public placeholder (when
+    fatal_if_public), returns warning strings for anything merely weak."""
+    if value in PUBLIC_PLACEHOLDER_SECRETS:
+        if fatal_if_public:
+            raise RuntimeError(
+                f"{name} is a public placeholder value. Anyone can forge logins with it. "
+                f"Set a random value in backend/.env: python3 -c \"import secrets;print(secrets.token_urlsafe(48))\""
+            )
+        return [f"{name} is a public placeholder value; set a random one in backend/.env."]
+    if len(value) < MIN_SECRET_LENGTH:
+        return [f"{name} is only {len(value)} characters; use at least {MIN_SECRET_LENGTH} random characters (short HMAC keys can be cracked offline from any token)."]
+    return []
+
 
 def _require_env(key: str) -> str:
     val = os.environ.get(key)
@@ -119,6 +143,21 @@ class ProductionConfig(BaseConfig):
         cls.JWT_EMAIL_SECRET   = _require_env("JWT_EMAIL_SECRET")
         cls.JWT_RESET_SECRET   = _require_env("JWT_RESET_SECRET")
         cls.STRIPE_WEBHOOK_SECRET = _require_env("STRIPE_WEBHOOK_SECRET")
+
+        # JWT signing secrets: a public placeholder is fatal, a short one is a loud warning.
+        warnings = []
+        for name in ("JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET", "JWT_EMAIL_SECRET", "JWT_RESET_SECRET"):
+            warnings += _secret_problems(name, getattr(cls, name), fatal_if_public=True)
+        # SECRET_KEY (SECRET_KEY_BASE) signs the Google/Microsoft OAuth state.
+        secret_key_base = os.environ.get("SECRET_KEY_BASE", "")
+        if not secret_key_base:
+            warnings.append("SECRET_KEY_BASE is not set, so SECRET_KEY is the public placeholder 'changemedev'; set a random one in backend/.env.")
+        else:
+            cls.SECRET_KEY = secret_key_base
+            warnings += _secret_problems("SECRET_KEY_BASE", secret_key_base, fatal_if_public=False)
+        for w in warnings:
+            print(f"[config] SECURITY WARNING: {w}", file=sys.stderr)
+        return warnings
 
 # Validate production secrets at import time only when this config will actually be used
 if os.getenv("FLASK_ENV") == "production" or os.getenv("COUGARAI_ENV") == "production":
