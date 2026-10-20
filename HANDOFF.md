@@ -1,3 +1,61 @@
+# Handoff — Discord bot service key (`BOT_API_KEY`)
+
+_Last updated: 2026-10-20 · branch `feat/bot-api-key` (worktree `.claude/worktrees/bot-api-key`) ·
+not pushed, no PR. Bot half: `Abyss999/CougarAI_Bot` branch `feat/bot-api-key`._
+
+**Why:** the bot got its admin JWT by logging in with a person's `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+That breaks when the account signs in only with Google (no password hash), when the password
+changes, or when systemd/a shell mangles a `$` in it. The owner hit
+"Failed to update configuration in the database: invalid_credentials" from `/settings calendar`.
+
+**What changed (backend)**
+- `Authorization: Bot <BOT_API_KEY>` acts as the `admin` role on `BOT_ALLOWED_ROUTES` only
+  (`app/utils/auth_decorators.py`, 27 method + URL-rule pairs = the bot's calls). A valid key gets 403
+  everywhere else. A wrong key, or a server key that is unset or shorter than 32 chars, gets 401
+  (even on routes that are not allowlisted, so the allowlist isn't revealed). `hmac.compare_digest` on bytes.
+- JWT auth for people is unchanged. `require_authenticated` routes reject the Bot scheme (flask-jwt-extended
+  only reads `Bearer`), and an optional-JWT route like `GET /events/` treats the bot as anonymous.
+- The bot has no users row: `caller_id()` → `None`, `caller_role()` → `admin`. The three allowlisted
+  routes that record an actor (`POST /admin/pinned-announcement`, `POST /admin/points`,
+  `POST /events/officer-checkin`) now go through `caller_id()` and store NULL for the bot. Those columns
+  are nullable FKs. Before this change those rows named whichever person's credentials the bot had.
+- The bot flag is on `request.environ`, not `flask.g`. `g` belongs to the app context, and Flask
+  reuses an existing app context for a request. The tests caught a member JWT getting 200 on
+  `/admin/stats` right after a bot request inside one outer context.
+- Test schema fixes the new tests needed: `points.points_id` (the app's name, tests had `point_id`),
+  `profile.last_event_month VARCHAR(7)` (as the migration has it, tests had `DATE`), and the
+  `pinned_announcements` + `progress_reports` migrations are now applied.
+
+**Deploy (backend first, then bot)**
+1. Generate a key once: `python -c "import secrets;print(secrets.token_urlsafe(32))"`.
+2. Backend host: add `BOT_API_KEY=<key>` to `backend/.env`, deploy this branch, restart gunicorn.
+   No migration. Until the bot is updated, nothing changes: it keeps logging in.
+3. Bot host: add the same `BOT_API_KEY=<key>` to the bot's `.env`, deploy its branch,
+   `systemctl restart` the bot. Startup logs `Website auth: bot API key`.
+4. Check: `/settings status` (or `/stats overview`) works. Then `ADMIN_EMAIL`/`ADMIN_PASSWORD` can be removed
+   from the bot's `.env`.
+- Order matters: a bot with the key against an old backend gets 401 on every write.
+- Rollback: remove `BOT_API_KEY` from the bot's `.env` (with the ADMIN_* values back) and restart. It returns to the login.
+
+**Verification (2026-10-20)**
+- `pytest --cov=app` (Docker): 523 passed, 1 skipped (clamd not running, pre-existing). `auth_decorators.py` 100%.
+  New: `tests/integration/test_bot_api_key.py` (every allowlisted route answers the bot exactly as it
+  answers a human admin; refused elsewhere incl. same URL/other method; wrong/missing/short/unset key;
+  humans unaffected; no leak between requests) and `tests/unit/test_bot_auth.py`.
+- Mutation check, 16 of 16 killed: allow-all, ignore method, drop or add an entry, `==` instead of
+  `compare_digest`, prefix match, compare on `str`, no minimum length, route check before key check,
+  case-sensitive scheme, `caller_id`/`caller_role`/role check ignoring the bot, flag on `g`.
+
+**Known gaps / follow-ups**
+- The app-wide default rate limit (60/hour per client IP) applies to the bot too, as it did before.
+  A busy RSVP sync could hit it. Exempting valid bot requests is a separate decision.
+- `PATCH /events/<id>` with an empty body returns 500 (`UPDATE events WHERE ...`). This is a
+  pre-existing bug, found by the new tests and left alone here.
+- Tests' `payments.student_id` is `INTEGER`, so `GET /admin/users` raises in the test DB (for admins too).
+  It is pre-existing test-schema drift.
+
+---
+
 # Handoff — Bulk email fix + attachments, private receipt uploads
 
 _Last updated: 2026-10-19 · branch `fix/bulk-email-send-attachments` (worktree
