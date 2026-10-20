@@ -9,7 +9,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app import db
 from app.routes.auth import auth_bp
 from app.routes.auth._helpers import (
-    _jwt_decode, _sha256, _utcnow,
+    _jwt_decode, _sha256,
     _issue_access_jwt, _issue_refresh_jwt_and_persist,
     _delete_refresh_by_jti,
     _send_verify_email, _send_reset_email,
@@ -297,11 +297,17 @@ def refresh():
         return jsonify({"error": "unauthorized"}), 401
 
     token_hash = _sha256(token)
-    now = _utcnow()
 
     with db.engine.begin() as conn:
         row = conn.execute(
-            text("SELECT jti, user_id, expires_at, token_hash FROM refresh_tokens WHERE jti = :jti"),
+            # Expiry is decided by Postgres: production's refresh_tokens.expires_at
+            # is a plain TIMESTAMP (the committed schema says TIMESTAMPTZ), and
+            # comparing that naive value to an aware Python datetime raised
+            # TypeError → 500 on every refresh. SQL compares either type correctly.
+            text(
+                "SELECT jti, user_id, token_hash, (expires_at <= NOW()) AS expired "
+                "FROM refresh_tokens WHERE jti = :jti"
+            ),
             {"jti": jti}
         ).mappings().first()
 
@@ -312,7 +318,7 @@ def refresh():
             current_app.logger.info("auth/refresh rejected reason=token_not_found user_id=%s", user_id)
             return jsonify({"error": "unauthorized"}), 401
 
-        if row["user_id"] != user_id or row["token_hash"] != token_hash or row["expires_at"] <= now:
+        if row["user_id"] != user_id or row["token_hash"] != token_hash or row["expired"]:
             conn.execute(text("DELETE FROM refresh_tokens WHERE jti = :jti"), {"jti": jti})
             current_app.logger.info("auth/refresh rejected reason=token_mismatch user_id=%s", user_id)
             return jsonify({"error": "unauthorized"}), 401
