@@ -188,26 +188,29 @@ def getAttendance():
 @events_bp.route("/<int:event_id>", methods=["PATCH", "OPTIONS"])
 @require_officer
 def updateEvent(event_id):
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "JSON object body required"}), 400
     try:
         connection = get_db()
         with connection.cursor() as cur:
             filter_dict = {
-                "name": request.json.get("name"),
-                "event_type": request.json.get("event_type"),
-                "capacity": request.json.get("capacity"),
-                "starts_at": request.json.get("starts_at"),
-                "ends_at": request.json.get("ends_at"),
-                "description": request.json.get("description"),
-                "location": request.json.get("location"),
-                "location_url": request.json.get("location_url"),
-                "check_in_enabled": request.json.get("check_in_enabled"),
-                "check_in_expires_at": request.json.get("check_in_expires_at"),
-                "points_value": request.json.get("points_value"),
-                "require_location": request.json.get("require_location"),
-                "latitude": request.json.get("latitude"),
-                "longitude": request.json.get("longitude"),
-                "checkin_radius_m": request.json.get("checkin_radius_m"),
-                "rsvp_enabled": request.json.get("rsvp_enabled"),
+                "name": body.get("name"),
+                "event_type": body.get("event_type"),
+                "capacity": body.get("capacity"),
+                "starts_at": body.get("starts_at"),
+                "ends_at": body.get("ends_at"),
+                "description": body.get("description"),
+                "location": body.get("location"),
+                "location_url": body.get("location_url"),
+                "check_in_enabled": body.get("check_in_enabled"),
+                "check_in_expires_at": body.get("check_in_expires_at"),
+                "points_value": body.get("points_value"),
+                "require_location": body.get("require_location"),
+                "latitude": body.get("latitude"),
+                "longitude": body.get("longitude"),
+                "checkin_radius_m": body.get("checkin_radius_m"),
+                "rsvp_enabled": body.get("rsvp_enabled"),
             }
 
             try:
@@ -219,6 +222,10 @@ def updateEvent(event_id):
                 return jsonify({"error": "Invalid datetime format"}), 400
 
             query, params = build_sql_querys("UPDATE events", filter_dict, date_column="starts_at", mode="SET")
+            # build_sql_querys skips None, so a body with nothing updatable
+            # yields no SET clause at all ("UPDATE events WHERE ...").
+            if " SET " not in query:
+                return jsonify({"error": "No fields to update"}), 400
             query += " WHERE event_id = %s"
             params.append(event_id)
 
