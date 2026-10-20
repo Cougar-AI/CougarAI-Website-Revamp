@@ -43,6 +43,10 @@ BOT_ALLOWED_ROUTES = frozenset({
     ("POST", "/events/"),
     ("PATCH", "/events/<int:event_id>"),
     ("DELETE", "/events/<int:event_id>"),
+    # Pull ONE event from Google into the website after the bot copies a
+    # Discord-made event to Google Calendar (the same upsert as the officer's
+    # "Import from Google" button, for a single google_event_id).
+    ("POST", "/events/import-google-event"),
     # utils/database/admin.js
     ("GET", "/admin/stats"),
     ("GET", "/admin/events-stats"),

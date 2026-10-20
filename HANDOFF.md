@@ -248,3 +248,9 @@ Branch `feat/discord-calendar-settings`. It pairs with the bot branch `feat/gcal
 - **Prod steps:** run `backend/migrations/add_discord_config_calendar.sql` and `add_event_rsvps_source.sql` (both are in `run_migrations.sh`), then restart gunicorn.
 - **Behaviour to know:** a Discord edit to a website-originated event now also PATCHes the website row. For those events, edit on the website or in Discord, not directly in Google Calendar: the website's next push to Google overwrites Google-side edits. That push behaviour is pre-existing.
 - Tests: `tests/integration/test_discord_config.py` and `test_rsvp_by_discord.py`.
+
+## Single-event Google import (2026-10-20)
+
+Branch `feat/import-single-google-event`. New `POST /events/import-google-event` (admin or bot key, body `{"google_event_id": "..."}`): fetches that one event from Google and upserts it into `events` by `google_event_id`, returning `{"result": "created"|"updated"|"skipped", "event_id": ...}` (404 `google_event_not_found`, 502 `google_error`, 422 `google_event_id_required`).
+- The bot calls it right after copying a Discord-made event to Google Calendar, so the event shows on the website without the manual "Import from Google" button. It is on `BOT_ALLOWED_ROUTES`. It does NOT call `schedule_google_sync` (that would push straight back to Google).
+- The button and this route share `_upsert_google_event`, which takes `pg_advisory_xact_lock(hashtext(google_event_id))` before its SELECT so concurrent imports (button plus bot, across gunicorn workers) cannot insert the event twice. No migration. Tests: `tests/integration/test_import_google_event.py`.

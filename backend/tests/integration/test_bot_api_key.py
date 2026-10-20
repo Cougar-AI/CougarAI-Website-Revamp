@@ -103,6 +103,7 @@ EXPECTED_BOT_ROUTES = {
     ("POST", "/events/"),
     ("PATCH", "/events/<int:event_id>"),
     ("DELETE", "/events/<int:event_id>"),
+    ("POST", "/events/import-google-event"),
     ("GET", "/admin/stats"),
     ("GET", "/admin/events-stats"),
     ("GET", "/admin/points/summary"),

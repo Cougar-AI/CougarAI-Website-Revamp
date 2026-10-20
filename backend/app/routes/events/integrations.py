@@ -6,9 +6,11 @@ from flask import request, jsonify, current_app
 from zoneinfo import ZoneInfo
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from app.routes.events import events_bp
 from app.raw_db import get_db, connect as db_connect
-from app.utils.auth_decorators import require_officer
+from app.utils.auth_decorators import require_admin, require_officer
+from app.utils.request_body import json_object_body
 from app.services.notification_scheduler import scheduler
 
 _CALENDAR_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
@@ -62,6 +64,70 @@ def _google_datetime_to_utc_naive(value: dict) -> Optional[datetime]:
     return None
 
 
+def _upsert_google_event(cur, google_event: dict):
+    """Insert or update the local `events` row for one Google Calendar event.
+
+    Returns ("created" | "updated" | "skipped", event_id or None). Cancelled
+    events, and events with no id or no start, are skipped. Calendar-owned
+    fields are overwritten on a linked row; CougarAI-owned attendance and
+    check-in settings are left alone.
+
+    A transaction-scoped advisory lock on the Google event ID is taken before
+    the SELECT so two concurrent imports of the same event (the button plus the
+    Discord bot, across several gunicorn workers) cannot both miss the row and
+    insert it twice. It is released when the caller's transaction ends.
+    """
+    if google_event.get("status") == "cancelled":
+        return "skipped", None
+
+    google_event_id = google_event.get("id")
+    starts_at = _google_datetime_to_utc_naive(google_event.get("start") or {})
+    ends_at = _google_datetime_to_utc_naive(google_event.get("end") or {})
+    name = (google_event.get("summary") or "Untitled Google Calendar event").strip()
+    if not google_event_id or not starts_at:
+        return "skipped", None
+
+    cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (google_event_id,))
+    cur.execute("SELECT event_id FROM events WHERE google_event_id = %s", (google_event_id,))
+    existing = cur.fetchone()
+    if existing:
+        cur.execute(
+            """
+            UPDATE events
+            SET name = %s, description = %s, location = %s,
+                starts_at = %s, ends_at = %s
+            WHERE event_id = %s
+            """,
+            (
+                name,
+                google_event.get("description") or None,
+                google_event.get("location") or None,
+                starts_at,
+                ends_at,
+                existing["event_id"],
+            ),
+        )
+        return "updated", existing["event_id"]
+
+    cur.execute(
+        """
+        INSERT INTO events (name, event_type, description, location, starts_at, ends_at, google_event_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING event_id
+        """,
+        (
+            name,
+            "Other",
+            google_event.get("description") or None,
+            google_event.get("location") or None,
+            starts_at,
+            ends_at,
+            google_event_id,
+        ),
+    )
+    return "created", cur.fetchone()["event_id"]
+
+
 @events_bp.route("/import-from-google", methods=["POST", "OPTIONS"])
 @require_officer
 def import_from_google():
@@ -92,64 +158,57 @@ def import_from_google():
             if not page_token:
                 break
 
-        created = updated = skipped = 0
+        counts = {"created": 0, "updated": 0, "skipped": 0}
         conn = get_db()
         with conn.cursor() as cur:
             for google_event in google_events:
-                if google_event.get("status") == "cancelled":
-                    skipped += 1
-                    continue
-
-                google_event_id = google_event.get("id")
-                starts_at = _google_datetime_to_utc_naive(google_event.get("start") or {})
-                ends_at = _google_datetime_to_utc_naive(google_event.get("end") or {})
-                name = (google_event.get("summary") or "Untitled Google Calendar event").strip()
-                if not google_event_id or not starts_at:
-                    skipped += 1
-                    continue
-
-                cur.execute("SELECT event_id FROM events WHERE google_event_id = %s", (google_event_id,))
-                existing = cur.fetchone()
-                if existing:
-                    cur.execute(
-                        """
-                        UPDATE events
-                        SET name = %s, description = %s, location = %s,
-                            starts_at = %s, ends_at = %s
-                        WHERE event_id = %s
-                        """,
-                        (
-                            name,
-                            google_event.get("description") or None,
-                            google_event.get("location") or None,
-                            starts_at,
-                            ends_at,
-                            existing["event_id"],
-                        ),
-                    )
-                    updated += 1
-                else:
-                    cur.execute(
-                        """
-                        INSERT INTO events (name, event_type, description, location, starts_at, ends_at, google_event_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                        """,
-                        (
-                            name,
-                            "Other",
-                            google_event.get("description") or None,
-                            google_event.get("location") or None,
-                            starts_at,
-                            ends_at,
-                            google_event_id,
-                        ),
-                    )
-                    created += 1
+                outcome, _ = _upsert_google_event(cur, google_event)
+                counts[outcome] += 1
             conn.commit()
 
-        return jsonify({"created": created, "updated": updated, "skipped": skipped}), 200
+        return jsonify(counts), 200
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@events_bp.route("/import-google-event", methods=["POST", "OPTIONS"])
+@require_admin
+def import_google_event():
+    """Import ONE Google Calendar event, by ID, into the local events table.
+
+    Called by the Discord bot right after it copies a Discord-made event into
+    Google Calendar, so the website gets that event without the full-calendar
+    "Import from Google" button. Same upsert as the button. Deliberately does
+    NOT call schedule_google_sync: that would push the row straight back to Google.
+    """
+    body = json_object_body()
+    if body is None:
+        return jsonify({"error": "JSON object body required"}), 400
+    google_event_id = body.get("google_event_id")
+    if not isinstance(google_event_id, str) or not google_event_id.strip():
+        return jsonify({"error": "google_event_id_required"}), 422
+    google_event_id = google_event_id.strip()
+
+    try:
+        google_event = _get_calendar_service().events().get(
+            calendarId=os.getenv("GOOGLE_CALENDAR_ID", "cougaraicontact@gmail.com"),
+            eventId=google_event_id,
+        ).execute()
+    except HttpError as exc:
+        status = getattr(exc.resp, "status", None)
+        if status in (404, 410):
+            return jsonify({"error": "google_event_not_found"}), 404
+        current_app.logger.exception("Google Calendar get failed for google_event_id=%s", google_event_id)
+        return jsonify({"error": "google_error"}), 502
+    except Exception:
+        current_app.logger.exception("Google Calendar get failed for google_event_id=%s", google_event_id)
+        return jsonify({"error": "google_error"}), 502
+
+    conn = get_db()
+    with conn.cursor() as cur:
+        result, event_id = _upsert_google_event(cur, google_event)
+        conn.commit()
+    return jsonify({"result": result, "event_id": event_id}), 200
 
 
 def _sync_event_to_google(conn, event_id: int) -> str:

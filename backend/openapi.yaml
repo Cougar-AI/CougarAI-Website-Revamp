@@ -489,6 +489,45 @@ paths:
         '404':
           description: Same as POST
 
+  /events/import-google-event:
+    post:
+      tags:
+        - events
+      summary: Import one Google Calendar event by ID (admin or bot)
+      description: |
+        Fetches a single event from the club's Google Calendar and upserts it into `events`,
+        keyed on `google_event_id` (the same upsert as `POST /events/import-from-google`, for one
+        event). Used by the Discord bot right after it copies a Discord-made event to Google.
+        Cancelled events, and events with no id or start, are skipped. New rows get event_type
+        'Other'. Does not push anything back to Google. The bot key (`Authorization: Bot ...`) is accepted.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [google_event_id]
+              properties:
+                google_event_id:
+                  type: string
+      responses:
+        '200':
+          description: '{"result": "created" | "updated" | "skipped", "event_id": integer | null}'
+        '400':
+          description: '{"error": "JSON object body required"}'
+        '401':
+          description: Missing or invalid token
+        '403':
+          description: Caller is not an admin
+        '404':
+          description: '{"error": "google_event_not_found"} (Google answered 404 or 410)'
+        '422':
+          description: '{"error": "google_event_id_required"}'
+        '502':
+          description: '{"error": "google_error"} (any other Google failure; details are logged, not returned)'
+
   /discord/config/{guild_id}:
     get:
       tags:
