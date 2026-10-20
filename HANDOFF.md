@@ -49,8 +49,8 @@ changes, or when systemd/a shell mangles a `$` in it. The owner hit
 **Known gaps / follow-ups**
 - The app-wide default rate limit (60/hour per client IP) applies to the bot too, as it did before.
   A busy RSVP sync could hit it. Exempting valid bot requests is a separate decision.
-- `PATCH /events/<id>` with an empty body returns 500 (`UPDATE events WHERE ...`). This is a
-  pre-existing bug, found by the new tests and left alone here.
+- `PATCH /events/<id>` with an empty body returned 500 (`UPDATE events WHERE ...`). This was a
+  pre-existing bug, found by the new tests and fixed separately in PR #137 (`fix/events-patch-empty-body`).
 - Tests' `payments.student_id` is `INTEGER`, so `GET /admin/users` raises in the test DB (for admins too).
   It is pre-existing test-schema drift.
 
