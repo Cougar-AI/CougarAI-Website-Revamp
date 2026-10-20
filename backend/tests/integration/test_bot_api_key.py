@@ -11,7 +11,7 @@ import pytest
 from flask_jwt_extended import create_access_token
 
 from app.utils import auth_decorators
-from app.utils.auth_decorators import BOT_ALLOWED_ROUTES
+from app.utils.auth_decorators import BOT_ALLOWED_ROUTES, BOT_USER_EMAIL
 
 KEY = secrets.token_urlsafe(32)  # fresh per run, never stored
 GUILD_ID = "123456789012345678"
@@ -71,6 +71,10 @@ def _event(app):
         "INSERT INTO events (name, event_type, starts_at) VALUES (%s, 'meeting', NOW()) RETURNING event_id",
         (f"Bot key {uuid.uuid4().hex[:8]}",),
     )["event_id"]
+
+
+def _bot_user_id(app):
+    return _sql(app, "SELECT user_id FROM users WHERE email = %s", (BOT_USER_EMAIL,))["user_id"]
 
 
 def _fill(rule):
@@ -158,6 +162,15 @@ def test_allowlisted_route_still_requires_auth(client, method, rule):
 
 # --- real writes through the bot identity -------------------------------------
 
+def test_bot_service_user_cannot_log_in(app, client):
+    """The attribution row is a marker: inactive, no password, unreachable email."""
+    row = _sql(app, "SELECT password_hash, is_active, role FROM users WHERE email = %s", (BOT_USER_EMAIL,))
+    assert row == {"password_hash": None, "is_active": False, "role": "non-member"}
+    res = client.post("/auth/login", json={"email": BOT_USER_EMAIL, "password": "anything-at-all"})
+    assert res.status_code in (400, 401, 403)
+    assert "access_token" not in (res.get_json() or {})
+
+
 def test_bot_writes_discord_config(app, client):
     guild = str(10**17 + secrets.randbelow(10**17))
     res = client.post(f"/discord/config/{guild}", json={"log_channel": "1"}, headers=bot())
@@ -167,22 +180,22 @@ def test_bot_writes_discord_config(app, client):
     assert client.get(f"/discord/config/{guild}").get_json()["gcal_sync_enabled"] is True
 
 
-def test_bot_pins_announcement_with_no_actor(app, client):
+def test_bot_pins_announcement_as_the_bot_user(app, client):
     res = client.post("/admin/pinned-announcement", json={"message": "from the bot"}, headers=bot())
     assert res.status_code == 201
     row = _sql(app, "SELECT created_by FROM pinned_announcements WHERE id = %s", (res.get_json()["id"],))
-    assert row["created_by"] is None
+    assert row["created_by"] == _bot_user_id(app)
 
 
-def test_bot_awards_points_with_no_actor(app, client):
+def test_bot_awards_points_as_the_bot_user(app, client):
     user_id, _ = _user(app, "member", student_id=uuid.uuid4().hex[:12])
     res = client.post("/admin/points", json={"user_id": user_id, "points": 5, "reason": "bot"}, headers=bot())
     assert res.status_code == 201
     row = _sql(app, "SELECT officer_user_id FROM points WHERE points_id = %s", (res.get_json()["points_id"],))
-    assert row["officer_user_id"] is None
+    assert row["officer_user_id"] == _bot_user_id(app)
 
 
-def test_bot_officer_checkin_with_no_actor(app, client):
+def test_bot_officer_checkin_as_the_bot_user(app, client):
     student_id = uuid.uuid4().hex[:12]
     _user(app, "member", student_id=student_id)
     event_id = _event(app)
@@ -190,7 +203,16 @@ def test_bot_officer_checkin_with_no_actor(app, client):
     assert res.status_code == 200 and res.get_json()["student_id"] == student_id
     row = _sql(app, "SELECT officer_user_id FROM points WHERE student_id = %s AND event_id = %s",
                (student_id, event_id))
-    assert row["officer_user_id"] is None
+    assert row["officer_user_id"] == _bot_user_id(app)
+
+
+def test_missing_bot_user_falls_back_to_no_actor(app, client, monkeypatch):
+    """Backend deployed before the migration ran: the write still works, unattributed."""
+    monkeypatch.setattr(auth_decorators, "BOT_USER_EMAIL", "absent@cougarai.invalid")
+    res = client.post("/admin/pinned-announcement", json={"message": "pre-migration"}, headers=bot())
+    assert res.status_code == 201
+    row = _sql(app, "SELECT created_by FROM pinned_announcements WHERE id = %s", (res.get_json()["id"],))
+    assert row["created_by"] is None
 
 
 def test_human_actor_still_recorded(app, client):
@@ -214,16 +236,15 @@ REFUSED = [
     # same URL as an allowlisted entry, different method
     ("GET", "/admin/points"),
     ("DELETE", "/admin/users/999999/membership"),
-    ("PATCH", "/admin/pinned-announcement"),
+    ("PATCH", "/admin/officers/nobody"),
 ]
 
 
 @pytest.mark.parametrize("method,path", REFUSED)
 def test_valid_key_refused_off_the_allowlist(client, method, path):
     res = client.open(path, method=method, json={}, headers=bot())
-    assert res.status_code in (403, 405)
-    if res.status_code == 403:
-        assert res.get_json() == {"error": "Bot key not permitted on this route"}
+    assert res.status_code == 403
+    assert res.get_json() == {"error": "Bot key not permitted on this route"}
 
 
 def test_refused_route_has_no_side_effect(app, client):
@@ -288,7 +309,13 @@ def test_scheme_is_case_insensitive(client):
     assert client.get(ALLOWED[1], headers={"Authorization": f"BOT {KEY}"}).status_code == 200
 
 
-@pytest.mark.parametrize("server_key", ["", None, "short-key"])
+def test_server_key_whitespace_is_ignored(app, client):
+    """The bot strips the key it sends; a stray space in backend/.env must not break it."""
+    app.config["BOT_API_KEY"] = f"  {KEY}\n"
+    assert client.get(ALLOWED[1], headers=bot()).status_code == 200
+
+
+@pytest.mark.parametrize("server_key", ["", None, "short-key", " " * 40])
 def test_unconfigured_or_short_server_key_refuses_everything(app, client, server_key):
     app.config["BOT_API_KEY"] = server_key
     assert client.get(ALLOWED[1], headers={"Authorization": "Bot "}).status_code == 401
@@ -343,3 +370,15 @@ def test_humans_unaffected_when_bot_key_unset(app, client):
 
 def test_cors_preflight_unchanged(client):
     assert client.options("/admin/stats").status_code == 200
+
+
+def test_create_app_warns_about_a_short_key(caplog):
+    from app import create_app
+    import config
+
+    class ShortKeyConfig(config.TestConfig):
+        BOT_API_KEY = "too-short"
+
+    with caplog.at_level("WARNING"):
+        create_app(ShortKeyConfig)
+    assert "bot key auth is OFF" in caplog.text

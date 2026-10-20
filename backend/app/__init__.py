@@ -88,6 +88,9 @@ def create_app(config_class='config.DevelopmentConfig'):
     jwt.init_app(app)
     limiter.init_app(app)
 
+    from app.utils.auth_decorators import warn_if_bot_key_unusable
+    warn_if_bot_key_unusable(app)
+
     # Register blueprints first (so all modules are fully imported before scheduler loads)
     try:
         from app.imports.routes_import import blueprints_with_prefixes

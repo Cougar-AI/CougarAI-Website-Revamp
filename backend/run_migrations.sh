@@ -72,6 +72,7 @@ MIGRATIONS=(
   add_bulk_email_attachments.sql
   add_discord_config_calendar.sql
   add_event_rsvps_source.sql
+  add_discord_bot_user.sql
 )
 
 FAILED=0

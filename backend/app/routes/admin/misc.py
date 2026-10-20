@@ -129,7 +129,7 @@ def set_pinned_announcement():
     if not message:
         return jsonify({"error": "message is required"}), 400
     expires_at = data.get("expires_at")
-    created_by = caller_id()  # None when the Discord bot pins it
+    created_by = caller_id()  # the bot service user when the Discord bot pins it
 
     conn = get_db()
     with conn.cursor() as cur:

@@ -134,7 +134,7 @@ def member_checkin():
 @require_officer
 @limiter.limit("60/minute")
 def officer_checkin():
-    user_id = caller_id()  # None when the Discord bot checks someone in
+    user_id = caller_id()  # the bot service user when the Discord bot checks someone in
     conn = get_db()
 
     data = request.get_json(silent=True) or {}

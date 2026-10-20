@@ -43,10 +43,22 @@ def test_bot_is_admin_not_superuser(bot_app):
     assert res.get_json() == {"error": "Insufficient permissions"}
 
 
-def test_bot_identity_has_admin_role_and_no_user_id(bot_app):
+def test_bot_identity_is_admin_role_and_the_bot_user(bot_app, monkeypatch):
+    monkeypatch.setattr(auth_decorators, "_bot_user_id", lambda: 4242)
     res = bot_app.test_client().get("/t/whoami", headers={"Authorization": f"Bot {KEY}"})
     assert res.status_code == 200
-    assert res.get_json() == {"id": None, "role": "admin"}
+    assert res.get_json() == {"id": 4242, "role": "admin"}
+
+
+@pytest.mark.parametrize("key,warns", [
+    ("", False), (None, False), ("x" * 32, False), ("short", True), ("   ", False),
+])
+def test_startup_warns_about_a_set_but_unusable_key(caplog, key, warns):
+    app = Flask(__name__)
+    app.config["BOT_API_KEY"] = key
+    with caplog.at_level("WARNING"):
+        auth_decorators.warn_if_bot_key_unusable(app)
+    assert ("bot key auth is OFF" in caplog.text) is warns
 
 
 def test_not_a_bot_request_outside_a_request():
