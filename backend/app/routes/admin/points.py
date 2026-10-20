@@ -1,8 +1,7 @@
 from flask import request, jsonify
-from flask_jwt_extended import get_jwt_identity
 from app.routes.admin import admin_bp
 from app.raw_db import get_db
-from app.utils.auth_decorators import require_officer
+from app.utils.auth_decorators import require_officer, caller_id
 from app.services.points_service import PointsService
 
 
@@ -48,7 +47,7 @@ def admin_award_points():
     if not reason:
         return jsonify({"error": "reason is required"}), 400
 
-    officer_user_id = int(get_jwt_identity())
+    officer_user_id = caller_id()  # None when the Discord bot awards them
     svc = PointsService(get_db())
     points_id, error = svc.award_points(user_id, int(points_val), reason, event_id, officer_user_id)
     if error:

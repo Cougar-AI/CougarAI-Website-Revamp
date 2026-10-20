@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS events (
 );
 
 CREATE TABLE IF NOT EXISTS points (
-    point_id    SERIAL PRIMARY KEY,
+    points_id   SERIAL PRIMARY KEY,
     student_id  VARCHAR(32),
     event_id    INTEGER REFERENCES events(event_id) ON DELETE CASCADE,
     points      INTEGER NOT NULL DEFAULT 0,
