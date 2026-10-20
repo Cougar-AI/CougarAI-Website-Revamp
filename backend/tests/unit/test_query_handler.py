@@ -222,3 +222,37 @@ def test_offset_ignored_in_set_mode():
 def test_offset_ignored_in_insert_mode():
     query, params = build_sql_querys(BASE, {"name": "Event", "offset": 5}, mode="INSERT")
     assert "OFFSET" not in query
+
+
+# ---------------------------------------------------------------------------
+# build_sql_querys — SET mode with nothing to set
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("fields", [{}, {"name": None}, {"name": None, "status": None}])
+def test_set_mode_with_nothing_to_set_raises(fields):
+    """Otherwise the result is `UPDATE t WHERE ...`, a SQL syntax error (a 500)."""
+    from app.utils.query_handler import NothingToUpdate
+    with pytest.raises(NothingToUpdate, match="No fields to update"):
+        build_sql_querys(BASE, fields, mode="SET")
+
+
+def test_nothing_to_update_is_a_value_error():
+    """Existing `except ValueError` handlers keep catching it."""
+    from app.utils.query_handler import NothingToUpdate
+    assert issubclass(NothingToUpdate, ValueError)
+
+
+def test_set_mode_allow_empty_set_returns_base_query():
+    query, params = build_sql_querys(BASE, {"name": None}, mode="SET", allow_empty_set=True)
+    assert query == BASE and params == []
+
+
+def test_set_mode_false_and_zero_are_values():
+    query, params = build_sql_querys(BASE, {"active": False, "count": 0}, mode="SET")
+    assert "active = %s" in query and "count = %s" in query
+    assert params == [False, 0]
+
+
+def test_where_and_insert_modes_still_allow_no_filters():
+    assert build_sql_querys(BASE, {})[0] == BASE
+    assert build_sql_querys(BASE, {}, mode="INSERT")[0] == BASE

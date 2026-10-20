@@ -104,10 +104,19 @@ def test_unknown_event_with_fields_is_still_404(client, officer, synced):
     assert res.status_code == 404
 
 
-def test_bad_datetime_still_400(client, officer, event_id):
-    res = client.patch(f"/events/{event_id}", json={"starts_at": "nope"}, headers=officer)
+@pytest.mark.parametrize("value", ["nope", 1700000000, ["2026-10-20"], {"a": 1}, True, ""])
+@pytest.mark.parametrize("key", ["starts_at", "ends_at"])
+def test_bad_datetime_400(client, officer, event_id, synced, key, value):
+    """A non-string (TypeError in fromisoformat) used to fall to the catch-all 500."""
+    res = client.patch(f"/events/{event_id}", json={key: value}, headers=officer)
     assert res.status_code == 400
     assert res.get_json() == {"error": "Invalid datetime format"}
+    assert synced == []
+
+
+def test_valid_iso_datetime_accepted(client, officer, event_id):
+    res = client.patch(f"/events/{event_id}", json={"starts_at": "2026-10-20T18:00:00"}, headers=officer)
+    assert res.status_code == 200
 
 
 def test_auth_checked_before_body(client, event_id):

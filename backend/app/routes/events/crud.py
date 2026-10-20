@@ -4,7 +4,8 @@ from flask_jwt_extended import get_jwt, verify_jwt_in_request
 from app.routes.events import events_bp
 from app.raw_db import get_db
 from app.utils.date_validation import is_valid_date
-from app.utils.query_handler import build_sql_querys
+from app.utils.query_handler import build_sql_querys, NothingToUpdate
+from app.utils.request_body import json_object_body
 from app.utils.auth_decorators import require_admin, require_officer
 from app.services.event_admin_service import EventAdminService
 from app.routes.events.integrations import schedule_google_sync, remove_event_from_google_best_effort
@@ -81,11 +82,20 @@ def getEvents():
         return (jsonify(results), 200) if results else (jsonify({"error": "No events found"}), 404)
 
 
+# Columns POST and PATCH accept; absent (None) keys are left out of the query.
+_EVENT_FIELDS = (
+    "name", "event_type", "description", "location", "location_url",
+    "starts_at", "ends_at", "capacity", "check_in_enabled", "check_in_expires_at",
+    "points_value", "require_location", "latitude", "longitude", "checkin_radius_m",
+    "rsvp_enabled",
+)
+
+
 @events_bp.route("/<int:event_id>", methods=["DELETE", "OPTIONS"])
 @require_admin
 def deleteEvent(event_id):
+    connection = get_db()
     try:
-        connection = get_db()
         remove_event_from_google_best_effort(connection, event_id)
         with connection.cursor() as cur:
             cur.execute("DELETE FROM events WHERE event_id = %s", (event_id,))
@@ -101,27 +111,13 @@ def deleteEvent(event_id):
 @events_bp.route("/", methods=["POST", "OPTIONS"])
 @require_officer
 def addEvent():
+    body = json_object_body()
+    if body is None:
+        return jsonify({"error": "JSON object body required"}), 400
+    connection = get_db()
     try:
-        connection = get_db()
         with connection.cursor() as cur:
-            filter_dict = {
-                "name": request.json.get("name"),
-                "event_type": request.json.get("event_type"),
-                "description": request.json.get("description"),
-                "location": request.json.get("location"),
-                "location_url": request.json.get("location_url"),
-                "starts_at": request.json.get("starts_at"),
-                "ends_at": request.json.get("ends_at"),
-                "capacity": request.json.get("capacity"),
-                "check_in_enabled": request.json.get("check_in_enabled"),
-                "check_in_expires_at": request.json.get("check_in_expires_at"),
-                "points_value": request.json.get("points_value"),
-                "require_location": request.json.get("require_location"),
-                "latitude": request.json.get("latitude"),
-                "longitude": request.json.get("longitude"),
-                "checkin_radius_m": request.json.get("checkin_radius_m"),
-                "rsvp_enabled": request.json.get("rsvp_enabled"),
-            }
+            filter_dict = {key: body.get(key) for key in _EVENT_FIELDS}
             if filter_dict["starts_at"] is None or filter_dict["event_type"] is None or filter_dict["name"] is None:
                 return jsonify({"error": "name, starts_at and event_type are required"}), 400
 
@@ -188,44 +184,25 @@ def getAttendance():
 @events_bp.route("/<int:event_id>", methods=["PATCH", "OPTIONS"])
 @require_officer
 def updateEvent(event_id):
-    body = request.get_json(silent=True)
-    if not isinstance(body, dict):
+    body = json_object_body()
+    if body is None:
         return jsonify({"error": "JSON object body required"}), 400
+    connection = get_db()
     try:
-        connection = get_db()
         with connection.cursor() as cur:
-            filter_dict = {
-                "name": body.get("name"),
-                "event_type": body.get("event_type"),
-                "capacity": body.get("capacity"),
-                "starts_at": body.get("starts_at"),
-                "ends_at": body.get("ends_at"),
-                "description": body.get("description"),
-                "location": body.get("location"),
-                "location_url": body.get("location_url"),
-                "check_in_enabled": body.get("check_in_enabled"),
-                "check_in_expires_at": body.get("check_in_expires_at"),
-                "points_value": body.get("points_value"),
-                "require_location": body.get("require_location"),
-                "latitude": body.get("latitude"),
-                "longitude": body.get("longitude"),
-                "checkin_radius_m": body.get("checkin_radius_m"),
-                "rsvp_enabled": body.get("rsvp_enabled"),
-            }
+            filter_dict = {key: body.get(key) for key in _EVENT_FIELDS}
 
             try:
-                if filter_dict["starts_at"]:
-                    datetime.fromisoformat(filter_dict["starts_at"])
-                if filter_dict["ends_at"]:
-                    datetime.fromisoformat(filter_dict["ends_at"])
-            except ValueError:
+                for key in ("starts_at", "ends_at"):
+                    if filter_dict[key] is not None:
+                        datetime.fromisoformat(filter_dict[key])
+            except (TypeError, ValueError):  # TypeError: not a string at all
                 return jsonify({"error": "Invalid datetime format"}), 400
 
-            query, params = build_sql_querys("UPDATE events", filter_dict, date_column="starts_at", mode="SET")
-            # build_sql_querys skips None, so a body with nothing updatable
-            # yields no SET clause at all ("UPDATE events WHERE ...").
-            if " SET " not in query:
-                return jsonify({"error": "No fields to update"}), 400
+            try:
+                query, params = build_sql_querys("UPDATE events", filter_dict, date_column="starts_at", mode="SET")
+            except NothingToUpdate as e:
+                return jsonify({"error": str(e)}), 400
             query += " WHERE event_id = %s"
             params.append(event_id)
 

@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from app.raw_db import get_db
 from app.utils.date_validation import is_valid_date
-from app.utils.query_handler import build_sql_querys
+from app.utils.query_handler import build_sql_querys, NothingToUpdate
+from app.utils.request_body import json_object_body
 from app.utils.auth_decorators import require_officer
 
 points_bp = Blueprint('points', __name__)
@@ -207,17 +208,23 @@ def addPoints(student_id):
 @points_bp.route("/<int:points_id>", methods=["PATCH"])
 @require_officer
 def updatePoints(points_id):
+    body = json_object_body()
+    if body is None:
+        return jsonify({"error": "JSON object body required"}), 400
+    connection = get_db()
     try:
-        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = { 
-                "student_id": request.json.get("student_id"),
-                "points": request.json.get("points"),
-                "date": request.json.get("date"),
-                "event_id": request.json.get("event_id")
+                "student_id": body.get("student_id"),
+                "points": body.get("points"),
+                "date": body.get("date"),
+                "event_id": body.get("event_id")
             }
 
-            query, params = build_sql_querys("UPDATE points", filter_dict, mode="SET")
+            try:
+                query, params = build_sql_querys("UPDATE points", filter_dict, mode="SET")
+            except NothingToUpdate as e:
+                return jsonify({"error": str(e)}), 400
             query += " WHERE points_id = %s"
             params.append(points_id)
             cur.execute(query, tuple(params))
