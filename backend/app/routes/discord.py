@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.raw_db import get_db
 from app.utils.query_handler import build_sql_querys
 from app.utils.auth_decorators import require_admin
+from app.utils.request_body import json_object_body
 
 discord_bp = Blueprint('discord', __name__)
 
@@ -65,8 +66,8 @@ def createDiscordConfig(guild_id):
         with connection.cursor() as cur:
             if not (guild_id.isdigit() and 16 <= len(guild_id) <= 22):
                 return jsonify({"error": "Invalid guild ID"}), 400
-            body = request.get_json(silent=True)
-            if not isinstance(body, dict):
+            body = json_object_body()
+            if body is None:
                 return jsonify({"error": "JSON object body required"}), 400
             announcement_channel = body.get("announcement_channel", "")
             welcome_channel = body.get("welcome_channel", "")
@@ -125,8 +126,8 @@ def updatediscordConfig(guild_id):
             if not (guild_id.isdigit() and 16 <= len(guild_id) <= 22):
                 return jsonify({"error": "Invalid guild ID"}), 400
 
-            body = request.get_json(silent=True)
-            if not isinstance(body, dict):
+            body = json_object_body()
+            if body is None:
                 return jsonify({"error": "JSON object body required"}), 400
 
             filter_dict = {
@@ -143,7 +144,7 @@ def updatediscordConfig(guild_id):
             if err:
                 return jsonify({"error": err}), 400
 
-            query, params = build_sql_querys("UPDATE discord_config", filter_dict, mode="SET")
+            query, params = build_sql_querys("UPDATE discord_config", filter_dict, mode="SET", allow_empty_set=True)
             # build_sql_querys skips None, which would make the new fields
             # impossible to clear (and it emits no SET at all when nothing
             # legacy was sent), so the new columns are appended here. `False`

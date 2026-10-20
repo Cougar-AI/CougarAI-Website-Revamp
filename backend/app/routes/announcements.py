@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from app.raw_db import get_db
-from app.utils.query_handler import build_sql_querys
+from app.utils.query_handler import build_sql_querys, NothingToUpdate
+from app.utils.request_body import json_object_body
 from app.utils.auth_decorators import require_officer
 
 announcements_bp = Blueprint('announcements', __name__)
@@ -85,21 +86,27 @@ def createAnnouncement(guild_id):
 @announcements_bp.route("/<int:announcement_id>", methods=["PATCH", "OPTIONS"])
 @require_officer
 def updateAnnouncement(announcement_id):
+    body = json_object_body()
+    if body is None:
+        return jsonify({"error": "JSON object body required"}), 400
+    connections = get_db()
     try:
-        connections = get_db()
         with connections.cursor() as cur:
             filter_dict = {
-                "title": request.json.get("title"),
-                "description": request.json.get("description"),
-                "event_id": request.json.get("event_id"),
-                "announcement_date": request.json.get("announcement_date"),
-                "created_at": request.json.get("created_at"),
-                "event_image": request.json.get("event_image"),
-                "message": request.json.get("message"),
-                "guild_id": request.json.get("guild_id")
+                "title": body.get("title"),
+                "description": body.get("description"),
+                "event_id": body.get("event_id"),
+                "announcement_date": body.get("announcement_date"),
+                "created_at": body.get("created_at"),
+                "event_image": body.get("event_image"),
+                "message": body.get("message"),
+                "guild_id": body.get("guild_id")
             }
 
-            query, params = build_sql_querys("UPDATE discord_announcements", filter_dict, mode="SET")
+            try:
+                query, params = build_sql_querys("UPDATE discord_announcements", filter_dict, mode="SET")
+            except NothingToUpdate as e:
+                return jsonify({"error": str(e)}), 400
             query += " WHERE announcement_id = %s"
             params.append(announcement_id)
 

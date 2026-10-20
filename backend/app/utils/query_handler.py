@@ -35,13 +35,21 @@ def _validate_col(name: str) -> str:
     return name
 
 
+class NothingToUpdate(ValueError):
+    """build_sql_querys(mode="SET") was given no non-None value to set.
+
+    Without this the query would be `UPDATE t WHERE ...`, a SQL syntax error.
+    Routes answer it with 400 "No fields to update".
+    """
+
+
 def _parse_date(date_str: str):
     for fmt in ("%m-%d-%Y", "%Y-%m-%d"):
         if is_valid_date(date_str, fmt=fmt):
             return datetime.strptime(date_str, fmt).date()
     raise ValueError("Invalid date format. Use MM-DD-YYYY or YYYY-MM-DD.")
 
-def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC", group_by=None, tz_aware=False): # mainly for get queries
+def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE", order_by=None, sort_dir="DESC", group_by=None, tz_aware=False, allow_empty_set=False): # mainly for get queries
     filters = [] # stores the SQL Filters
     params = [] # stores the variables
     mode = mode.upper()
@@ -107,6 +115,9 @@ def build_sql_querys(base_query, filters_dict, date_column = "date", mode="WHERE
         elif mode == "INSERT": # 
             placeholders = ["%s"] * len(filters)
             query += f" ({', '.join(filters)}) VALUES ({', '.join(placeholders)})"
+    elif mode == "SET" and not allow_empty_set:
+        # allow_empty_set: the caller appends SET columns of its own (discord.py).
+        raise NothingToUpdate("No fields to update")
 
 
     if mode == "WHERE":
