@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.raw_db import get_db
-from app.utils.query_handler import build_sql_querys
+from app.utils.query_handler import build_sql_querys, NothingToUpdate
+from app.utils.request_body import json_object_body
 from app.utils.auth_decorators import require_officer
 
 profile_bp = Blueprint('profile', __name__)
@@ -87,22 +88,28 @@ def addProfile():
 @profile_bp.route("/<string:student_id>", methods=["PATCH", "OPTIONS"])
 @require_officer
 def updateProfile(student_id):
+    body = json_object_body()
+    if body is None:
+        return jsonify({"error": "JSON object body required"}), 400
+    connection = get_db()
     try:
-        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = {
-                "first_name": request.json.get("first_name"),
-                "last_name": request.json.get("last_name"),
-                "discord_id": request.json.get("discord_id"),
-                "shirt_size": request.json.get("shirt_size"),
-                "gender": request.json.get("gender"),
-                "join_source": request.json.get("join_source"),
-                "phone": request.json.get("phone"),
-                "grade_level": request.json.get("grade_level"),
-                "major": request.json.get("major"),
+                "first_name": body.get("first_name"),
+                "last_name": body.get("last_name"),
+                "discord_id": body.get("discord_id"),
+                "shirt_size": body.get("shirt_size"),
+                "gender": body.get("gender"),
+                "join_source": body.get("join_source"),
+                "phone": body.get("phone"),
+                "grade_level": body.get("grade_level"),
+                "major": body.get("major"),
             }
 
-            query, params = build_sql_querys("UPDATE profile", filter_dict, mode="SET")
+            try:
+                query, params = build_sql_querys("UPDATE profile", filter_dict, mode="SET")
+            except NothingToUpdate as e:
+                return jsonify({"error": str(e)}), 400
             query += " WHERE student_id = %s"
             params.append(student_id)
 

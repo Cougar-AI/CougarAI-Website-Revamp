@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.raw_db import get_db
 from app.utils.date_validation import is_valid_date
 from app.utils.query_handler import build_sql_querys
+from app.utils.request_body import json_object_body
 from app.utils.auth_decorators import require_officer
 
 officers_bp = Blueprint('officers', __name__)
@@ -93,14 +94,17 @@ def getOfficer(student_id):
 @officers_bp.route("/<int:student_id>", methods=["PATCH", "OPTIONS"])
 @require_officer
 def updateOfficer(student_id):
+    body = json_object_body()
+    if body is None:
+        return jsonify({"error": "JSON object body required"}), 400
+    connection = get_db()
     try:
-        connection = get_db()
         with connection.cursor() as cur:
             filter_dict = {
                 "student_id": student_id,
-                "join_date": request.json.get("join_date"),
-                "end_date": request.json.get("end_date"),
-                "role": request.json.get("role")
+                "join_date": body.get("join_date"),
+                "end_date": body.get("end_date"),
+                "role": body.get("role")
             }
 
             if not (1000000 <= student_id <= 9999999):

@@ -1,3 +1,35 @@
+# Handoff — CRUD routes: client mistakes are 400s, not 500s
+
+_Last updated: 2026-10-20 · branch `fix/events-crud-body-errors` (worktree
+`.claude/worktrees/events-crud-body-errors`) · not pushed, no PR. Follow-ups from the review of #137._
+
+**What changed**
+- `build_sql_querys(mode="SET")` raises `NothingToUpdate` (a `ValueError`) when nothing is set, instead of
+  emitting `UPDATE t WHERE ...`. The PATCH routes for events, announcements, points and profiles answer
+  it with 400 `No fields to update`. `PATCH /discord/config` appends its own SET columns, so it passes
+  `allow_empty_set=True` and keeps its own check. #137 detected the empty case by searching the SQL for " SET "; that check is removed.
+- `app/utils/request_body.json_object_body()`: a missing, non-JSON, malformed, `null`, list or scalar body
+  now gets 400 `JSON object body required` on `POST /events/` and on the PATCH routes for events, announcements,
+  points, profiles, officers and discord config. Before, it crashed on `request.json` and returned 500.
+- `PATCH /events/<id>`: a non-string `starts_at`/`ends_at` (e.g. a number) is 400 `Invalid datetime format`.
+  It used to raise a TypeError, which became a 500.
+- `get_db()` now runs before `try` in the events POST/PATCH/DELETE routes and the four PATCH routes above. A
+  database failure now surfaces as itself, not as an `UnboundLocalError` from `connection.rollback()`.
+- `POST /events/` still accepts `MM-DD-YYYY`, which older Discord bot builds sent and Postgres parses. So ISO
+  validation was deliberately **not** added there. The current bot (`main` since #12) sends ISO UTC
+  (`Date.toISOString()`), which `fromisoformat` accepts on Python 3.11+ (CI uses 3.13).
+
+**Verification (2026-10-20):** `pytest --cov=app`: 609 passed, 1 skipped (clamd). On the old code, 54 of the
+new tests fail. Mutation check, 6/6 killed: SET raise removed, discord without `allow_empty_set`,
+TypeError not caught, `get_db()` back inside `try`, helper accepting lists, NothingToUpdate not mapped.
+
+**Not covered / follow-ups**
+- Other POST handlers still use `request.json.get` (`POST /points/add/<id>`, `POST /announcements/`).
+- The backend must run Python 3.11+: older `fromisoformat` rejects the bot's trailing `Z`, and
+  every event update from Discord would fail with "Invalid datetime format".
+
+---
+
 # Handoff — Discord bot service key (`BOT_API_KEY`)
 
 _Last updated: 2026-10-20 · branch `feat/bot-api-key` (worktree `.claude/worktrees/bot-api-key`) ·
