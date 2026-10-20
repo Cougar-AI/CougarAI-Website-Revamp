@@ -47,7 +47,7 @@ changes, or when systemd/a shell mangles a `$` in it. The owner hit
 - Rollback: remove `BOT_API_KEY` from the bot's `.env` (with the ADMIN_* values back) and restart. It returns to the login.
 
 **Verification (2026-10-20)**
-- `pytest --cov=app` (Docker): 523 passed, 1 skipped (clamd not running, pre-existing). `auth_decorators.py` 100%.
+- `pytest --cov=app` (Docker): 548 passed, 1 skipped (clamd not running, pre-existing). `auth_decorators.py` 100%.
   New: `tests/integration/test_bot_api_key.py` (every allowlisted route answers the bot exactly as it
   answers a human admin; refused elsewhere incl. same URL/other method; wrong/missing/short/unset key;
   humans unaffected; no leak between requests) and `tests/unit/test_bot_auth.py`.
