@@ -15,10 +15,18 @@ changes, or when systemd/a shell mangles a `$` in it. The owner hit
   (even on routes that are not allowlisted, so the allowlist isn't revealed). `hmac.compare_digest` on bytes.
 - JWT auth for people is unchanged. `require_authenticated` routes reject the Bot scheme (flask-jwt-extended
   only reads `Bearer`), and an optional-JWT route like `GET /events/` treats the bot as anonymous.
-- The bot has no users row: `caller_id()` → `None`, `caller_role()` → `admin`. The three allowlisted
-  routes that record an actor (`POST /admin/pinned-announcement`, `POST /admin/points`,
-  `POST /events/officer-checkin`) now go through `caller_id()` and store NULL for the bot. Those columns
-  are nullable FKs. Before this change those rows named whichever person's credentials the bot had.
+- **Attribution:** `caller_role()` → `admin` for the bot, and `caller_id()` → the user_id of the
+  service row `discord-bot@cougarai.invalid` (`migrations/add_discord_bot_user.sql`). The three
+  allowlisted routes that record an actor (`POST /admin/pinned-announcement`, `POST /admin/points`,
+  `POST /events/officer-checkin`) go through `caller_id()`, so bot actions are distinguishable from a
+  member's self check-in (NULL officer) and from any person's. Before, those rows named whoever's
+  password the bot had. The row is a marker, not a login: no password, `is_active = FALSE` (login refuses
+  it and the officer/admin mailers skip it), `role = non-member` (its rights come from the key, not the row),
+  and `.invalid` can never be a Google/Microsoft account. If the migration hasn't run, the bot's actions are
+  stored with NULL and still succeed.
+- A server key that is set but shorter than 32 chars disables bot auth, so `create_app` logs a warning at
+  startup. The per-request 401 log says whether the key mismatched or the server key is unusable. The server
+  key is stripped, as the bot strips the one it sends.
 - The bot flag is on `request.environ`, not `flask.g`. `g` belongs to the app context, and Flask
   reuses an existing app context for a request. The tests caught a member JWT getting 200 on
   `/admin/stats` right after a bot request inside one outer context.
@@ -28,8 +36,9 @@ changes, or when systemd/a shell mangles a `$` in it. The owner hit
 
 **Deploy (backend first, then bot)**
 1. Generate a key once: `python -c "import secrets;print(secrets.token_urlsafe(32))"`.
-2. Backend host: add `BOT_API_KEY=<key>` to `backend/.env`, deploy this branch, restart gunicorn.
-   No migration. Until the bot is updated, nothing changes: it keeps logging in.
+2. Backend host: add `BOT_API_KEY=<key>` to `backend/.env`, deploy this branch, run
+   `psql … -f backend/migrations/add_discord_bot_user.sql` (or `bash backend/run_migrations.sh`, which now
+   lists it; idempotent), restart gunicorn. Until the bot is updated, nothing changes: it keeps logging in.
 3. Bot host: add the same `BOT_API_KEY=<key>` to the bot's `.env`, deploy its branch,
    `systemctl restart` the bot. Startup logs `Website auth: bot API key`.
 4. Check: `/settings status` (or `/stats overview`) works. Then `ADMIN_EMAIL`/`ADMIN_PASSWORD` can be removed
@@ -42,9 +51,10 @@ changes, or when systemd/a shell mangles a `$` in it. The owner hit
   New: `tests/integration/test_bot_api_key.py` (every allowlisted route answers the bot exactly as it
   answers a human admin; refused elsewhere incl. same URL/other method; wrong/missing/short/unset key;
   humans unaffected; no leak between requests) and `tests/unit/test_bot_auth.py`.
-- Mutation check, 16 of 16 killed: allow-all, ignore method, drop or add an entry, `==` instead of
-  `compare_digest`, prefix match, compare on `str`, no minimum length, route check before key check,
-  case-sensitive scheme, `caller_id`/`caller_role`/role check ignoring the bot, flag on `g`.
+- Mutation check, 20 of 20 killed: allow-all, ignore method, drop or add an entry, `==` instead of
+  `compare_digest`, prefix match, compare on `str`, no minimum length, only-unset guard, unstripped
+  server key, startup warning never firing or never called, route check before key check, case-sensitive
+  scheme, `caller_id`/`caller_role`/role check ignoring the bot, bot actions unattributed, flag on `g`.
 
 **Known gaps / follow-ups**
 - The app-wide default rate limit (60/hour per client IP) applies to the bot too, as it did before.

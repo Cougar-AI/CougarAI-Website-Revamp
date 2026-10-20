@@ -126,6 +126,7 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_discord_config_calendar.sql"),
         os.path.join(root, "migrations", "add_pinned_announcements_table.sql"),
         os.path.join(root, "migrations", "add_progress_reports_table.sql"),
+        os.path.join(root, "migrations", "add_discord_bot_user.sql"),
     ]
     with application.app_context():
         with db.engine.begin() as conn:

@@ -18,13 +18,15 @@ ALL_AUTH_ROLES = frozenset({"admin", "officer", "partner", "member", "non-member
 # verify_jwt_in_request directly) never see the key at all: flask-jwt-extended
 # rejects a non-Bearer header.
 #
-# The bot has no users row, so caller_id() returns None for it — routes on
-# this list must handle that (the actor columns they write are nullable).
+# What the bot does is attributed to the BOT_USER_EMAIL service row
+# (migrations/add_discord_bot_user.sql): caller_id() returns its user_id, or
+# None if that migration hasn't run — the actor columns are nullable.
 # Keep this list in step with the bot's utils/database/*.js.
 # ---------------------------------------------------------------------------
 BOT_AUTH_SCHEME = "bot"
 BOT_ROLE = "admin"
 BOT_API_KEY_MIN_LENGTH = 32
+BOT_USER_EMAIL = "discord-bot@cougarai.invalid"
 # Kept on the request itself, not flask.g: g lives on the app context, which
 # can outlive a request (tests, or any request run inside an app_context).
 _BOT_ENVIRON_KEY = "cougarai.bot_identity"
@@ -73,10 +75,28 @@ def _presented_bot_key():
     return key.strip()
 
 
+def configured_bot_key() -> str:
+    """The server's BOT_API_KEY, or "" when unset or too short (bot auth off)."""
+    key = (current_app.config.get("BOT_API_KEY") or "").strip()
+    return key if len(key) >= BOT_API_KEY_MIN_LENGTH else ""
+
+
+def warn_if_bot_key_unusable(app):
+    """At startup: a key that is set but too short silently disables bot auth."""
+    key = (app.config.get("BOT_API_KEY") or "").strip()
+    if key and len(key) < BOT_API_KEY_MIN_LENGTH:
+        app.logger.warning(
+            "BOT_API_KEY is set but shorter than %d characters, so bot key auth is OFF "
+            "and every Discord bot request will get 401. Generate one with "
+            "python -c \"import secrets;print(secrets.token_urlsafe(32))\"",
+            BOT_API_KEY_MIN_LENGTH,
+        )
+
+
 def _bot_key_valid(presented: str) -> bool:
-    expected = current_app.config.get("BOT_API_KEY") or ""
+    expected = configured_bot_key()
     # An unset or short server key must never match — not even an empty one.
-    if len(expected) < BOT_API_KEY_MIN_LENGTH:
+    if not expected:
         return False
     return hmac.compare_digest(presented.encode(), expected.encode())
 
@@ -89,7 +109,8 @@ def _bot_route_allowed() -> bool:
 def _authenticate_bot(presented: str):
     """Mark the request as the bot identity, or return the error response."""
     if not _bot_key_valid(presented):
-        current_app.logger.warning("Rejected bot key on %s %s", request.method, request.path)
+        reason = "key mismatch" if configured_bot_key() else "server BOT_API_KEY unset or too short"
+        current_app.logger.warning("Rejected bot key on %s %s (%s)", request.method, request.path, reason)
         return jsonify({"error": "Invalid bot key"}), 401
     if not _bot_route_allowed():
         current_app.logger.warning("Bot key refused on %s %s (not allowlisted)", request.method, request.path)
@@ -158,9 +179,17 @@ def caller_role() -> str:
     return get_jwt().get("role", "")
 
 
+def _bot_user_id():
+    from app.raw_db import get_db
+    with get_db().cursor() as cur:
+        cur.execute("SELECT user_id FROM users WHERE email = %s", (BOT_USER_EMAIL,))
+        row = cur.fetchone()
+    return row["user_id"] if row else None
+
+
 def caller_id():
-    """Return the user_id integer from the current request's JWT identity,
-    or None for the Discord bot, which has no users row."""
+    """Return the user_id integer from the current request's JWT identity.
+    For the Discord bot: its BOT_USER_EMAIL service row, or None if missing."""
     if is_bot_request():
-        return None
+        return _bot_user_id()
     return int(get_jwt_identity())

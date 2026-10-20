@@ -47,7 +47,7 @@ def admin_award_points():
     if not reason:
         return jsonify({"error": "reason is required"}), 400
 
-    officer_user_id = caller_id()  # None when the Discord bot awards them
+    officer_user_id = caller_id()  # the bot service user when the Discord bot awards them
     svc = PointsService(get_db())
     points_id, error = svc.award_points(user_id, int(points_val), reason, event_id, officer_user_id)
     if error:
