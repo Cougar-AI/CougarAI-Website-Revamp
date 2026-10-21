@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.5.0",
-    "@stripe/stripe-js": "^9.8.0",
+    "@stripe/stripe-js": "^10.1.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.104.3",
     "@types/leaflet": "^1.9.22",
