@@ -75,7 +75,9 @@ def main():
                 continue
             review_id = row["review_id"]
             heartbeat(conn, review_id)
+            log.info("resume review started review_id=%s", review_id)
             try:
+                log.info("resume review analyzing review_id=%s", review_id)
                 report = process_resume(f"resume.{row['filename_ext']}", bytes(row["upload"]), row["job_description"])
                 finish(
                     conn, review_id, status="done", report=Json(report),
