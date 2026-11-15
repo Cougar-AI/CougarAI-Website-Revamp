@@ -4,8 +4,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = "1.0"
 
-ShortText = Annotated[str, Field(max_length=120)]
-Text = Annotated[str, Field(max_length=400)]
+# The review is intentionally concise.  These bounds are also passed to
+# Ollama's JSON schema; keeping them modest lets the small production model
+# finish a useful review instead of truncating mid-JSON.
+ShortText = Annotated[str, Field(max_length=80)]
+Text = Annotated[str, Field(max_length=180)]
 
 
 class Strict(BaseModel):
@@ -47,31 +50,31 @@ class ExperienceEntry(Strict):
 
 class AtsParsedView(Strict):
     """What an applicant tracking system would plausibly extract: only what is explicitly written."""
-    education: list[EducationEntry] = Field(max_length=5)
-    experience: list[ExperienceEntry] = Field(max_length=10)
-    projects: list[ShortText] = Field(max_length=8)
-    skills: list[ShortText] = Field(max_length=40)
-    certifications: list[ShortText] = Field(max_length=10)
+    education: list[EducationEntry] = Field(max_length=2)
+    experience: list[ExperienceEntry] = Field(max_length=3)
+    projects: list[ShortText] = Field(max_length=3)
+    skills: list[ShortText] = Field(max_length=10)
+    certifications: list[ShortText] = Field(max_length=3)
 
 
 class Suggestion(Strict):
     section: Section
     priority: Priority
     issue: Text
-    evidence: Annotated[str, Field(max_length=250)]  # exact quote from resume, "" if content is missing
+    evidence: Annotated[str, Field(max_length=160)]  # exact quote from resume, "" if content is missing
     recommendation: Text
-    rewrite_example: Annotated[str, Field(max_length=400)]  # uses [X%]-style placeholders, "" if n/a
+    rewrite_example: Annotated[str, Field(max_length=180)]  # uses [X%]-style placeholders, "" if n/a
     addresses_requirement: ShortText  # JD term this helps with, "" if none
 
 
 class LLMReview(Strict):
-    summary: Annotated[str, Field(max_length=600)]
+    summary: Annotated[str, Field(max_length=300)]
     overall_fit: Literal["strong", "moderate", "weak"]
     fit_rationale: Text
     ats_parsed: AtsParsedView
-    jd_requirements: list[JDRequirement] = Field(max_length=25)
-    strengths: list[Text] = Field(max_length=5)
-    suggestions: list[Suggestion] = Field(max_length=8)
+    jd_requirements: list[JDRequirement] = Field(max_length=4)
+    strengths: list[Text] = Field(max_length=2)
+    suggestions: list[Suggestion] = Field(max_length=2)
     suspected_prompt_injection: bool
 
 
