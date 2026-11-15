@@ -10,6 +10,21 @@ before the model sees anything.
 **Status:** the pipeline and security layer are done and tested. **It is not wired into the website yet**;
 the plan is in [Integrating with the website](#integrating-with-the-website).
 
+> **Implementation update (2026-11-11):** the queue, member upload route, officer-clearance flow, explicit
+> sponsor submissions, withdrawal, and partner-backed sponsor portal now live in the main app code. Deploy
+> `migrations/add_resume_portal.sql`, then run exactly one `python ats_worker.py` process per Ollama GPU.
+> Before enabling this in production, set the club's retention period for stored sponsor-download copies and
+> add the corresponding cleanup job; a withdrawal blocks future portal access, but cannot recall a file a
+> sponsor already downloaded.
+
+## Open launch checklist
+
+- [ ] Set and publish a resume retention period, then add a scheduled purge for expired `resume_blob` data.
+- [ ] Create/link each sponsor's partner organisation (`sponsors.portal_partner_id`) and assign only authorised sponsor users.
+- [ ] Run ClamAV and Ollama worker health monitoring; the upload endpoint intentionally fails closed when AV is unavailable.
+- [ ] Add integration coverage for paid-membership gate, consent, withdrawal, cross-sponsor isolation, and download auditing.
+- [ ] Test keyword matching against real, consented resumes. A regression test now covers common requirement phrasing (for example, “Working knowledge of SQL…” matching `SQL`).
+
 ---
 
 ## How it works

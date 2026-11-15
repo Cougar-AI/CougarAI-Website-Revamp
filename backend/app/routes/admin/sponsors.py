@@ -25,6 +25,19 @@ def admin_create_sponsor():
         return jsonify({"error": f"tier must be one of: {', '.join(sorted(VALID_TIERS))}"}), 400
 
     data["name"] = name
+    if data.get("portal_partner_id") not in (None, ""):
+        try:
+            partner_id = int(data["portal_partner_id"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "portal_partner_id must be a number"}), 400
+        conn = get_db()
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM partners WHERE partner_id = %s AND is_active = TRUE", (partner_id,))
+            if not cur.fetchone():
+                return jsonify({"error": "portal_partner_id must refer to an active partner organization"}), 400
+        data["portal_partner_id"] = partner_id
+    else:
+        data["portal_partner_id"] = None
     svc = SponsorService(get_db())
     sponsor_id, error = svc.create_sponsor(data)
     if error:
@@ -43,6 +56,23 @@ def admin_update_sponsor(sponsor_id):
         if field in data:
             updates.append(f"{field} = %s")
             params.append(data[field] or None)
+
+    if "portal_partner_id" in data:
+        partner_id = data["portal_partner_id"]
+        if partner_id in (None, ""):
+            updates.append("portal_partner_id = NULL")
+        else:
+            try:
+                partner_id = int(partner_id)
+            except (TypeError, ValueError):
+                return jsonify({"error": "portal_partner_id must be a number"}), 400
+            conn = get_db()
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1 FROM partners WHERE partner_id = %s AND is_active = TRUE", (partner_id,))
+                if not cur.fetchone():
+                    return jsonify({"error": "portal_partner_id must refer to an active partner organization"}), 400
+            updates.append("portal_partner_id = %s")
+            params.append(partner_id)
 
     if "tier" in data:
         if data["tier"] not in VALID_TIERS:

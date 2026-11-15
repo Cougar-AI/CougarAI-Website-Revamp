@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiGet, apiPost, apiDelete, apiPatch } from '@/lib/api';
+import { apiGet, apiPost, apiDelete, apiPatch, apiGetBlob } from '@/lib/api';
 import { getStoredUser } from '@/lib/auth';
-import { Building2, Users, Calendar, BarChart2, Link2, Plus, Trash2, ExternalLink, X, Pencil, Check, UserPlus } from 'lucide-react';
+import { Building2, Users, Calendar, BarChart2, Link2, Plus, Trash2, ExternalLink, X, Pencil, Check, UserPlus, FileText, Download } from 'lucide-react';
 import { formatDate } from '@/lib/dates';
 
 const PARTNER_TYPES = ['company', 'university_org', 'nonprofit', 'other'];
@@ -68,7 +68,26 @@ interface ResourceLink {
   created_at: string | null;
 }
 
-type Tab = 'profile' | 'members' | 'events' | 'stats' | 'resources';
+type Tab = 'profile' | 'members' | 'events' | 'stats' | 'resources' | 'submissions';
+
+interface ResumeSubmission {
+  submission_id: number;
+  review_id: number;
+  submitted_at: string;
+  first_viewed_at: string | null;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  candidate_major: string | null;
+  graduation_date: string | null;
+  top_skills: string[];
+  portfolio_url: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  seeking_roles: string | null;
+  availability: string | null;
+  contact_preference: string | null;
+}
 
 const cardStyle = {
   background: 'rgba(255,255,255,.04)',
@@ -326,6 +345,25 @@ export default function PartnerDashboard() {
     staleTime: 60_000,
   });
 
+  const { data: submissionsData, isLoading: submissionsLoading, error: submissionsError, refetch: refetchSubmissions } = useQuery<{ submissions: ResumeSubmission[] }>({
+    queryKey: ['partner-resume-submissions', partnerId],
+    queryFn: () => apiGet(`/resume-review/partner/${partnerId}/submissions`),
+    enabled: !!partnerId && activeTab === 'submissions',
+    staleTime: 30_000,
+  });
+
+  async function downloadResume(submission: ResumeSubmission) {
+    if (!partnerId) return;
+    const blob = await apiGetBlob(`/resume-review/partner/${partnerId}/submissions/${submission.submission_id}/resume`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const name = `${submission.first_name ?? ''} ${submission.last_name ?? ''}`.trim() || 'cougarai';
+    link.download = `${name.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-resume-review`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   const deleteLink = useMutation({
     mutationFn: (linkId: number) => apiDelete(`/partners/${partnerId}/resource-links/${linkId}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['partner-links', partnerId] }),
@@ -337,6 +375,7 @@ export default function PartnerDashboard() {
     { id: 'events', label: 'Events', icon: <Calendar size={14} /> },
     { id: 'stats', label: 'Stats', icon: <BarChart2 size={14} /> },
     { id: 'resources', label: 'Resources', icon: <Link2 size={14} /> },
+    { id: 'submissions', label: 'Resumes', icon: <FileText size={14} /> },
   ];
 
   if (isLoading) {
@@ -780,6 +819,31 @@ export default function PartnerDashboard() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'submissions' && (
+          <div className="rounded-2xl overflow-hidden" style={cardStyle}>
+            {submissionsLoading ? (
+              <p className="p-8 text-center text-white/40 text-sm">Loading…</p>
+            ) : submissionsError ? (
+              <div className="p-8 text-center"><p className="text-sm text-rose-300">{submissionsError instanceof Error ? submissionsError.message : 'Could not load resume submissions.'}</p><button onClick={() => refetchSubmissions()} className="mt-3 rounded-lg px-3 py-2 text-xs text-white" style={{ background: 'rgba(185,28,28,.45)' }}>Try again</button></div>
+            ) : !(submissionsData?.submissions.length) ? (
+              <p className="p-8 text-center text-white/40 text-sm">No resumes have been submitted to your organization.</p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead><tr style={{ borderBottom: '1px solid rgba(185,28,28,.15)' }}>
+                  {['Candidate', 'Submitted', ''].map((h) => <th key={h} className="text-left px-4 py-3 text-xs text-white/40 uppercase tracking-wide font-medium">{h}</th>)}
+                </tr></thead>
+                <tbody>{(submissionsData?.submissions ?? []).map((submission) => (
+                  <tr key={submission.submission_id} className="hover:bg-white/[0.02]" style={{ borderBottom: '1px solid rgba(255,255,255,.04)' }}>
+                    <td className="px-4 py-3"><p className="text-white">{submission.first_name || submission.last_name ? `${submission.first_name ?? ''} ${submission.last_name ?? ''}`.trim() : submission.email}</p><p className="text-xs text-white/40">{submission.email}</p>{(submission.candidate_major || submission.graduation_date) && <p className="mt-1 text-xs text-white/60">{[submission.candidate_major, submission.graduation_date].filter(Boolean).join(' · ')}</p>}{submission.top_skills?.length > 0 && <p className="mt-1 text-xs text-red-200/80">{submission.top_skills.join(' · ')}</p>}{submission.seeking_roles && <p className="mt-1 text-xs text-white/55">Seeking: {submission.seeking_roles}</p>}{submission.availability && <p className="text-xs text-white/55">Availability: {submission.availability}</p>}{submission.contact_preference && <p className="text-xs text-white/55">Contact: {submission.contact_preference}</p>}{(submission.portfolio_url || submission.github_url || submission.linkedin_url) && <p className="mt-1 flex flex-wrap gap-2 text-xs">{submission.portfolio_url && <a href={submission.portfolio_url} target="_blank" rel="noreferrer" className="text-red-300 hover:text-red-200">Portfolio</a>}{submission.github_url && <a href={submission.github_url} target="_blank" rel="noreferrer" className="text-red-300 hover:text-red-200">GitHub</a>}{submission.linkedin_url && <a href={submission.linkedin_url} target="_blank" rel="noreferrer" className="text-red-300 hover:text-red-200">LinkedIn</a>}</p>}</td>
+                    <td className="px-4 py-3 text-xs text-white/50">{formatDate(submission.submitted_at)}</td>
+                    <td className="px-4 py-3 text-right"><button onClick={() => downloadResume(submission)} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs text-white" style={{ background: 'rgba(185,28,28,.45)' }}><Download size={13} /> Download</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
           </div>
         )}
       </div>

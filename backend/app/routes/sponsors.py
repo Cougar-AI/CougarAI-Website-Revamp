@@ -18,7 +18,7 @@ def list_sponsors():
         cur.execute(
             """
             SELECT sponsor_id, name, logo_url, website, tier, description, is_active,
-                   start_date, end_date, display_order
+                   start_date, end_date, display_order, portal_partner_id
             FROM sponsors
             WHERE is_active = TRUE
             ORDER BY display_order ASC, name ASC
@@ -37,6 +37,7 @@ def list_sponsors():
             "start_date": r["start_date"].isoformat() if r["start_date"] else None,
             "end_date": r["end_date"].isoformat() if r["end_date"] else None,
             "display_order": r["display_order"],
+            "accepting_submissions": r["portal_partner_id"] is not None,
         }
         for r in rows
     ]

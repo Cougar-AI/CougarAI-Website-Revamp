@@ -18,11 +18,13 @@ interface Sponsor {
   start_date: string | null;
   end_date: string | null;
   display_order: number;
+  portal_partner_id: number | null;
 }
 
 interface SponsorsResponse { sponsors: Sponsor[] }
 
 const TIERS = ['platinum', 'gold', 'silver', 'bronze', 'community'];
+interface PartnerOption { partner_id: number; name: string; is_active: boolean }
 
 const TIER_STYLES: Record<string, { bg: string; text: string }> = {
   platinum: { bg: 'rgba(148,163,184,.2)', text: 'rgba(226,232,240,.9)' },
@@ -92,7 +94,9 @@ function SponsorModal({
     display_order: sponsor?.display_order?.toString() ?? '0',
     is_active: sponsor?.is_active ?? true,
     logo_url: sponsor?.logo_url ?? '',
+    portal_partner_id: sponsor?.portal_partner_id?.toString() ?? '',
   });
+  const { data: partnerData } = useQuery<{ partners: PartnerOption[] }>({ queryKey: ['sponsor-portal-partners'], queryFn: () => apiGet('/partners/'), staleTime: 60_000 });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -145,6 +149,7 @@ function SponsorModal({
         display_order: Number(form.display_order) || 0,
         is_active: form.is_active,
         logo_url: form.logo_url || null,
+        portal_partner_id: form.portal_partner_id ? Number(form.portal_partner_id) : null,
       };
       if (sponsor) {
         await apiPatch(`/admin/sponsors/${sponsor.sponsor_id}`, payload);
@@ -299,6 +304,15 @@ function SponsorModal({
                 style={inputStyle}
               />
             </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-white/50">Sponsor portal organization</label>
+            <select value={form.portal_partner_id} onChange={(e) => setForm({ ...form, portal_partner_id: e.target.value })} className="rounded-lg px-3 py-2 text-sm" style={inputStyle}>
+              <option value="" style={{ background: '#1a0000' }}>Not accepting resume submissions</option>
+              {(partnerData?.partners ?? []).filter((p) => p.is_active).map((p) => <option key={p.partner_id} value={p.partner_id} style={{ background: '#1a0000' }}>{p.name}</option>)}
+            </select>
+            <p className="text-xs text-white/35">Members can submit resumes only when this sponsor is linked to its Partner Portal organization.</p>
           </div>
 
           {/* Dates + order */}

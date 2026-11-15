@@ -213,6 +213,11 @@ def split_jd_term(term: str, category: str = "") -> list[list[str]]:
     if len(t.split()) > _MAX_REQUIREMENT_WORDS:
         return []
     t = _LEADING_GERUNDS.sub("", _JD_FILLER.sub("", t)) or t
+    # Small models often expand a skill into a tautology. Treat the canonical
+    # skill as the searchable requirement rather than penalising a resume for
+    # not spelling out the explanatory phrase too.
+    t = re.sub(r"\bsql\s+and\s+relational\s+databases?\b", "SQL", t, flags=re.I)
+    t = re.sub(r"\bgit\s+and\s+version\s+control\s+workflows?\b", "Git", t, flags=re.I)
     if len(t.split()) < _MAX_KEYWORD_WORDS:
         groups = [[t]]
     elif re.search(r"\bor\b", t):

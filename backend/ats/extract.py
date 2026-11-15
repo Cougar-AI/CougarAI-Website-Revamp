@@ -150,7 +150,12 @@ def extract_sandboxed(path: str | Path, kind: str, timeout: int = 25) -> dict:
             [sys.executable, "-m", "ats.extract", str(path), kind],
             capture_output=True, timeout=timeout, cwd=root,
             env={"PATH": os.environ.get("PATH", ""), "PYTHONPATH": str(root)},  # no inherited secrets
-            preexec_fn=_limits if os.name == "posix" else None,
+            # RLIMIT_AS is supported by the Linux production worker. macOS
+            # exposes `resource` too, but rejects this limit in a child hook,
+            # causing every local review to fail before parsing. The timeout
+            # and clean environment still apply locally; deploy on Linux for
+            # the full memory/CPU sandbox.
+            preexec_fn=_limits if sys.platform.startswith("linux") else None,
         )
     except subprocess.TimeoutExpired:
         raise ExtractionFailed("parser timed out")

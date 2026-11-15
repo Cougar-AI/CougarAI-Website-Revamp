@@ -20,9 +20,10 @@ import AdminBulkEmailTab from '@/components/admin/AdminBulkEmailTab';
 import AdminSlideshowTab from '@/components/admin/AdminSlideshowTab';
 import AdminWorkshopsTab from '@/components/admin/AdminWorkshopsTab';
 import AdminProjectsTab from '@/components/admin/AdminProjectsTab';
+import AdminResumeReviewsTab from '@/components/admin/AdminResumeReviewsTab';
 
 const ADMIN_TABS: AdminTab[] = ['overview', 'users', 'officers', 'sponsors', 'partners', 'event-types', 'receipts', 'notifications', 'bulk-email', 'slideshow'];
-const OFFICER_TABS: AdminTab[] = ['events', 'workshops', 'projects', 'event-stats', 'points', 'members', 'progress', 'checkin'];
+const OFFICER_TABS: AdminTab[] = ['events', 'workshops', 'projects', 'event-stats', 'points', 'members', 'progress', 'checkin', 'resume-reviews'];
 const ALL_VALID_TABS: AdminTab[] = [...ADMIN_TABS, ...OFFICER_TABS];
 
 export default function AdminDashboard() {
@@ -76,6 +77,7 @@ export default function AdminDashboard() {
       {activeTab === 'members'     && <AdminMemberDirectoryTab />}
       {activeTab === 'progress'    && <AdminProgressTab />}
       {activeTab === 'checkin'     && <AdminCheckInTab />}
+      {activeTab === 'resume-reviews' && <AdminResumeReviewsTab />}
     </AdminShell>
   );
 }

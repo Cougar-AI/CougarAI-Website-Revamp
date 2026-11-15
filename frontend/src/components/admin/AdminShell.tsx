@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Users, Calendar, Shield, ChevronDown, ChevronRight,
   Building2, Handshake, Tag, BarChart2, Star, UserSearch, ClipboardList, UserCheck,
-  Receipt, Bell, Mail, Image, Wrench, FolderKanban,
+  Receipt, Bell, Mail, Image, Wrench, FolderKanban, FileWarning,
 } from 'lucide-react';
 
 export type AdminTab =
@@ -10,7 +10,7 @@ export type AdminTab =
   | 'overview' | 'users' | 'officers' | 'sponsors' | 'partners' | 'event-types'
   | 'receipts' | 'notifications' | 'bulk-email' | 'slideshow'
   // Officer Tools
-  | 'events' | 'workshops' | 'projects' | 'event-stats' | 'points' | 'members' | 'progress' | 'checkin';
+  | 'events' | 'workshops' | 'projects' | 'event-stats' | 'points' | 'members' | 'progress' | 'checkin' | 'resume-reviews';
 
 interface TabDef {
   id: AdminTab;
@@ -40,6 +40,7 @@ const OFFICER_TABS: TabDef[] = [
   { id: 'members',     label: 'Members',      icon: UserSearch },
   { id: 'progress',    label: 'Progress Reports', icon: ClipboardList },
   { id: 'checkin',     label: 'Check-In',     icon: UserCheck },
+  { id: 'resume-reviews', label: 'Resume Reviews', icon: FileWarning },
 ];
 
 interface AdminShellProps {

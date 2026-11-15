@@ -14,6 +14,8 @@ import pytest
 from ats import pipeline
 from ats.extract import ExtractionFailed, extract_sandboxed
 from ats.schemas import LLMReview
+from ats.schemas import JDRequirement
+from ats.ats_checks import keyword_report
 from ats.security import (
     UploadRejected, clamav_scan, clean_model_string, evidence_in_source, has_unverified_numbers,
     normalized, redact_pii, sanitize_text, scan_for_injection, suspicious_unicode, validate_upload,
@@ -36,6 +38,17 @@ RESUME_LINES = [
     "SKILLS",
     "Python, SQL, Pandas, Airflow, PostgreSQL, Git, Tableau",
 ]
+
+
+def test_keyword_matching_handles_requirement_phrasing_not_just_exact_bullets():
+    """Regression: 'Working knowledge of SQL...' must match a Skills entry."""
+    report = keyword_report([
+        JDRequirement(term="Proficiency in Python", category="qualification", importance="required"),
+        JDRequirement(term="Working knowledge of SQL and relational databases", category="qualification", importance="required"),
+        JDRequirement(term="Familiarity with Git and version control workflows", category="qualification", importance="required"),
+    ], "SKILLS\nPython, SQL, PostgreSQL, Git")
+    assert report.coverage_required == 1.0
+    assert not report.missing
 
 
 # ---------------------------------------------------------------------------

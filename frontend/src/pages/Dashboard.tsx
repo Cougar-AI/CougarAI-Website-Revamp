@@ -10,6 +10,7 @@ import MembershipTab from "@/components/dashboard/MembershipTab";
 import CheckInTab from "@/components/dashboard/CheckInTab";
 import PointsTab from "@/components/dashboard/PointsTab";
 import LeaderboardTab from "@/components/dashboard/LeaderboardTab";
+import ResumeTab from "@/components/dashboard/ResumeTab";
 
 export type MeResponse = {
   user_id: number;
@@ -137,6 +138,7 @@ export default function Dashboard() {
           {tab === "checkin" && <CheckInTab {...tabProps} userId={meData?.user_id} />}
           {tab === "points" && <PointsTab {...tabProps} />}
           {tab === "leaderboard" && <LeaderboardTab {...tabProps} />}
+          {tab === "resumes" && <ResumeTab meData={meData} />}
         </>
       )}
     </DashboardShell>

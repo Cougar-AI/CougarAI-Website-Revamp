@@ -50,12 +50,20 @@ def connect():
         dsn = _from_config()
 
     _validate(dsn)
+    # A disconnected dev/test database used to stall Flask startup indefinitely
+    # while the notification scheduler opened its first connection.  Fail fast
+    # with a useful error instead; production can raise this via DB_CONNECT_TIMEOUT.
+    try:
+        connect_timeout = max(1, int(os.getenv("DB_CONNECT_TIMEOUT", "5")))
+    except ValueError:
+        connect_timeout = 5
     return psycopg2.connect(
         dbname=dsn["dbname"],
         user=dsn["user"],
         password=dsn["password"],
         host=dsn["host"],
         port=dsn["port"],
+        connect_timeout=connect_timeout,
         cursor_factory=psycopg2.extras.RealDictCursor,
     )
 
