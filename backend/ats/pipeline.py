@@ -49,12 +49,14 @@ MAX_JD_CHARS = 6_000        # ~1.5k tokens; leaves room for prompt (~1k) and out
 # Keep the untrusted text comfortably inside smaller self-hosted context windows;
 # deterministic checks still run against the complete sanitized resume.
 MAX_MODEL_INPUT_CHARS = int(os.getenv("OLLAMA_INPUT_CHAR_LIMIT", "6000"))
+OLLAMA_USE_JSON_SCHEMA = os.getenv("OLLAMA_USE_JSON_SCHEMA", "0") == "1"
 MIN_TEXT_CHARS = 200
 
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
 def call_ollama(messages: list[dict], retries: int = 2) -> LLMReview:
+    response_format = LLMReview.model_json_schema() if OLLAMA_USE_JSON_SCHEMA else "json"
     last_err = "unknown error"
     for _ in range(retries + 1):
         try:
@@ -64,12 +66,10 @@ def call_ollama(messages: list[dict], retries: int = 2) -> LLMReview:
             r = requests.post(
                 OLLAMA_URL,
                 json={
-                    # A full JSON Schema can be thousands of additional tokens.
-                    # On smaller self-hosted Ollama installations that alone can
-                    # exceed the usable context or memory budget. JSON mode plus
-                    # the Pydantic validation/retry below preserves the contract
-                    # without sending that large schema to the model.
-                    "model": MODEL, "messages": messages, "stream": False, "format": "json",
+                    # JSON mode is the compatibility default. Small local models
+                    # can opt into the complete schema after their prompt budget
+                    # has been tightened through OLLAMA_INPUT_CHAR_LIMIT.
+                    "model": MODEL, "messages": messages, "stream": False, "format": response_format,
                     "keep_alive": "10m",
                     "options": options,
                 },
@@ -160,12 +160,17 @@ def process_resume(filename: str, data: bytes, job_description: str = "") -> dic
     redacted, pii_counts = redact_pii(text)
     truncated = len(redacted) > MAX_RESUME_CHARS
     redacted = redacted[:MAX_RESUME_CHARS]
-    model_text_limit = min(MAX_RESUME_CHARS, MAX_MODEL_INPUT_CHARS)
+    # Keep the combined untrusted resume + JD payload within one predictable
+    # budget. The prompt and (optionally) response schema need the remainder of
+    # the model context window.
+    model_jd_limit = min(MAX_JD_CHARS, MAX_MODEL_INPUT_CHARS // 3)
+    model_jd = jd[:model_jd_limit]
+    model_text_limit = min(MAX_RESUME_CHARS, max(1, MAX_MODEL_INPUT_CHARS - len(model_jd)))
     model_text = redacted[:model_text_limit]
-    truncated = truncated or len(redacted) > model_text_limit
+    truncated = truncated or len(redacted) > model_text_limit or len(jd) > model_jd_limit
 
     # LLM call with schema-enforced output
-    messages, _nonce = build_messages(model_text, jd)
+    messages, _nonce = build_messages(model_text, model_jd)
     review = call_ollama(messages)
     if review.suspected_prompt_injection and not any("injection" in f for f in flags):
         flags.append("model_suspected_injection")
