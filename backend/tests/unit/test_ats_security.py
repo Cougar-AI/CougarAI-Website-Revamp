@@ -58,11 +58,14 @@ def test_ollama_limits_allow_production_overrides(monkeypatch):
     import ats.pipeline as ats_pipeline
     monkeypatch.setenv("OLLAMA_NUM_CTX", "2048")
     monkeypatch.setenv("OLLAMA_NUM_PREDICT", "750")
+    monkeypatch.setenv("OLLAMA_NUM_GPU", "0")
     reloaded = importlib.reload(ats_pipeline)
     assert reloaded.NUM_CTX == 2048
     assert reloaded.NUM_PREDICT == 750
+    assert reloaded.OLLAMA_NUM_GPU == 0
     monkeypatch.delenv("OLLAMA_NUM_CTX", raising=False)
     monkeypatch.delenv("OLLAMA_NUM_PREDICT", raising=False)
+    monkeypatch.delenv("OLLAMA_NUM_GPU", raising=False)
     importlib.reload(reloaded)
 
 

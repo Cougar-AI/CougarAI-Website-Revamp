@@ -40,6 +40,9 @@ MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "1800"))  # seconds per attempt; CPU-only hosts need minutes
 NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
 NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "1200"))
+# Set to 0 on a small production GPU to keep this individual request on CPU.
+# Leave unset to preserve Ollama's normal automatic GPU selection.
+OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "-1"))
 MAX_RESUME_CHARS = 12_000   # ~3k tokens
 MAX_JD_CHARS = 6_000        # ~1.5k tokens; leaves room for prompt (~1k) and output (~2.5k) inside NUM_CTX
 MIN_TEXT_CHARS = 200
@@ -52,12 +55,15 @@ def call_ollama(messages: list[dict], retries: int = 2) -> LLMReview:
     last_err = "unknown error"
     for _ in range(retries + 1):
         try:
+            options = {"temperature": 0, "seed": 42, "num_ctx": NUM_CTX, "num_predict": NUM_PREDICT}
+            if OLLAMA_NUM_GPU >= 0:
+                options["num_gpu"] = OLLAMA_NUM_GPU
             r = requests.post(
                 OLLAMA_URL,
                 json={
                     "model": MODEL, "messages": messages, "stream": False, "format": schema,
                     "keep_alive": "10m",
-                    "options": {"temperature": 0, "seed": 42, "num_ctx": NUM_CTX, "num_predict": NUM_PREDICT},
+                    "options": options,
                 },
                 timeout=OLLAMA_TIMEOUT,
             )
