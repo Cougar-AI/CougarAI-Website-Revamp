@@ -18,13 +18,12 @@ interface Sponsor {
   start_date: string | null;
   end_date: string | null;
   display_order: number;
-  portal_partner_id: number | null;
+  resume_portal_enabled: boolean;
 }
 
 interface SponsorsResponse { sponsors: Sponsor[] }
 
 const TIERS = ['platinum', 'gold', 'silver', 'bronze', 'community'];
-interface PartnerOption { partner_id: number; name: string; is_active: boolean }
 
 const TIER_STYLES: Record<string, { bg: string; text: string }> = {
   platinum: { bg: 'rgba(148,163,184,.2)', text: 'rgba(226,232,240,.9)' },
@@ -94,10 +93,10 @@ function SponsorModal({
     display_order: sponsor?.display_order?.toString() ?? '0',
     is_active: sponsor?.is_active ?? true,
     logo_url: sponsor?.logo_url ?? '',
-    portal_partner_id: sponsor?.portal_partner_id?.toString() ?? '',
+    resume_portal_enabled: sponsor?.resume_portal_enabled ?? false,
   });
-  const { data: partnerData } = useQuery<{ partners: PartnerOption[] }>({ queryKey: ['sponsor-portal-partners'], queryFn: () => apiGet('/partners/'), staleTime: 60_000 });
   const [saving, setSaving] = useState(false);
+  const [recruiterEmail, setRecruiterEmail] = useState('');
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [logoPreview, setLogoPreview] = useState<string | null>(
@@ -149,13 +148,12 @@ function SponsorModal({
         display_order: Number(form.display_order) || 0,
         is_active: form.is_active,
         logo_url: form.logo_url || null,
-        portal_partner_id: form.portal_partner_id ? Number(form.portal_partner_id) : null,
+        resume_portal_enabled: form.resume_portal_enabled,
       };
-      if (sponsor) {
-        await apiPatch(`/admin/sponsors/${sponsor.sponsor_id}`, payload);
-      } else {
-        await apiPost('/admin/sponsors', payload);
-      }
+      const saved = sponsor
+        ? (await apiPatch(`/admin/sponsors/${sponsor.sponsor_id}`, payload), sponsor.sponsor_id)
+        : (await apiPost<{ sponsor_id: number }>('/admin/sponsors', payload)).sponsor_id;
+      if (recruiterEmail.trim()) await apiPost(`/admin/sponsors/${saved}/portal-members`, { email: recruiterEmail.trim() });
       onSaved();
       onClose();
     } catch (err: any) {
@@ -306,14 +304,8 @@ function SponsorModal({
             </div>
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-white/50">Sponsor portal organization</label>
-            <select value={form.portal_partner_id} onChange={(e) => setForm({ ...form, portal_partner_id: e.target.value })} className="rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-              <option value="" style={{ background: '#1a0000' }}>Not accepting resume submissions</option>
-              {(partnerData?.partners ?? []).filter((p) => p.is_active).map((p) => <option key={p.partner_id} value={p.partner_id} style={{ background: '#1a0000' }}>{p.name}</option>)}
-            </select>
-            <p className="text-xs text-white/35">Members can submit resumes only when this sponsor is linked to its Partner Portal organization.</p>
-          </div>
+          <label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.resume_portal_enabled} onChange={(e) => setForm({ ...form, resume_portal_enabled: e.target.checked })} className="accent-red-600" /><span className="text-sm text-white/80">Accept resume submissions</span><span className="text-xs text-white/35">Recruiter access is managed separately from Partners.</span></label>
+          {form.resume_portal_enabled && <div className="flex flex-col gap-1"><label className="text-xs text-white/50">Add recruiter by CougarAI account email</label><input type="email" value={recruiterEmail} onChange={(e) => setRecruiterEmail(e.target.value)} placeholder="recruiter@company.com" className="rounded-lg px-3 py-2 text-sm" style={inputStyle} /><p className="text-xs text-white/35">They must already have a CougarAI account. You can add another recruiter whenever you edit this sponsor.</p></div>}
 
           {/* Dates + order */}
           <div className="grid grid-cols-3 gap-3">

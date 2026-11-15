@@ -295,7 +295,9 @@ def submit_to_sponsor(review_id: int):
             return jsonify({"error": "Only completed reviews with an available resume can be submitted."}), 409
         if review["needs_review"] and not review["reviewed_by"]:
             return jsonify({"error": "An officer must review this resume before it can be shared."}), 409
-        cur.execute("SELECT sponsor_id FROM sponsors WHERE sponsor_id = %s AND is_active = TRUE AND portal_partner_id IS NOT NULL", (sponsor_id,))
+        cur.execute("""SELECT s.sponsor_id FROM sponsors s
+                       WHERE s.sponsor_id = %s AND s.is_active = TRUE AND s.resume_portal_enabled = TRUE
+                         AND EXISTS (SELECT 1 FROM sponsor_portal_members spm WHERE spm.sponsor_id = s.sponsor_id)""", (sponsor_id,))
         if not cur.fetchone():
             return jsonify({"error": "That sponsor is not accepting portal submissions."}), 404
         cur.execute(
@@ -347,6 +349,69 @@ def withdraw_submission(submission_id: int):
     if not row:
         return jsonify({"error": "Active submission not found."}), 404
     return jsonify({"ok": True})
+
+
+def _can_access_sponsor_portal(cur, sponsor_id: int, user_id: int) -> bool:
+    if caller_role() == "admin":
+        return True
+    cur.execute("SELECT 1 FROM sponsor_portal_members WHERE sponsor_id = %s AND user_id = %s", (sponsor_id, user_id))
+    return cur.fetchone() is not None
+
+
+@resume_review_bp.route("/portal/sponsors", methods=["GET", "OPTIONS"])
+@require_authenticated
+def my_sponsor_portals():
+    conn = get_db()
+    with conn.cursor() as cur:
+        if caller_role() == "admin":
+            cur.execute("SELECT sponsor_id, name FROM sponsors WHERE resume_portal_enabled = TRUE AND is_active = TRUE ORDER BY name")
+        else:
+            cur.execute("""SELECT s.sponsor_id, s.name FROM sponsors s
+                           JOIN sponsor_portal_members spm ON spm.sponsor_id = s.sponsor_id
+                           WHERE spm.user_id = %s AND s.resume_portal_enabled = TRUE AND s.is_active = TRUE ORDER BY s.name""", (caller_id(),))
+        rows = cur.fetchall()
+    return jsonify({"sponsors": [dict(row) for row in rows]})
+
+
+@resume_review_bp.route("/portal/<int:sponsor_id>/submissions", methods=["GET", "OPTIONS"])
+@require_authenticated
+def sponsor_portal_submissions(sponsor_id: int):
+    conn = get_db()
+    with conn.cursor() as cur:
+        if not _can_access_sponsor_portal(cur, sponsor_id, caller_id()):
+            return jsonify({"error": "Access denied."}), 403
+        cur.execute("""SELECT rs.submission_id, rs.review_id, rs.submitted_at, rs.first_viewed_at,
+                              u.email, pr.first_name, pr.last_name, rs.candidate_major, rs.graduation_date,
+                              rs.top_skills, rs.portfolio_url, rs.github_url, rs.linkedin_url, rs.seeking_roles,
+                              rs.availability, rs.contact_preference
+                       FROM resume_submissions rs JOIN users u ON u.user_id = rs.user_id
+                       LEFT JOIN profile pr ON pr.user_id = rs.user_id
+                       WHERE rs.sponsor_id = %s AND rs.withdrawn_at IS NULL ORDER BY rs.submitted_at DESC""", (sponsor_id,))
+        rows = cur.fetchall()
+    return jsonify({"submissions": [dict(row) for row in rows]})
+
+
+@resume_review_bp.route("/portal/<int:sponsor_id>/submissions/<int:submission_id>/resume", methods=["GET", "OPTIONS"])
+@require_authenticated
+def download_sponsor_portal_resume(sponsor_id: int, submission_id: int):
+    conn = get_db()
+    with conn.cursor() as cur:
+        if not _can_access_sponsor_portal(cur, sponsor_id, caller_id()):
+            return jsonify({"error": "Access denied."}), 403
+        cur.execute("""SELECT rr.filename_ext, rr.resume_blob, pr.first_name, pr.last_name
+                       FROM resume_submissions rs JOIN resume_reviews rr ON rr.review_id = rs.review_id
+                       LEFT JOIN profile pr ON pr.user_id = rs.user_id
+                       WHERE rs.submission_id = %s AND rs.sponsor_id = %s AND rs.withdrawn_at IS NULL""", (submission_id, sponsor_id))
+        row = cur.fetchone()
+        if row and row["resume_blob"]:
+            cur.execute("UPDATE resume_submissions SET first_viewed_at = COALESCE(first_viewed_at, NOW()), last_viewed_at = NOW(), last_viewed_by = %s WHERE submission_id = %s", (caller_id(), submission_id))
+            conn.commit()
+    if not row or not row["resume_blob"]:
+        return jsonify({"error": "Submission not found."}), 404
+    ext = row["filename_ext"]
+    mime = "application/pdf" if ext == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return send_file(io.BytesIO(bytes(row["resume_blob"])), mimetype=mime, as_attachment=True,
+                     download_name=_resume_download_name(row["first_name"], row["last_name"], ext))
 
 
 def _partner_submission(cur, partner_id: int, submission_id: Optional[int] = None):

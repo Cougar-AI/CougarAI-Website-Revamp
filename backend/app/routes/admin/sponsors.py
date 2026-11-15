@@ -25,19 +25,7 @@ def admin_create_sponsor():
         return jsonify({"error": f"tier must be one of: {', '.join(sorted(VALID_TIERS))}"}), 400
 
     data["name"] = name
-    if data.get("portal_partner_id") not in (None, ""):
-        try:
-            partner_id = int(data["portal_partner_id"])
-        except (TypeError, ValueError):
-            return jsonify({"error": "portal_partner_id must be a number"}), 400
-        conn = get_db()
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM partners WHERE partner_id = %s AND is_active = TRUE", (partner_id,))
-            if not cur.fetchone():
-                return jsonify({"error": "portal_partner_id must refer to an active partner organization"}), 400
-        data["portal_partner_id"] = partner_id
-    else:
-        data["portal_partner_id"] = None
+    data["resume_portal_enabled"] = bool(data.get("resume_portal_enabled", False))
     svc = SponsorService(get_db())
     sponsor_id, error = svc.create_sponsor(data)
     if error:
@@ -57,22 +45,9 @@ def admin_update_sponsor(sponsor_id):
             updates.append(f"{field} = %s")
             params.append(data[field] or None)
 
-    if "portal_partner_id" in data:
-        partner_id = data["portal_partner_id"]
-        if partner_id in (None, ""):
-            updates.append("portal_partner_id = NULL")
-        else:
-            try:
-                partner_id = int(partner_id)
-            except (TypeError, ValueError):
-                return jsonify({"error": "portal_partner_id must be a number"}), 400
-            conn = get_db()
-            with conn.cursor() as cur:
-                cur.execute("SELECT 1 FROM partners WHERE partner_id = %s AND is_active = TRUE", (partner_id,))
-                if not cur.fetchone():
-                    return jsonify({"error": "portal_partner_id must refer to an active partner organization"}), 400
-            updates.append("portal_partner_id = %s")
-            params.append(partner_id)
+    if "resume_portal_enabled" in data:
+        updates.append("resume_portal_enabled = %s")
+        params.append(bool(data["resume_portal_enabled"]))
 
     if "tier" in data:
         if data["tier"] not in VALID_TIERS:
@@ -103,6 +78,42 @@ def admin_update_sponsor(sponsor_id):
         status = 409 if error and "already exists" in error else 404
         return jsonify({"error": error}), status
     return jsonify({"message": "Sponsor updated"}), 200
+
+
+@admin_bp.route("/sponsors/<int:sponsor_id>/portal-members", methods=["GET", "POST", "OPTIONS"])
+@require_admin
+def sponsor_portal_members(sponsor_id):
+    conn = get_db()
+    with conn.cursor() as cur:
+        if request.method == "GET":
+            cur.execute("""SELECT spm.user_id, spm.portal_role, spm.added_at, u.email, pr.first_name, pr.last_name
+                           FROM sponsor_portal_members spm JOIN users u ON u.user_id = spm.user_id
+                           LEFT JOIN profile pr ON pr.user_id = u.user_id WHERE spm.sponsor_id = %s ORDER BY u.email""", (sponsor_id,))
+            return jsonify({"members": [dict(row) for row in cur.fetchall()]})
+        data = request.get_json(silent=True) or {}
+        email = str(data.get("email") or "").strip().lower()
+        if not email:
+            return jsonify({"error": "Recruiter email is required."}), 400
+        cur.execute("SELECT user_id FROM users WHERE LOWER(email) = %s", (email,))
+        user = cur.fetchone()
+        if not user:
+            return jsonify({"error": "That person needs a CougarAI account before portal access can be granted."}), 404
+        cur.execute("INSERT INTO sponsor_portal_members (sponsor_id, user_id, portal_role) VALUES (%s, %s, %s) ON CONFLICT (sponsor_id, user_id) DO NOTHING", (sponsor_id, user["user_id"], "recruiter"))
+        conn.commit()
+    return jsonify({"ok": True}), 201
+
+
+@admin_bp.route("/sponsors/<int:sponsor_id>/portal-members/<int:user_id>", methods=["DELETE", "OPTIONS"])
+@require_admin
+def remove_sponsor_portal_member(sponsor_id, user_id):
+    conn = get_db()
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM sponsor_portal_members WHERE sponsor_id = %s AND user_id = %s RETURNING user_id", (sponsor_id, user_id))
+        row = cur.fetchone()
+        conn.commit()
+    if not row:
+        return jsonify({"error": "Recruiter access not found."}), 404
+    return jsonify({"ok": True})
 
 
 @admin_bp.route("/sponsors/<int:sponsor_id>", methods=["DELETE", "OPTIONS"])

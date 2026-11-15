@@ -18,7 +18,7 @@ def _sponsor_row(r) -> dict:
         "start_date": r["start_date"].isoformat() if r["start_date"] else None,
         "end_date": r["end_date"].isoformat() if r["end_date"] else None,
         "display_order": r["display_order"],
-        "portal_partner_id": r.get("portal_partner_id"),
+        "resume_portal_enabled": r.get("resume_portal_enabled", False),
         "created_at": r["created_at"].isoformat() if r["created_at"] else None,
     }
 
@@ -44,7 +44,7 @@ class SponsorService(BaseService):
                 """
                 INSERT INTO sponsors
                   (name, logo_url, website, tier, description, contact_name, contact_email,
-                   is_active, start_date, end_date, display_order, portal_partner_id)
+                   is_active, start_date, end_date, display_order, resume_portal_enabled)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING sponsor_id
                 """,
@@ -60,7 +60,7 @@ class SponsorService(BaseService):
                     data.get("start_date") or None,
                     data.get("end_date") or None,
                     int(data.get("display_order", 0)),
-                    data.get("portal_partner_id") or None,
+                    bool(data.get("resume_portal_enabled", False)),
                 ),
             )
             sponsor_id = cur.fetchone()["sponsor_id"]
