@@ -81,7 +81,7 @@ export default function ResumeTab({ meData }: { meData?: MeResponse }) {
 
   if (!isPaid) return <section className="rounded-2xl p-6" style={card}><h2 className="text-lg font-semibold text-white">Resume portal</h2><p className="mt-2 text-sm text-white/60">An active paid membership is required to review and share a resume with sponsors.</p></section>;
   return <section className="space-y-5">
-    <div className="rounded-2xl p-6" style={card}><div className="flex items-center gap-2"><ShieldCheck size={18} className="text-red-300" /><h2 className="text-lg font-semibold text-white">Private resume review</h2></div><p className="mt-1 text-sm text-white/55">Your resume is only shared after you choose a sponsor. Flagged files require officer review first.</p>
+    <div className={`relative rounded-2xl p-6 ${readyDropdownOpen || sponsorDropdownOpen ? 'z-30' : 'z-0'}`} style={card}><div className="flex items-center gap-2"><ShieldCheck size={18} className="text-red-300" /><h2 className="text-lg font-semibold text-white">Private resume review</h2></div><p className="mt-1 text-sm text-white/55">Your resume is only shared after you choose a sponsor. Flagged files require officer review first.</p>
       {readyReviews.length > 0 && !showUploadForm && <div className="mt-4 rounded-xl p-4" style={{ background: 'rgba(16,185,129,.08)', border: '1px solid rgba(52,211,153,.18)' }}>
         <p className="text-sm font-medium text-white">A reviewed resume is ready to share</p>
         <p className="mt-1 text-xs text-white/55">Choose an existing review, or upload a different file only when you want a new review.</p>
