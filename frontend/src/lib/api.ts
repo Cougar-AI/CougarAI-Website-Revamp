@@ -62,7 +62,9 @@ async function performRequest(
     bodyInit = JSON.stringify(body);
   }
 
-  return fetch(`${BACKEND}${path}`, { method, headers, body: bodyInit });
+  // These endpoints contain account-specific data (including private resume
+  // reviews). Never allow the browser to reuse a stale authenticated response.
+  return fetch(`${BACKEND}${path}`, { method, headers, body: bodyInit, cache: "no-store" });
 }
 
 async function send(
