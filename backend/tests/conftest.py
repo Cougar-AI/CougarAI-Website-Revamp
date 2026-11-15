@@ -125,6 +125,7 @@ def app(_postgres_url):
         os.path.join(root, "migrations", "add_resume_submission_profile.sql"),
         os.path.join(root, "migrations", "add_resume_review_display_filename.sql"),
         os.path.join(root, "migrations", "add_resume_review_decisions_and_github.sql"),
+        os.path.join(root, "migrations", "add_resume_worker_heartbeat.sql"),
         os.path.join(root, "migrations", "add_projects_table.sql"),
         os.path.join(root, "migrations", "add_bulk_email_logs.sql"),
         os.path.join(root, "migrations", "add_bulk_email_attachments.sql"),

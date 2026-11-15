@@ -42,6 +42,19 @@ def finish(conn, review_id: int, **fields):
     conn.commit()
 
 
+def heartbeat(conn, review_id=None):
+    with conn.cursor() as cur:
+        cur.execute(
+            """INSERT INTO resume_worker_heartbeats (worker_name, last_seen, last_review_id)
+               VALUES ('ats', NOW(), %s)
+               ON CONFLICT (worker_name) DO UPDATE
+                 SET last_seen = EXCLUDED.last_seen,
+                     last_review_id = COALESCE(EXCLUDED.last_review_id, resume_worker_heartbeats.last_review_id)""",
+            (review_id,),
+        )
+    conn.commit()
+
+
 def main():
     # Loads the same config as Flask before opening the raw psycopg2 connection.
     app = create_app("config.ProductionConfig")
@@ -55,11 +68,13 @@ def main():
             cur.execute("UPDATE resume_reviews SET status = 'queued' WHERE status = 'processing'")
         conn.commit()
         while True:
+            heartbeat(conn)
             row = claim(conn)
             if not row:
                 time.sleep(2)
                 continue
             review_id = row["review_id"]
+            heartbeat(conn, review_id)
             try:
                 report = process_resume(f"resume.{row['filename_ext']}", bytes(row["upload"]), row["job_description"])
                 finish(

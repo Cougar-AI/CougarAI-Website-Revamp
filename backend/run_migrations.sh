@@ -51,6 +51,7 @@ MIGRATIONS=(
   add_resume_submission_profile.sql
   add_resume_review_display_filename.sql
   add_resume_review_decisions_and_github.sql
+  add_resume_worker_heartbeat.sql
   add_points_admin_fields.sql
   add_points_unique_constraint.sql
   add_progress_reports_table.sql

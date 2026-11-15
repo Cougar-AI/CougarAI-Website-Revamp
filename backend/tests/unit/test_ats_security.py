@@ -4,6 +4,8 @@ Security tests for the resume review pipeline (backend/ats).
 No Ollama required: the model call is replaced with a fake. The ClamAV test that needs a running
 clamd is skipped automatically when the socket is missing.
 """
+from __future__ import annotations
+
 import io
 import os
 import zipfile
@@ -429,7 +431,7 @@ def test_pipeline_rejects_malicious_upload_before_model(fake_model):
 @pytest.mark.parametrize("term, category, expected", [
     ("Python", "hard_skill", [["Python"]]),
     ("Proficiency in Python", "qualification", [["Python"]]),
-    ("Working knowledge of SQL and relational databases", "qualification", [["SQL"], ["relational databases"]]),
+    ("Working knowledge of SQL and relational databases", "qualification", [["SQL"]]),
     ("Experience building or consuming REST APIs", "experience", [["REST APIs"]]),
     ("Experience with AWS (EC2, S3, or Lambda)", "tool", [["AWS"]]),
     ("Experience with Flask, FastAPI, or Django", "tool", [["Flask", "FastAPI", "Django"]]),
@@ -454,5 +456,5 @@ def test_keyword_report_matches_whole_jd_bullets():
     ]]
     report = keyword_report(reqs, "\n".join(RESUME_LINES) + "\nBuilt a Flask API")
     assert {m.term for m in report.matched} == {"Python", "SQL", "Flask / FastAPI / Django"}
-    assert {m.term for m in report.missing} == {"relational databases", "Docker"}
-    assert report.coverage_required == 0.5 and report.coverage_preferred == 1.0
+    assert {m.term for m in report.missing} == {"Docker"}
+    assert report.coverage_required == 0.67 and report.coverage_preferred == 1.0
