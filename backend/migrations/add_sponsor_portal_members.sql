@@ -25,3 +25,7 @@ ON CONFLICT (sponsor_id, user_id) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS sponsor_portal_members_user_idx
   ON sponsor_portal_members (user_id, sponsor_id);
+
+-- The production API uses this least-privilege application role rather than
+-- the PostgreSQL owner that runs migrations.
+GRANT SELECT, INSERT, UPDATE, DELETE ON sponsor_portal_members TO cai_prod_api;
