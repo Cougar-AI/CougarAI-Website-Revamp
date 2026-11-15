@@ -45,6 +45,10 @@ NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "1200"))
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "-1"))
 MAX_RESUME_CHARS = 12_000   # ~3k tokens
 MAX_JD_CHARS = 6_000        # ~1.5k tokens; leaves room for prompt (~1k) and output (~2.5k) inside NUM_CTX
+# The model prompt also contains the system policy and requested JSON output.
+# Keep the untrusted text comfortably inside smaller self-hosted context windows;
+# deterministic checks still run against the complete sanitized resume.
+MAX_MODEL_INPUT_CHARS = int(os.getenv("OLLAMA_INPUT_CHAR_LIMIT", "6000"))
 MIN_TEXT_CHARS = 200
 
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
@@ -156,9 +160,12 @@ def process_resume(filename: str, data: bytes, job_description: str = "") -> dic
     redacted, pii_counts = redact_pii(text)
     truncated = len(redacted) > MAX_RESUME_CHARS
     redacted = redacted[:MAX_RESUME_CHARS]
+    model_text_limit = min(MAX_RESUME_CHARS, MAX_MODEL_INPUT_CHARS)
+    model_text = redacted[:model_text_limit]
+    truncated = truncated or len(redacted) > model_text_limit
 
     # LLM call with schema-enforced output
-    messages, _nonce = build_messages(redacted, jd)
+    messages, _nonce = build_messages(model_text, jd)
     review = call_ollama(messages)
     if review.suspected_prompt_injection and not any("injection" in f for f in flags):
         flags.append("model_suspected_injection")
