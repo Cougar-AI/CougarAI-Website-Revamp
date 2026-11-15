@@ -37,9 +37,13 @@ from .security import (
 # Ollama must listen on 127.0.0.1 only (OLLAMA_HOST), with no outbound network from that host/container.
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/chat")
 MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
-OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "1800"))  # seconds per attempt; CPU-only hosts need minutes
+OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "360"))
+# A retry can turn a temporary connection hiccup into a successful review, but
+# it must never turn one upload into an hour-long blocked queue.  Production
+# can opt in to a retry once it has measured a stable model response time.
+OLLAMA_RETRIES = int(os.getenv("OLLAMA_RETRIES", "0"))
 NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "4096"))
-NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "1200"))
+NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "700"))
 # Set to 0 on a small production GPU to keep this individual request on CPU.
 # Leave unset to preserve Ollama's normal automatic GPU selection.
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "-1"))
@@ -55,7 +59,7 @@ MIN_TEXT_CHARS = 200
 _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
-def call_ollama(messages: list[dict], retries: int = 2) -> LLMReview:
+def call_ollama(messages: list[dict], retries: int = OLLAMA_RETRIES) -> LLMReview:
     response_format = LLMReview.model_json_schema() if OLLAMA_USE_JSON_SCHEMA else "json"
     last_err = "unknown error"
     for _ in range(retries + 1):

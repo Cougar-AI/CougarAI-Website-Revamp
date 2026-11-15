@@ -59,17 +59,23 @@ def test_ollama_limits_allow_production_overrides(monkeypatch):
     monkeypatch.setenv("OLLAMA_NUM_CTX", "2048")
     monkeypatch.setenv("OLLAMA_NUM_PREDICT", "750")
     monkeypatch.setenv("OLLAMA_NUM_GPU", "0")
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "240")
+    monkeypatch.setenv("OLLAMA_RETRIES", "1")
     monkeypatch.setenv("OLLAMA_INPUT_CHAR_LIMIT", "6000")
     monkeypatch.setenv("OLLAMA_USE_JSON_SCHEMA", "1")
     reloaded = importlib.reload(ats_pipeline)
     assert reloaded.NUM_CTX == 2048
     assert reloaded.NUM_PREDICT == 750
     assert reloaded.OLLAMA_NUM_GPU == 0
+    assert reloaded.OLLAMA_TIMEOUT == 240
+    assert reloaded.OLLAMA_RETRIES == 1
     assert reloaded.MAX_MODEL_INPUT_CHARS == 6000
     assert reloaded.OLLAMA_USE_JSON_SCHEMA is True
     monkeypatch.delenv("OLLAMA_NUM_CTX", raising=False)
     monkeypatch.delenv("OLLAMA_NUM_PREDICT", raising=False)
     monkeypatch.delenv("OLLAMA_NUM_GPU", raising=False)
+    monkeypatch.delenv("OLLAMA_TIMEOUT", raising=False)
+    monkeypatch.delenv("OLLAMA_RETRIES", raising=False)
     monkeypatch.delenv("OLLAMA_INPUT_CHAR_LIMIT", raising=False)
     monkeypatch.delenv("OLLAMA_USE_JSON_SCHEMA", raising=False)
     importlib.reload(reloaded)
