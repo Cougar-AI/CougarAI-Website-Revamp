@@ -53,6 +53,19 @@ def test_keyword_matching_handles_requirement_phrasing_not_just_exact_bullets():
     assert not report.missing
 
 
+def test_ollama_limits_allow_production_overrides(monkeypatch):
+    import importlib
+    import ats.pipeline as ats_pipeline
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "2048")
+    monkeypatch.setenv("OLLAMA_NUM_PREDICT", "750")
+    reloaded = importlib.reload(ats_pipeline)
+    assert reloaded.NUM_CTX == 2048
+    assert reloaded.NUM_PREDICT == 750
+    monkeypatch.delenv("OLLAMA_NUM_CTX", raising=False)
+    monkeypatch.delenv("OLLAMA_NUM_PREDICT", raising=False)
+    importlib.reload(reloaded)
+
+
 # ---------------------------------------------------------------------------
 # Builders
 # ---------------------------------------------------------------------------
