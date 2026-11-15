@@ -18,7 +18,7 @@ type Submission = {
 };
 
 const panel = {
-  background: 'rgba(32, 5, 5, .86)',
+  background: 'rgba(24, 24, 27, .86)',
   border: '1px solid rgba(185,28,28,.32)',
   backdropFilter: 'blur(12px)',
 };
