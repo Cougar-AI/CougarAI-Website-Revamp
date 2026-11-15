@@ -51,7 +51,6 @@ _PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
 def call_ollama(messages: list[dict], retries: int = 2) -> LLMReview:
-    schema = LLMReview.model_json_schema()
     last_err = "unknown error"
     for _ in range(retries + 1):
         try:
@@ -61,7 +60,12 @@ def call_ollama(messages: list[dict], retries: int = 2) -> LLMReview:
             r = requests.post(
                 OLLAMA_URL,
                 json={
-                    "model": MODEL, "messages": messages, "stream": False, "format": schema,
+                    # A full JSON Schema can be thousands of additional tokens.
+                    # On smaller self-hosted Ollama installations that alone can
+                    # exceed the usable context or memory budget. JSON mode plus
+                    # the Pydantic validation/retry below preserves the contract
+                    # without sending that large schema to the model.
+                    "model": MODEL, "messages": messages, "stream": False, "format": "json",
                     "keep_alive": "10m",
                     "options": options,
                 },
