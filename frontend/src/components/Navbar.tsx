@@ -96,6 +96,9 @@ const Navbar: React.FC = () => {
         refetchInterval: 60_000,
         staleTime: 30_000,
     });
+    const { data: sponsorPortalData } = useQuery<{ sponsors: Array<{ sponsor_id: number }> }>({
+        queryKey: ['my-sponsor-portals'], queryFn: () => apiGet('/resume-review/portal/sponsors'), enabled: isAuthenticated, staleTime: 60_000,
+    });
 
     const notifications = notifData?.notifications ?? [];
     const unreadCount = notifications.filter(n => !n.is_read).length;
@@ -132,6 +135,7 @@ const Navbar: React.FC = () => {
     const avatarUrl = navMe?.profile?.avatar_url ? `${BACKEND}${navMe.profile.avatar_url}` : null;
     const isAdmin = user?.role && ADMIN_ROLES.has(user.role);
     const isPartner = user?.role && PARTNER_ROLES.has(user.role);
+    const hasSponsorPortal = Boolean(sponsorPortalData?.sponsors.length);
     const initials = user?.email?.[0]?.toUpperCase() ?? '?';
 
     return (
@@ -293,6 +297,7 @@ const Navbar: React.FC = () => {
                                                     Partner
                                                 </button>
                                             )}
+                                            {hasSponsorPortal && <button type="button" onClick={() => { setDropdownOpen(false); navigate('/sponsor'); }} className="w-full text-left block px-4 py-2 text-sm text-white/90 hover:bg-white/10 transition-colors cursor-pointer">Sponsor Portal</button>}
                                         </div>
                                         <div className="border-t border-white/10 py-1">
                                             <button
@@ -333,6 +338,7 @@ const Navbar: React.FC = () => {
                                     <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/dashboard'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Dashboard</button>
                                     {isAdmin && <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/admin'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Admin</button>}
                                     {isPartner && <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/partner'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Partner</button>}
+                                    {hasSponsorPortal && <button type="button" onClick={() => { setMobileMenuOpen(false); navigate('/sponsor'); }} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-white/80 hover:bg-white/10">Sponsor Portal</button>}
                                     <button type="button" onClick={handleLogout} className="rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-300 hover:bg-white/10">Logout</button>
                                 </>
                             ) : (
