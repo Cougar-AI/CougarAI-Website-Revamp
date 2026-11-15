@@ -28,6 +28,7 @@ import Onboarding from './pages/Onboarding.tsx';
 import AdminDashboard from './pages/AdminDashboard.tsx';
 import CheckIn from './pages/CheckIn.tsx';
 import PartnerDashboard from './pages/PartnerDashboard.tsx';
+import SponsorPortal from './pages/SponsorPortal.tsx';
 
 // Must be a class: only componentDidCatch/getDerivedStateFromError catch errors
 // thrown while children render. (The old function version wrapped `return
@@ -111,6 +112,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path={'/sponsor'} element={<ProtectedRoute><SponsorPortal /></ProtectedRoute>} />
 
             {/* Real 404 */}
             <Route path="*" element={<NotFound />} />
